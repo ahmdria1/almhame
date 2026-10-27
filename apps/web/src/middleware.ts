@@ -4,12 +4,14 @@ import { routeLocale } from "@/seo/routing";
 
 function withCookie(response: NextResponse, locale: Locale) {
   if (locale === "ar") return response;
+  const domain = (process.env.COOKIE_DOMAIN || "").trim();
   response.cookies.set("elw_locale", locale, {
     path: "/",
     sameSite: "lax",
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     maxAge: 60 * 60 * 24 * 365,
+    ...(domain ? { domain } : {}),
   });
   return response;
 }

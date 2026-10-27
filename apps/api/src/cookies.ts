@@ -5,36 +5,47 @@ export function cookieSecure(nodeEnv: string): boolean {
   return nodeEnv === "production";
 }
 
-function flags(secure: boolean) {
-  return { httpOnly: true as const, secure, sameSite: "strict" as const };
+export function cookieSettings(config: { nodeEnv: string; cookieDomain?: string }): { secure: boolean; domain: string } {
+  return { secure: cookieSecure(config.nodeEnv), domain: (config.cookieDomain || "").trim() };
 }
 
-export function setAccessCookie(res: Response, token: string, secure: boolean) {
-  res.cookie("elw_access", token, { ...flags(secure), path: "/api", maxAge: 12 * 3600 * 1000 });
+function flags(secure: boolean, domain: string) {
+  return {
+    httpOnly: true as const,
+    secure,
+    sameSite: "strict" as const,
+    ...(domain ? { domain } : {}),
+  };
 }
 
-export function setRefreshCookie(res: Response, token: string, secure: boolean) {
-  res.cookie("elw_refresh", token, { ...flags(secure), path: "/api/auth", maxAge: 30 * 24 * 3600 * 1000 });
+export function setAccessCookie(res: Response, token: string, secure: boolean, domain = "") {
+  res.cookie("elw_access", token, { ...flags(secure, domain), path: "/api", maxAge: 12 * 3600 * 1000 });
 }
 
-export function setAdminCookie(res: Response, token: string, secure: boolean) {
-  res.cookie("elw_admin", token, { ...flags(secure), path: "/api/admin", maxAge: 8 * 3600 * 1000 });
+export function setRefreshCookie(res: Response, token: string, secure: boolean, domain = "") {
+  res.cookie("elw_refresh", token, { ...flags(secure, domain), path: "/api/auth", maxAge: 30 * 24 * 3600 * 1000 });
 }
 
-export function clearSessionCookies(res: Response) {
-  res.clearCookie("elw_access", { path: "/api" });
-  res.clearCookie("elw_refresh", { path: "/api/auth" });
+export function setAdminCookie(res: Response, token: string, secure: boolean, domain = "") {
+  res.cookie("elw_admin", token, { ...flags(secure, domain), path: "/api/admin", maxAge: 8 * 3600 * 1000 });
 }
 
-export function clearAdminCookie(res: Response) {
-  res.clearCookie("elw_admin", { path: "/api/admin" });
+export function clearSessionCookies(res: Response, domain = "") {
+  const base = flags(false, domain);
+  res.clearCookie("elw_access", { path: "/api", ...(base.domain ? { domain: base.domain } : {}) });
+  res.clearCookie("elw_refresh", { path: "/api/auth", ...(base.domain ? { domain: base.domain } : {}) });
 }
 
-export function issueCsrf(req: Request, res: Response, secure: boolean): string {
+export function clearAdminCookie(res: Response, domain = "") {
+  const base = flags(false, domain);
+  res.clearCookie("elw_admin", { path: "/api/admin", ...(base.domain ? { domain: base.domain } : {}) });
+}
+
+export function issueCsrf(req: Request, res: Response, secure: boolean, domain = ""): string {
   const current = req.cookies?.elw_csrf;
   if (typeof current === "string" && /^[a-f0-9]{64}$/.test(current)) return current;
   const token = randomBytes(32).toString("hex");
-  res.cookie("elw_csrf", token, { ...flags(secure), path: "/api", maxAge: 30 * 24 * 3600 * 1000 });
+  res.cookie("elw_csrf", token, { ...flags(secure, domain), path: "/api", maxAge: 30 * 24 * 3600 * 1000 });
   return token;
 }
 

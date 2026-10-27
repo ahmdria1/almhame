@@ -23,7 +23,7 @@ import { COURTS, MEMO_TYPES, PLAN_CODES } from "@elawyer/types";
 import { AdminService } from "./admin.service";
 import { AuthService } from "./auth.service";
 import { BillingService } from "./billing.service";
-import { clearAdminCookie, clearSessionCookies, cookieSecure, issueCsrf, setAccessCookie, setAdminCookie, setRefreshCookie } from "./cookies";
+import { clearAdminCookie, clearSessionCookies, cookieSettings, issueCsrf, setAccessCookie, setAdminCookie, setRefreshCookie } from "./cookies";
 import { CorpusService } from "./corpus.service";
 import { fail } from "./http-error";
 import { Kernel } from "./kernel";
@@ -170,17 +170,18 @@ export class AuthController {
 
   @Get("csrf")
   csrf(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    return { csrfToken: issueCsrf(req, res, cookieSecure(this.kernel.config.nodeEnv)) };
+    const { secure, domain } = cookieSettings(this.kernel.config);
+    return { csrfToken: issueCsrf(req, res, secure, domain) };
   }
 
   @Post("login")
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   async login(@Body() body: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const result = await this.auth.login(body.email, body.password);
-    const secure = cookieSecure(this.kernel.config.nodeEnv);
-    setAccessCookie(res, result.accessToken, secure);
-    setRefreshCookie(res, result.refreshToken, secure);
-    return { accessToken: result.accessToken, user: result.user, csrfToken: issueCsrf(req, res, secure) };
+    const { secure, domain } = cookieSettings(this.kernel.config);
+    setAccessCookie(res, result.accessToken, secure, domain);
+    setRefreshCookie(res, result.refreshToken, secure, domain);
+    return { accessToken: result.accessToken, user: result.user, csrfToken: issueCsrf(req, res, secure, domain) };
   }
 
   @Post("resend")
@@ -205,25 +206,25 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   async verify(@Body() body: VerifyDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const result = await this.auth.verify(body.challengeId, body.code);
-    const secure = cookieSecure(this.kernel.config.nodeEnv);
-    setAccessCookie(res, result.accessToken, secure);
-    setRefreshCookie(res, result.refreshToken, secure);
-    return { accessToken: result.accessToken, user: result.user, csrfToken: issueCsrf(req, res, secure) };
+    const { secure, domain } = cookieSettings(this.kernel.config);
+    setAccessCookie(res, result.accessToken, secure, domain);
+    setRefreshCookie(res, result.refreshToken, secure, domain);
+    return { accessToken: result.accessToken, user: result.user, csrfToken: issueCsrf(req, res, secure, domain) };
   }
 
   @Post("refresh")
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const result = await this.auth.refresh(req.cookies?.elw_refresh || "");
-    const secure = cookieSecure(this.kernel.config.nodeEnv);
-    setAccessCookie(res, result.accessToken, secure);
-    setRefreshCookie(res, result.refreshToken, secure);
-    return { accessToken: result.accessToken, user: result.user, csrfToken: issueCsrf(req, res, secure) };
+    const { secure, domain } = cookieSettings(this.kernel.config);
+    setAccessCookie(res, result.accessToken, secure, domain);
+    setRefreshCookie(res, result.refreshToken, secure, domain);
+    return { accessToken: result.accessToken, user: result.user, csrfToken: issueCsrf(req, res, secure, domain) };
   }
 
   @Post("logout")
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     await this.auth.logout(req.cookies?.elw_refresh || "");
-    clearSessionCookies(res);
+    clearSessionCookies(res, cookieSettings(this.kernel.config).domain);
     return { ok: true };
   }
 }
@@ -506,14 +507,14 @@ export class AdminController {
   async login(@Body() body: { email?: string; password?: string }, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     if (!body.email || !body.password) fail("VALIDATION", 400, "Email and password are required");
     const result = await this.auth.adminLogin(body.email, body.password);
-    const secure = cookieSecure(this.kernel.config.nodeEnv);
-    setAdminCookie(res, result.accessToken, secure);
-    return { ...result, csrfToken: issueCsrf(req, res, secure) };
+    const { secure, domain } = cookieSettings(this.kernel.config);
+    setAdminCookie(res, result.accessToken, secure, domain);
+    return { ...result, csrfToken: issueCsrf(req, res, secure, domain) };
   }
 
   @Post("logout")
   async logout(@Res({ passthrough: true }) res: Response) {
-    clearAdminCookie(res);
+    clearAdminCookie(res, cookieSettings(this.kernel.config).domain);
     return { ok: true };
   }
 

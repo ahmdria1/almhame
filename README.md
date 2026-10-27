@@ -83,14 +83,46 @@ pnpm test:e2e
 
 `USE_TESTCONTAINERS=1` starts `pgvector/pgvector:pg16` for the API integration tests. Leave it at `0` to use `TEST_DATABASE_URL`.
 
-## VPS (Hostinger)
+## VPS (Hostinger KVM 2)
 
-1. Install Docker and Docker Compose.
-2. Copy the repository and create `.env` from `.env.example`. Set `KMS_MASTER_KEY`, `JWT_SECRET`, `OTP_PEPPER`, `NODE_ENV=production`, real `LLM_PROVIDER`, `EMBEDDING_PROVIDER`, `PAYMENT_GATEWAY`, `SMS_PROVIDER`, and SMTP. Set `NEXT_PUBLIC_API_URL` to the public origin plus `/api` (the web bundle reads it at image build time). Set `SITE_URL` to the public web origin with no trailing slash. The web image bakes that origin into canonical URLs.
-3. `docker compose build && docker compose up -d`
-4. The site is on port 80. The admin console is on port 8081. Put TLS in front of Nginx.
-5. Migrations run against Postgres directly, then the API uses PgBouncer (`pgbouncer=true`, transaction pooling).
-6. From the admin corpus screen, run an update, or import with `node apps/api/dist/cli.js import-corpus` after `node corpus/fetch-official.mjs`. Rows marked official still require `confirmOfficial=true` on the manual import route.
+The machine is 2 vCPU and 8 GB RAM. Compose caps Postgres at 2 GB (`shared_buffers=512MB`, 40 connections), the API at 1280 MB (Node heap 768 MB), the web app at 1 GB (heap 640 MB), the admin console at 512 MB (heap 384 MB), Redis at 384 MB (256 MB `maxmemory`, AOF, `noeviction`), PgBouncer at 128 MB (100 clients, pool of 10), and Nginx at 128 MB. About 1.6 GB stays with the operating system.
+
+Public origins:
+
+- Site and API: `https://emuhami.com` and `https://emuhami.com/api`
+- Admin: `https://admin.emuhami.com`
+- `www.emuhami.com` redirects to the apex
+- Transactional mail defaults to `no-reply@emuhami.com` (`SMTP_FROM`)
+
+1. Install Docker, Docker Compose, and Certbot.
+2. Point `emuhami.com`, `www.emuhami.com`, and `admin.emuhami.com` at the VPS.
+3. Issue the certificate while port 80 is free. Use an address you read for the expiry mail:
+
+```bash
+sudo mkdir -p /var/lib/emuhami/certbot
+sudo certbot certonly --standalone \
+  -d emuhami.com -d www.emuhami.com -d admin.emuhami.com
+```
+
+4. Copy the repository and create `.env` from `.env.example`. Set `NODE_ENV=production` and replace the local origins:
+
+```bash
+SITE_URL=https://emuhami.com
+API_PUBLIC_URL=https://emuhami.com
+PUBLIC_API_URL=https://emuhami.com/api
+WEB_ORIGIN=https://emuhami.com
+ADMIN_ORIGIN=https://admin.emuhami.com
+CORS_ORIGINS=https://emuhami.com,https://admin.emuhami.com
+NEXT_PUBLIC_API_URL=https://emuhami.com/api
+COOKIE_DOMAIN=.emuhami.com
+SMTP_FROM=no-reply@emuhami.com
+```
+
+Also set `KMS_MASTER_KEY`, `JWT_SECRET`, `OTP_PEPPER`, real `LLM_PROVIDER`, `EMBEDDING_PROVIDER`, `PAYMENT_GATEWAY`, `SMS_PROVIDER`, and the SMTP host. `SITE_URL` is baked into canonical URLs, the sitemap, robots metadata, and Open Graph. Leave it at `http://127.0.0.1:4720` for local development and CI. Session cookies use `COOKIE_DOMAIN` in production and stay host-only when it is empty.
+
+5. `docker compose build && docker compose up -d`. Nginx listens on 80 and 443, serves the HTTP-01 challenge from `/var/lib/emuhami/certbot`, and reads `/etc/letsencrypt/live/emuhami.com/`. Renew with `sudo certbot renew` and `docker compose exec nginx nginx -s reload`.
+6. Migrations run against Postgres directly, then the API uses PgBouncer (`pgbouncer=true`, transaction pooling).
+7. From the admin corpus screen, run an update, or import with `node apps/api/dist/cli.js import-corpus` after `node corpus/fetch-official.mjs`. Rows marked official still require `confirmOfficial=true` on the manual import route.
 
 ## Credentials the operator must supply
 
@@ -104,7 +136,7 @@ pnpm test:e2e
 | `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN` | Error reporting. Request bodies are stripped. |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URL` | Google Drive. Set `INTEGRATIONS_MODE=live` for a real upload. |
 | `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_REDIRECT_URL` | OneDrive and calendar OAuth. |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Account confirmation, password reset, and admin activation. Required in production. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Account confirmation, password reset, and admin activation. Required in production. `SMTP_FROM` defaults to `no-reply@emuhami.com`. |
 | `SELLER_VAT_NUMBER`, `SELLER_NAME`, `SELLER_ADDRESS` | Invoice seller block. The QR is a phase-1 ZATCA TLV payload. A cryptographic stamp is not included. |
 
 ## Plans

@@ -50,6 +50,9 @@ describe("public SEO", () => {
   test("SITE_URL is the configured origin", () => {
     expect(siteUrl()).toBe("http://127.0.0.1:4720");
     expect(readFileSync(join(__dirname, "../src/seo/site.ts"), "utf8")).not.toMatch(/example\.(com|invalid|test)/);
+    for (const name of ["site.ts", "metadata.ts", "jsonld.ts", "sitemap-data.ts"]) {
+      expect(readFileSync(join(__dirname, "../src/seo", name), "utf8")).not.toContain("emuhami.com");
+    }
   });
 
   test("every public page in every locale has metadata, hreflang, and JSON-LD", () => {

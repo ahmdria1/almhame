@@ -51,6 +51,7 @@ export interface AppConfig {
   smtpUser: string;
   smtpPass: string;
   smtpFrom: string;
+  cookieDomain: string;
   consentVersion: string;
   fontPath: string;
   chromiumPath: string;
@@ -58,6 +59,15 @@ export interface AppConfig {
   outboxDir: string;
   nodeEnv: string;
   corsOrigins: string[];
+}
+
+export const DEFAULT_SMTP_FROM = "no-reply@emuhami.com";
+export const PRODUCTION_WEB_ORIGIN = "https://emuhami.com";
+export const PRODUCTION_ADMIN_ORIGIN = "https://admin.emuhami.com";
+
+function cookieDomainOf(env: NodeJS.ProcessEnv): string {
+  if (env.COOKIE_DOMAIN !== undefined) return env.COOKIE_DOMAIN.trim();
+  return env.NODE_ENV === "production" ? ".emuhami.com" : "";
 }
 
 function required(name: string, value: string | undefined): string {
@@ -119,14 +129,25 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     smtpPort: Number(env.SMTP_PORT || 587),
     smtpUser: env.SMTP_USER || "",
     smtpPass: env.SMTP_PASS || "",
-    smtpFrom: env.SMTP_FROM || "",
+    smtpFrom: env.SMTP_FROM || DEFAULT_SMTP_FROM,
+    cookieDomain: cookieDomainOf(env),
     consentVersion: env.PDPL_CONSENT_VERSION || "2026-01",
     fontPath: env.FONT_PATH || "",
     chromiumPath: env.CHROMIUM_PATH || "",
     emailDebug: env.EMAIL_DEBUG === "true",
     outboxDir: env.OUTBOX_DIR || "",
     nodeEnv: env.NODE_ENV || "development",
-    corsOrigins: [...new Set([webOrigin, adminOrigin, "http://127.0.0.1:4740", "http://localhost:4740", ...extra])],
+    corsOrigins: [
+      ...new Set([
+        webOrigin,
+        adminOrigin,
+        PRODUCTION_WEB_ORIGIN,
+        PRODUCTION_ADMIN_ORIGIN,
+        "http://127.0.0.1:4740",
+        "http://localhost:4740",
+        ...extra,
+      ]),
+    ],
   };
 }
 
