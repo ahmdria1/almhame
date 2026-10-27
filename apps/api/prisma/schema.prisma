@@ -1,0 +1,445 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum CourtType {
+  general
+  criminal
+  personal_status
+  labor
+  commercial
+  enforcement
+  administrative
+  appeal
+  supreme
+}
+
+enum MemoType {
+  lawsuit
+  defense
+  reply
+  appeal
+}
+
+enum PlanCode {
+  free
+  basic
+  pro
+  office
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  failed
+  cancelled
+}
+
+enum TxType {
+  topup
+  subscription
+  memo_purchase
+  adjustment
+}
+
+enum ShariaKind {
+  quran
+  hadith
+  fiqh
+}
+
+enum IntegrationProvider {
+  google_drive
+  onedrive
+  email
+  calendar
+}
+
+enum HearingKind {
+  hearing
+  objection_deadline
+}
+
+model User {
+  id              String    @id @default(cuid())
+  name            String
+  phone           String    @unique
+  email           String    @unique
+  phoneVerifiedAt DateTime?
+  emailVerifiedAt DateTime?
+  consentAt       DateTime
+  consentVersion  String
+  locale          String    @default("ar")
+  theme           String    @default("light")
+  planCode        PlanCode  @default(free)
+  planRenewsAt    DateTime?
+  chatCount       Int       @default(0)
+  memoCountPeriod Int       @default(0)
+  periodStartedAt DateTime  @default(now())
+  wrappedDataKey  String
+  orgId           String?
+  orgRole         String?
+  notifyHearings  Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organization Organization?        @relation("OrgMembers", fields: [orgId], references: [id])
+  ownedOrg     Organization?        @relation("OrgOwner")
+  sessions     Session[]
+  otps         OtpChallenge[]
+  cases        CaseFile[]
+  chats        Chat[]
+  memos        Memo[]
+  documents    Document[]
+  wallet       Wallet?
+  transactions WalletTransaction[]
+  invoices     Invoice[]
+  payments     PaymentIntent[]
+  saved        SavedItem[]
+  integrations IntegrationAccount[]
+  hearings     Hearing[]
+  notifications Notification[]
+  exportJobs   ExportJob[]
+}
+
+model Organization {
+  id             String   @id @default(cuid())
+  name           String
+  ownerId        String   @unique
+  seatLimit      Int      @default(5)
+  letterheadName String   @default("")
+  createdAt      DateTime @default(now())
+  owner          User     @relation("OrgOwner", fields: [ownerId], references: [id])
+  members        User[]   @relation("OrgMembers")
+}
+
+model OtpChallenge {
+  id         String    @id @default(cuid())
+  userId     String
+  target     String
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([target, consumedAt])
+}
+
+model Session {
+  id          String    @id @default(cuid())
+  userId      String
+  refreshHash String    @unique
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AdminAccount {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime @default(now())
+}
+
+model CaseFile {
+  id        String    @id @default(cuid())
+  userId    String
+  titleEnc  String
+  court     CourtType
+  status    String    @default("open")
+  notesEnc  String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents Document[]
+  chats     Chat[]
+  memos     Memo[]
+  hearings  Hearing[]
+
+  @@index([userId])
+}
+
+model Document {
+  id         String   @id @default(cuid())
+  userId     String
+  caseId     String
+  filename   String
+  mime       String
+  byteSize   Int
+  storageKey String
+  ocrEnc     String?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  caseFile   CaseFile @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId])
+}
+
+model Chat {
+  id        String   @id @default(cuid())
+  userId    String
+  caseId    String?
+  titleEnc  String
+  court     CourtType
+  memoType  MemoType @default(lawsuit)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  caseFile  CaseFile? @relation(fields: [caseId], references: [id])
+  messages  Message[]
+  memos     Memo[]
+
+  @@index([userId, updatedAt])
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  chatId     String
+  userId     String
+  role       String
+  contentEnc String
+  createdAt  DateTime @default(now())
+  chat       Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@index([chatId, createdAt])
+}
+
+model Memo {
+  id         String    @id @default(cuid())
+  userId     String
+  caseId     String?
+  chatId     String?
+  titleEnc   String
+  court      CourtType
+  memoType   MemoType
+  bodyEnc    String
+  status     String    @default("draft")
+  flagged    Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  caseFile   CaseFile? @relation(fields: [caseId], references: [id])
+  chat       Chat?     @relation(fields: [chatId], references: [id])
+  citations  MemoCitation[]
+  saved      SavedItem[]
+
+  @@index([userId, updatedAt])
+}
+
+model MemoCitation {
+  id        String         @id @default(cuid())
+  memoId    String
+  articleId String?
+  shariaId  String?
+  memo      Memo           @relation(fields: [memoId], references: [id], onDelete: Cascade)
+  article   Article?       @relation(fields: [articleId], references: [id])
+  sharia    ShariaSource?  @relation(fields: [shariaId], references: [id])
+}
+
+model SavedItem {
+  id        String   @id @default(cuid())
+  userId    String
+  kind      String
+  memoId    String?
+  articleId String?
+  shariaId  String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memo      Memo?    @relation(fields: [memoId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Law {
+  id            String     @id @default(cuid())
+  key           String     @unique
+  nameAr        String
+  nameEn        String
+  sourceUrl     String
+  version       String
+  effectiveDate DateTime
+  isSample      Boolean    @default(true)
+  courts        CourtType[]
+  createdAt     DateTime   @default(now())
+  articles      Article[]
+}
+
+model Article {
+  id        String   @id @default(cuid())
+  lawId     String
+  number    String
+  textAr    String
+  textEn    String
+  sourceUrl String
+  isSample  Boolean  @default(true)
+  law       Law      @relation(fields: [lawId], references: [id], onDelete: Cascade)
+  citations MemoCitation[]
+
+  @@unique([lawId, number])
+  @@index([number])
+}
+
+model ShariaSource {
+  id        String      @id @default(cuid())
+  key       String      @unique
+  kind      ShariaKind
+  reference String
+  textAr    String
+  textEn    String
+  sourceUrl String
+  isSample  Boolean     @default(true)
+  courts    CourtType[]
+  citations MemoCitation[]
+}
+
+model CorpusEmbedding {
+  id         String   @id @default(cuid())
+  targetType String
+  targetId   String   @unique
+  embedding  Float[]
+}
+
+model Wallet {
+  userId         String @id
+  balanceHalalas Int    @default(0)
+  user           User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model WalletTransaction {
+  id             String        @id @default(cuid())
+  userId         String
+  type           TxType
+  amountHalalas  Int
+  status         PaymentStatus @default(paid)
+  idempotencyKey String        @unique
+  description    String
+  createdAt      DateTime      @default(now())
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model Invoice {
+  id              String   @id @default(cuid())
+  userId          String
+  number          String   @unique
+  uuid            String   @unique
+  subtotalHalalas Int
+  vatRateBps      Int      @default(1500)
+  vatHalalas      Int
+  totalHalalas    Int
+  sellerName      String
+  sellerVat       String
+  sellerAddress   String
+  buyerName       String
+  currency        String   @default("SAR")
+  qrTlvBase64     String
+  lineDescription String
+  issuedAt        DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model InvoiceSequence {
+  id    Int @id @default(1)
+  value Int @default(0)
+}
+
+model PaymentIntent {
+  id             String        @id @default(cuid())
+  userId         String
+  purpose        String
+  planCode       PlanCode?
+  cycle          String?
+  amountHalalas  Int
+  status         PaymentStatus @default(pending)
+  idempotencyKey String        @unique
+  gateway        String
+  gatewayRef     String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events         PaymentEvent[]
+}
+
+model PaymentEvent {
+  id          String        @id @default(cuid())
+  intentId    String
+  eventKey    String        @unique
+  payloadHash String
+  createdAt   DateTime      @default(now())
+  intent      PaymentIntent @relation(fields: [intentId], references: [id], onDelete: Cascade)
+}
+
+model IntegrationAccount {
+  id           String              @id @default(cuid())
+  userId       String
+  provider     IntegrationProvider
+  status       String              @default("pending")
+  accountLabel String?
+  accessEnc    String?
+  refreshEnc   String?
+  expiresAt    DateTime?
+  createdAt    DateTime            @default(now())
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider])
+}
+
+model Hearing {
+  id         String      @id @default(cuid())
+  userId     String
+  caseId     String
+  kind       HearingKind
+  occursAt   DateTime
+  titleEnc   String
+  reminderAt DateTime?
+  remindedAt DateTime?
+  createdAt  DateTime    @default(now())
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  caseFile   CaseFile    @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([reminderAt, remindedAt])
+}
+
+model Notification {
+  id         String    @id @default(cuid())
+  userId     String
+  hearingId  String?
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model ExportJob {
+  id         String   @id @default(cuid())
+  userId     String
+  provider   String
+  memoId     String
+  status     String
+  externalId String?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorType  String
+  actorId    String?
+  action     String
+  entityType String?
+  entityId   String?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}

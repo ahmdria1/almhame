@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "المحامي الإلكتروني المتقدم",
+    "slug": "elawyer",
+    "scheme": "elawyer",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
+    "ios": { "supportsTablet": true, "bundleIdentifier": "sa.alamrani.elawyer" },
+    "android": { "package": "sa.alamrani.elawyer", "adaptiveIcon": { "backgroundColor": "#0F1F3D" } },
+    "web": { "bundler": "metro", "output": "single" },
+    "plugins": ["expo-router", "expo-secure-store"],
+    "experiments": { "typedRoutes": false }
+  }
+}

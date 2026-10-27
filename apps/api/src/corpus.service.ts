@@ -1,0 +1,328 @@
+import { Injectable } from "@nestjs/common";
+import { CourtType, Prisma } from "@prisma/client";
+import { parse } from "csv-parse/sync";
+import { SAMPLE_LAWS, SAMPLE_SHARIA } from "./corpus/sample-corpus";
+import { EMBED_DIM, mockEmbed, vectorLiteral } from "./domain/embeddings";
+import { Kernel } from "./kernel";
+import { fail } from "./http-error";
+
+interface LawInput {
+  key: string;
+  nameAr: string;
+  nameEn: string;
+  sourceUrl: string;
+  version: string;
+  effectiveDate: string;
+  isSample: boolean;
+  courts: string[];
+  articles: { number: string; textAr: string; textEn: string; sourceUrl: string; isSample?: boolean }[];
+}
+
+interface ShariaInput {
+  key: string;
+  kind: "quran" | "hadith" | "fiqh";
+  reference: string;
+  textAr: string;
+  textEn: string;
+  sourceUrl: string;
+  isSample: boolean;
+  courts: string[];
+}
+
+@Injectable()
+export class CorpusService {
+  constructor(private readonly kernel: Kernel) {}
+
+  async embed(text: string): Promise<number[]> {
+    if (this.kernel.config.embeddingProvider === "remote") {
+      if (!this.kernel.config.embeddingBaseUrl || !this.kernel.config.embeddingApiKey) {
+        fail("EMBEDDINGS_NOT_CONFIGURED", 503, "Embedding endpoint is not configured");
+      }
+      const response = await fetch(`${this.kernel.config.embeddingBaseUrl.replace(/\/$/, "")}/embeddings`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.kernel.config.embeddingApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ model: this.kernel.config.embeddingModel, input: text, dimensions: EMBED_DIM }),
+      });
+      if (!response.ok) fail("EMBEDDINGS_FAILED", 502, "Embedding request failed");
+      const payload = (await response.json()) as { data?: { embedding?: number[] }[] };
+      const vector = payload.data?.[0]?.embedding;
+      if (!vector || vector.length !== EMBED_DIM) fail("EMBEDDINGS_FAILED", 502, "Unexpected embedding shape");
+      return vector;
+    }
+    return mockEmbed(text);
+  }
+
+  async ensureSample() {
+    const count = await this.kernel.prisma.law.count();
+    if (count > 0) return;
+    await this.importRecords({ laws: SAMPLE_LAWS, sharia: SAMPLE_SHARIA, confirmOfficial: false });
+  }
+
+  async importRecords(input: { laws: LawInput[]; sharia: ShariaInput[]; confirmOfficial: boolean }) {
+    for (const law of input.laws) this.assertRecord(law.isSample, law.sourceUrl, input.confirmOfficial);
+    for (const row of input.sharia) this.assertRecord(row.isSample, row.sourceUrl, input.confirmOfficial);
+    for (const law of input.laws) {
+      for (const article of law.articles) {
+        this.assertRecord(article.isSample !== false && law.isSample, article.sourceUrl, input.confirmOfficial);
+        if (!article.number || !article.textAr) fail("VALIDATION", 400, "Article number and text are required");
+      }
+      const saved = await this.kernel.prisma.law.upsert({
+        where: { key: law.key },
+        create: {
+          key: law.key,
+          nameAr: law.nameAr,
+          nameEn: law.nameEn,
+          sourceUrl: law.sourceUrl,
+          version: law.version,
+          effectiveDate: new Date(law.effectiveDate),
+          isSample: law.isSample,
+          courts: law.courts as CourtType[],
+        },
+        update: {
+          nameAr: law.nameAr,
+          nameEn: law.nameEn,
+          sourceUrl: law.sourceUrl,
+          version: law.version,
+          effectiveDate: new Date(law.effectiveDate),
+          isSample: law.isSample,
+          courts: law.courts as CourtType[],
+        },
+      });
+      for (const article of law.articles) {
+        const row = await this.kernel.prisma.article.upsert({
+          where: { lawId_number: { lawId: saved.id, number: article.number } },
+          create: {
+            lawId: saved.id,
+            number: article.number,
+            textAr: article.textAr,
+            textEn: article.textEn || article.textAr,
+            sourceUrl: article.sourceUrl,
+            isSample: article.isSample !== false,
+          },
+          update: {
+            textAr: article.textAr,
+            textEn: article.textEn || article.textAr,
+            sourceUrl: article.sourceUrl,
+            isSample: article.isSample !== false,
+          },
+        });
+        await this.storeVector("article", row.id, `${law.nameAr} ${article.number} ${article.textAr}`);
+      }
+    }
+    for (const row of input.sharia) {
+      const saved = await this.kernel.prisma.shariaSource.upsert({
+        where: { key: row.key },
+        create: {
+          key: row.key,
+          kind: row.kind,
+          reference: row.reference,
+          textAr: row.textAr,
+          textEn: row.textEn,
+          sourceUrl: row.sourceUrl,
+          isSample: row.isSample,
+          courts: row.courts as CourtType[],
+        },
+        update: {
+          kind: row.kind,
+          reference: row.reference,
+          textAr: row.textAr,
+          textEn: row.textEn,
+          sourceUrl: row.sourceUrl,
+          isSample: row.isSample,
+          courts: row.courts as CourtType[],
+        },
+      });
+      await this.storeVector("sharia", saved.id, `${row.reference} ${row.textAr}`);
+    }
+    return { laws: input.laws.length, sharia: input.sharia.length };
+  }
+
+  parseImport(body: string, contentType: string, confirmOfficial: boolean) {
+    if (contentType.includes("csv") || body.trim().startsWith("recordType")) {
+      const rows = parse(body, { columns: true, skip_empty_lines: true }) as Record<string, string>[];
+      const laws = new Map<string, LawInput>();
+      const sharia: ShariaInput[] = [];
+      for (const row of rows) {
+        const sample = String(row.isSample || "true") !== "false";
+        const courts = (row.courts || "").split("|").map((item) => item.trim()).filter(Boolean);
+        if (row.recordType === "sharia") {
+          sharia.push({
+            key: row.key,
+            kind: (row.kind || "fiqh") as ShariaInput["kind"],
+            reference: row.reference || row.nameAr,
+            textAr: row.textAr,
+            textEn: row.textEn || row.textAr,
+            sourceUrl: row.sourceUrl,
+            isSample: sample,
+            courts,
+          });
+          continue;
+        }
+        const key = row.parentKey || row.key;
+        const law = laws.get(key) || {
+          key,
+          nameAr: row.nameAr,
+          nameEn: row.nameEn || row.nameAr,
+          sourceUrl: row.sourceUrl,
+          version: row.version || "1",
+          effectiveDate: row.effectiveDate || "2026-01-01",
+          isSample: sample,
+          courts,
+          articles: [],
+        };
+        if (row.number) {
+          law.articles.push({
+            number: row.number,
+            textAr: row.textAr,
+            textEn: row.textEn || row.textAr,
+            sourceUrl: row.articleUrl || row.sourceUrl,
+            isSample: sample,
+          });
+        }
+        laws.set(key, law);
+      }
+      return { laws: [...laws.values()], sharia, confirmOfficial };
+    }
+    const json = JSON.parse(body) as { laws?: LawInput[]; sharia?: ShariaInput[]; confirmOfficial?: boolean };
+    return {
+      laws: json.laws || [],
+      sharia: json.sharia || [],
+      confirmOfficial: confirmOfficial || json.confirmOfficial === true,
+    };
+  }
+
+  async retrieve(court: string, query: string) {
+    const like = `%${query.slice(0, 80).replace(/[%_]/g, "")}%`;
+    const vector = vectorLiteral(await this.embed(query));
+    const articles = await this.rankArticles(court, like, vector);
+    const sharia = await this.rankSharia(court, like, vector);
+    return { articles: articles.slice(0, 2), sharia: sharia.slice(0, 1) };
+  }
+
+  async counts() {
+    const [laws, articles, sharia, sampleArticles] = await Promise.all([
+      this.kernel.prisma.law.count(),
+      this.kernel.prisma.article.count(),
+      this.kernel.prisma.shariaSource.count(),
+      this.kernel.prisma.article.count({ where: { isSample: true } }),
+    ]);
+    return { laws, articles, sharia, sampleArticles };
+  }
+
+  private assertRecord(isSample: boolean, sourceUrl: string, confirmOfficial: boolean) {
+    if (!sourceUrl || !/^https?:\/\//.test(sourceUrl)) fail("VALIDATION", 400, "A source URL is required");
+    if (!isSample && !confirmOfficial) {
+      fail("SAMPLE_REQUIRED", 400, "Official rows require confirmOfficial");
+    }
+  }
+
+  private async storeVector(targetType: string, targetId: string, text: string) {
+    const embedding = await this.embed(text);
+    await this.kernel.prisma.corpusEmbedding.upsert({
+      where: { targetId },
+      create: { targetType, targetId, embedding },
+      update: { targetType, embedding },
+    });
+  }
+
+  private async rankArticles(court: string, like: string, vector: string) {
+    const keyword = await this.kernel.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+      SELECT a.id FROM "Article" a
+      JOIN "Law" l ON l.id = a."lawId"
+      WHERE ${court}::"CourtType" = ANY(l.courts)
+        AND (a."textAr" ILIKE ${like} OR a."textEn" ILIKE ${like} OR l."nameAr" ILIKE ${like})
+      LIMIT 8
+    `);
+    let vectorIds: { id: string }[] = [];
+    try {
+      vectorIds = await this.kernel.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+        SELECT a.id
+        FROM "Article" a
+        JOIN "Law" l ON l.id = a."lawId"
+        JOIN "CorpusEmbedding" e ON e."targetId" = a.id AND e."targetType" = 'article'
+        WHERE ${court}::"CourtType" = ANY(l.courts)
+        ORDER BY (translate(e.embedding::text, '{}', '[]'))::vector <=> CAST(${vector} AS vector)
+        LIMIT 8
+      `);
+    } catch {
+      vectorIds = [];
+    }
+    const ids = [...new Set([...keyword.map((row) => row.id), ...vectorIds.map((row) => row.id)])];
+    if (ids.length === 0) {
+      const fallback = await this.kernel.prisma.article.findMany({
+        where: { law: { courts: { has: court as CourtType } } },
+        include: { law: true },
+        take: 2,
+      });
+      return fallback.map((row) => this.presentArticle(row));
+    }
+    const rows = await this.kernel.prisma.article.findMany({ where: { id: { in: ids } }, include: { law: true } });
+    const order = new Map(ids.map((id, index) => [id, index]));
+    return rows
+      .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
+      .map((row) => this.presentArticle(row));
+  }
+
+  private async rankSharia(court: string, like: string, vector: string) {
+    const keyword = await this.kernel.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+      SELECT id FROM "ShariaSource"
+      WHERE ${court}::"CourtType" = ANY(courts)
+        AND ("textAr" ILIKE ${like} OR reference ILIKE ${like})
+      LIMIT 4
+    `);
+    let vectorIds: { id: string }[] = [];
+    try {
+      vectorIds = await this.kernel.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+        SELECT s.id
+        FROM "ShariaSource" s
+        JOIN "CorpusEmbedding" e ON e."targetId" = s.id AND e."targetType" = 'sharia'
+        WHERE ${court}::"CourtType" = ANY(s.courts)
+        ORDER BY (translate(e.embedding::text, '{}', '[]'))::vector <=> CAST(${vector} AS vector)
+        LIMIT 4
+      `);
+    } catch {
+      vectorIds = [];
+    }
+    const ids = [...new Set([...keyword.map((row) => row.id), ...vectorIds.map((row) => row.id)])];
+    const rows = ids.length
+      ? await this.kernel.prisma.shariaSource.findMany({ where: { id: { in: ids } } })
+      : await this.kernel.prisma.shariaSource.findMany({ where: { courts: { has: court as CourtType } }, take: 1 });
+    return rows.map((row) => ({
+      id: row.id,
+      kind: row.kind,
+      reference: row.reference,
+      textAr: row.textAr,
+      textEn: row.textEn,
+      sourceUrl: row.sourceUrl,
+      isSample: row.isSample,
+    }));
+  }
+
+  private presentArticle(row: {
+    id: string;
+    number: string;
+    textAr: string;
+    textEn: string;
+    sourceUrl: string;
+    isSample: boolean;
+    law: { nameAr: string; nameEn: string; version: string; effectiveDate: Date };
+  }) {
+    return {
+      id: row.id,
+      number: row.number,
+      textAr: row.textAr,
+      textEn: row.textEn,
+      lawNameAr: row.law.nameAr,
+      lawNameEn: row.law.nameEn,
+      sourceUrl: row.sourceUrl,
+      isSample: row.isSample,
+      version: row.law.version,
+      effectiveDate: row.law.effectiveDate.toISOString().slice(0, 10),
+    };
+  }
+}
+
+export type { LawInput, ShariaInput };

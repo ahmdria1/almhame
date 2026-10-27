@@ -1,0 +1,25 @@
+const fs = require("fs");
+const path = require("path");
+
+const state = JSON.parse(fs.readFileSync(path.join(__dirname, ".db-state.json"), "utf8"));
+process.env.DATABASE_URL = state.url;
+process.env.JWT_SECRET = process.env.JWT_SECRET || "test-jwt-secret-0123456789abcdef";
+process.env.KMS_MASTER_KEY = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
+process.env.OTP_PEPPER = "test-otp-pepper";
+process.env.OTP_DEBUG = "true";
+process.env.NODE_ENV = "test";
+process.env.REDIS_URL = "";
+process.env.PAYMENT_GATEWAY = "sandbox";
+process.env.PAYMENT_SANDBOX_SECRET = "sandbox";
+process.env.WEB_ORIGIN = "http://127.0.0.1:4720";
+process.env.ADMIN_ORIGIN = "http://127.0.0.1:4730";
+process.env.API_PUBLIC_URL = "http://127.0.0.1:4710";
+process.env.LLM_PROVIDER = "mock";
+process.env.EMBEDDING_PROVIDER = "mock";
+process.env.ADMIN_EMAIL = "admin@example.sa";
+process.env.ADMIN_PASSWORD = "AdminPass123!";
+process.env.STORAGE_DIR = path.join(__dirname, ".storage");
+process.env.FONT_PATH = path.resolve(__dirname, "../../../assets/fonts/Cairo-Variable.ttf");
+process.env.SENTRY_DSN = "";
+process.env.SMS_PROVIDER = "mock";
+process.env.INTEGRATIONS_MODE = "stub";

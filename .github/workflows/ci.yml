@@ -1,0 +1,74 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: elawyer
+          POSTGRES_PASSWORD: elawyer
+          POSTGRES_DB: elawyer
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U elawyer -d elawyer"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://elawyer:elawyer@127.0.0.1:5432/elawyer
+      TEST_DATABASE_URL: postgresql://elawyer:elawyer@127.0.0.1:5432/elawyer_test
+      USE_TESTCONTAINERS: "0"
+      JWT_SECRET: ci-jwt-secret-0123456789abcdef
+      KMS_MASTER_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      OTP_PEPPER: ci-otp-pepper
+      OTP_DEBUG: "true"
+      ADMIN_EMAIL: admin@example.sa
+      ADMIN_PASSWORD: AdminPass123!
+      PAYMENT_GATEWAY: sandbox
+      PAYMENT_SANDBOX_SECRET: sandbox-dev-secret
+      LLM_PROVIDER: mock
+      EMBEDDING_PROVIDER: mock
+      REDIS_URL: redis://127.0.0.1:6379
+      WEB_ORIGIN: http://127.0.0.1:4720
+      ADMIN_ORIGIN: http://127.0.0.1:4730
+      API_PUBLIC_URL: http://127.0.0.1:4710
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:4710/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install system packages
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client tesseract-ocr tesseract-ocr-ara poppler-utils
+      - name: Create the test database
+        run: PGPASSWORD=elawyer psql -h 127.0.0.1 -U elawyer -d elawyer -c "CREATE DATABASE elawyer_test"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @elawyer/api exec prisma generate
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm --filter @elawyer/api build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+      - name: Export the mobile web bundle
+        run: pnpm --filter @elawyer/mobile build

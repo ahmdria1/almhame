@@ -1,0 +1,16 @@
+{
+  "name": "@elawyer/api-client",
+  "version": "1.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "author": "Ahmed Alamrani",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@elawyer/types": "workspace:*"
+  }
+}

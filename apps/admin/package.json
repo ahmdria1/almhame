@@ -1,0 +1,28 @@
+{
+  "name": "@elawyer/admin",
+  "version": "1.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "author": "Ahmed Alamrani",
+  "scripts": {
+    "dev": "next dev -p 4730 -H 0.0.0.0",
+    "build": "next build",
+    "start": "next start -p 4730 -H 0.0.0.0",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@elawyer/i18n": "workspace:*",
+    "@elawyer/tokens": "workspace:*",
+    "@elawyer/types": "workspace:*",
+    "next": "15.5.4",
+    "react": "19.1.1",
+    "react-dom": "19.1.1"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.8",
+    "@types/react-dom": "19.1.6",
+    "autoprefixer": "10.4.21",
+    "postcss": "8.5.6",
+    "tailwindcss": "3.4.17"
+  }
+}

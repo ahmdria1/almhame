@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: Cairo;
+  src: url("/fonts/Cairo-Variable.ttf") format("truetype");
+  font-weight: 200 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: light;
+  background: #f8fafc;
+  color: #1e293b;
+}
+
+.dark {
+  color-scheme: dark;
+  background: #0f1f3d;
+  color: #f8fafc;
+}
+
+html, body {
+  min-height: 100%;
+  font-family: Cairo, sans-serif;
+}
+
+body {
+  background: #f8fafc;
+}
+
+.dark body {
+  background: #0f1f3d;
+}
+
+::selection {
+  background: #e1f2f5;
+}
+
+.paper {
+  background: white;
+  color: #1e293b;
+}
+.dark .paper {
+  background: #14284a;
+  color: #f8fafc;
+}

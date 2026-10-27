@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@font-face {
+  font-family: Cairo;
+  src: url("/fonts/Cairo-Variable.ttf") format("truetype");
+  font-weight: 200 900;
+  font-display: swap;
+}
+body { font-family: Cairo, sans-serif; background: #f8fafc; color: #1e293b; }

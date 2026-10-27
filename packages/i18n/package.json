@@ -1,0 +1,17 @@
+{
+  "name": "@elawyer/i18n",
+  "version": "1.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "author": "Ahmed Alamrani",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node -e \"require('fs').cpSync('src/locales','dist/locales',{recursive:true})\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "jest --runInBand"
+  },
+  "dependencies": {
+    "@elawyer/types": "workspace:*"
+  }
+}
