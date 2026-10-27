@@ -21,51 +21,6 @@ import { useApp } from "@/lib/providers";
 import { Logo } from "./logo";
 import { cn } from "./ui";
 
-export function SiteHeader({ solid = true }: { solid?: boolean }) {
-  const { t, user } = useApp();
-  const links = [
-    ["/#features", "nav.features"],
-    ["/#courts", "nav.courts"],
-    ["/#how", "nav.how"],
-    ["/#plans", "nav.plans"],
-    ["/#faq", "nav.faq"],
-  ] as const;
-  return (
-    <header className={cn("sticky top-0 z-40 border-b border-ink-200/80 backdrop-blur", solid ? "bg-white/90 dark:border-white/10 dark:bg-navy-900/90" : "bg-canvas/80")}>
-      <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4">
-        <Link href="/" className="flex items-center gap-2">
-          <Logo size={34} />
-          <span className="text-[15px] font-bold text-navy-700 dark:text-white">{t("app.name")}</span>
-        </Link>
-        <nav className="hidden flex-1 items-center justify-center gap-6 text-sm font-semibold text-ink-700 lg:flex dark:text-ink-200">
-          {links.map(([href, key]) => (
-            <Link key={key} href={href} className="hover:text-teal-600">
-              {t(key)}
-            </Link>
-          ))}
-        </nav>
-        <div className="ms-auto flex items-center gap-2">
-          <LanguageMenu />
-          {user ? (
-            <Link href="/app" className="rounded-xl bg-navy-700 px-3 py-2 text-sm font-semibold text-white">
-              {t("workspace.newChat")}
-            </Link>
-          ) : (
-            <>
-              <Link href="/login" className="hidden px-3 text-sm font-semibold text-navy-700 sm:inline dark:text-white">
-                {t("nav.login")}
-              </Link>
-              <Link href="/signup" data-testid="start-free" className="rounded-xl bg-navy-700 px-3 py-2 text-sm font-semibold text-white">
-                {t("nav.startFree")}
-              </Link>
-            </>
-          )}
-        </div>
-      </div>
-    </header>
-  );
-}
-
 export function LanguageMenu() {
   const { locale, setLocale, languages, locales } = useApp();
   const [open, setOpen] = useState(false);
@@ -186,37 +141,5 @@ export function AppHeader() {
         <AccountMenu />
       </div>
     </header>
-  );
-}
-
-export function SiteFooter() {
-  const { t } = useApp();
-  return (
-    <footer className="border-t border-ink-200 bg-white dark:border-white/10 dark:bg-navy-900">
-      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 md:grid-cols-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <Logo size={32} />
-            <span className="font-bold text-navy-700 dark:text-white">{t("app.name")}</span>
-          </div>
-          <p className="mt-3 text-sm leading-7 text-ink-500">{t("footer.blurb")}</p>
-        </div>
-        {[
-          ["footer.product", ["nav.features", "nav.courts", "nav.plans"]],
-          ["footer.company", ["footer.about", "footer.contact"]],
-          ["footer.legal", ["footer.privacy", "footer.terms"]],
-        ].map(([title, keys]) => (
-          <div key={String(title)}>
-            <p className="font-semibold text-navy-700 dark:text-white">{t(String(title))}</p>
-            <div className="mt-3 grid gap-2 text-sm text-ink-500">
-              {(keys as string[]).map((key) => (
-                <span key={key}>{t(key)}</span>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-      <p className="border-t border-ink-100 py-4 text-center text-xs text-ink-400">{t("footer.rights")}</p>
-    </footer>
   );
 }

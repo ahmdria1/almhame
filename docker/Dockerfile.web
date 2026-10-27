@@ -7,8 +7,10 @@ COPY apps/web ./apps/web
 COPY assets/fonts/Cairo-Variable.ttf ./apps/web/public/fonts/Cairo-Variable.ttf
 ARG NEXT_PUBLIC_API_URL=http://127.0.0.1:4710/api
 ARG BUILD_STAMP=release
+ARG SITE_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV BUILD_STAMP=$BUILD_STAMP
+ENV SITE_URL=$SITE_URL
 RUN pnpm install --frozen-lockfile \
   && pnpm --filter @elawyer/types build \
   && pnpm --filter @elawyer/tokens build \

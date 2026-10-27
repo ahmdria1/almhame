@@ -67,6 +67,8 @@ Open the link in the email (or the outbox file), set a password, then sign in at
 8. Locale completeness: missing keys and `TODO` values fail `packages/i18n`
 9. Secret scan with gitleaks, and `pnpm audit --audit-level high`
 10. A scan that rejects tool or model attribution in the source, commit authors, commit messages, and build output
+11. Web SEO tests for every public page in every locale: title, description, canonical URL, hreflang for all 11 locales plus `x-default`, and JSON-LD. Private routes are `noindex` and stay out of the sitemap
+12. Lighthouse CI on a mobile profile for every Arabic public page and the home page of each other locale. The run fails under 95 for SEO, accessibility, and best practices, and under 90 for performance
 
 `extract-zip` has no patched release. Those two CVEs stay in `pnpm.auditConfig.ignoreCves` because PDF export uses the system browser and does not extract browser archives.
 
@@ -75,6 +77,7 @@ pnpm lint
 pnpm typecheck && node scripts/ci/check-tsconfig.mjs
 pnpm test
 pnpm exec playwright install chromium
+node scripts/ci/run-lighthouse.mjs
 pnpm test:e2e
 ```
 
@@ -83,7 +86,7 @@ pnpm test:e2e
 ## VPS (Hostinger)
 
 1. Install Docker and Docker Compose.
-2. Copy the repository and create `.env` from `.env.example`. Set `KMS_MASTER_KEY`, `JWT_SECRET`, `OTP_PEPPER`, `NODE_ENV=production`, real `LLM_PROVIDER`, `EMBEDDING_PROVIDER`, `PAYMENT_GATEWAY`, `SMS_PROVIDER`, and SMTP. Set `NEXT_PUBLIC_API_URL` to the public origin plus `/api` (the web bundle reads it at image build time).
+2. Copy the repository and create `.env` from `.env.example`. Set `KMS_MASTER_KEY`, `JWT_SECRET`, `OTP_PEPPER`, `NODE_ENV=production`, real `LLM_PROVIDER`, `EMBEDDING_PROVIDER`, `PAYMENT_GATEWAY`, `SMS_PROVIDER`, and SMTP. Set `NEXT_PUBLIC_API_URL` to the public origin plus `/api` (the web bundle reads it at image build time). Set `SITE_URL` to the public web origin with no trailing slash. The web image bakes that origin into canonical URLs.
 3. `docker compose build && docker compose up -d`
 4. The site is on port 80. The admin console is on port 8081. Put TLS in front of Nginx.
 5. Migrations run against Postgres directly, then the API uses PgBouncer (`pgbouncer=true`, transaction pooling).

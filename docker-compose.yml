@@ -54,6 +54,9 @@ services:
       dockerfile: docker/Dockerfile.web
       args:
         NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://127.0.0.1/api}
+        SITE_URL: ${SITE_URL}
+    environment:
+      SITE_URL: ${SITE_URL}
     depends_on:
       - api
 

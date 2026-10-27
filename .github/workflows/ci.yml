@@ -57,6 +57,7 @@ jobs:
       ADMIN_ORIGIN: http://127.0.0.1:4730
       API_PUBLIC_URL: http://127.0.0.1:4710
       NEXT_PUBLIC_API_URL: http://127.0.0.1:4710/api
+      SITE_URL: http://127.0.0.1:4720
       NODE_ENV: test
     steps:
       - uses: actions/checkout@v4
@@ -87,7 +88,7 @@ jobs:
       - name: Lint
         run: pnpm lint
       - name: Jest unit and integration tests
-        run: pnpm --filter @elawyer/api test && pnpm --filter @elawyer/mobile test
+        run: pnpm --filter @elawyer/api test && pnpm --filter @elawyer/mobile test && pnpm --filter @elawyer/web test
       - name: Locale completeness
         run: pnpm --filter @elawyer/i18n test
       - name: Production builds
@@ -97,6 +98,8 @@ jobs:
           pnpm --filter @elawyer/admin build
       - name: Source maps and obfuscation
         run: node scripts/ci/check-builds.mjs
+      - name: Lighthouse
+        run: node scripts/ci/run-lighthouse.mjs
       - name: Playwright end-to-end tests
         run: pnpm exec playwright install --with-deps chromium && pnpm test:e2e
       - name: Secret scan
@@ -118,5 +121,5 @@ jobs:
       - name: Build release images
         run: |
           docker build -f docker/Dockerfile.api -t elawyer-api:ci .
-          docker build -f docker/Dockerfile.web -t elawyer-web:ci --build-arg NEXT_PUBLIC_API_URL=https://example.invalid/api .
+          docker build -f docker/Dockerfile.web -t elawyer-web:ci --build-arg NEXT_PUBLIC_API_URL=https://example.invalid/api --build-arg SITE_URL=http://127.0.0.1:4720 .
           docker build -f docker/Dockerfile.admin -t elawyer-admin:ci --build-arg NEXT_PUBLIC_API_URL=https://example.invalid/api .

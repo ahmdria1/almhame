@@ -1,4 +1,4 @@
-import { COURTS, type CourtType, type PlanCode } from "@elawyer/types";
+import { COURTS, PUBLISHED_PLANS, type CourtType, type PlanCode } from "@elawyer/types";
 
 export interface PlanDef {
   code: PlanCode;
@@ -17,47 +17,47 @@ const BASIC_COURTS: CourtType[] = ["general", "labor", "personal_status", "crimi
 export const PLAN_DEFS: Record<PlanCode, PlanDef> = {
   free: {
     code: "free",
-    priceHalalas: 0,
-    memoLimit: 5,
-    chatLimit: 5,
+    priceHalalas: PUBLISHED_PLANS.free.priceHalalas,
+    memoLimit: PUBLISHED_PLANS.free.memoLimit,
+    chatLimit: PUBLISHED_PLANS.free.chatLimit,
     courts: ["general", "labor"],
     word: false,
     caseManagement: false,
     letterhead: false,
-    seats: 1,
+    seats: PUBLISHED_PLANS.free.seats,
   },
   basic: {
     code: "basic",
-    priceHalalas: 9900,
-    memoLimit: 30,
-    chatLimit: null,
+    priceHalalas: PUBLISHED_PLANS.basic.priceHalalas,
+    memoLimit: PUBLISHED_PLANS.basic.memoLimit,
+    chatLimit: PUBLISHED_PLANS.basic.chatLimit,
     courts: BASIC_COURTS,
     word: false,
     caseManagement: false,
     letterhead: false,
-    seats: 1,
+    seats: PUBLISHED_PLANS.basic.seats,
   },
   pro: {
     code: "pro",
-    priceHalalas: 24900,
-    memoLimit: 100,
-    chatLimit: null,
+    priceHalalas: PUBLISHED_PLANS.pro.priceHalalas,
+    memoLimit: PUBLISHED_PLANS.pro.memoLimit,
+    chatLimit: PUBLISHED_PLANS.pro.chatLimit,
     courts: [...COURTS],
     word: true,
     caseManagement: true,
     letterhead: false,
-    seats: 1,
+    seats: PUBLISHED_PLANS.pro.seats,
   },
   office: {
     code: "office",
-    priceHalalas: 59900,
-    memoLimit: 100,
-    chatLimit: null,
+    priceHalalas: PUBLISHED_PLANS.office.priceHalalas,
+    memoLimit: PUBLISHED_PLANS.office.memoLimit,
+    chatLimit: PUBLISHED_PLANS.office.chatLimit,
     courts: [...COURTS],
     word: true,
     caseManagement: true,
     letterhead: true,
-    seats: 5,
+    seats: PUBLISHED_PLANS.office.seats,
   },
 };
 

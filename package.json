@@ -55,10 +55,12 @@
     "typecheck": "turbo typecheck",
     "test": "turbo test",
     "test:e2e": "playwright test",
+    "test:lighthouse": "node scripts/ci/run-lighthouse.mjs",
     "db:migrate": "pnpm --filter @elawyer/api exec prisma migrate deploy",
     "db:seed": "pnpm --filter @elawyer/api seed"
   },
   "devDependencies": {
+    "@lhci/cli": "0.15.1",
     "@playwright/test": "1.55.1",
     "@types/jest": "29.5.14",
     "@types/node": "22.15.30",
