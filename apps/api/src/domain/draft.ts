@@ -1,5 +1,6 @@
 import type { CourtType, MemoType } from "@elawyer/types";
-import type { CitationRef } from "./citations";
+import { citationLabel } from "./article-numbers";
+import { textHash, type CitationRef } from "./citations";
 
 export interface RetrievedArticle {
   id: string;
@@ -116,8 +117,10 @@ export function composeDraft(input: {
   } else {
     for (const article of input.articles) {
       const mark = article.isSample ? " [عيّنة غير رسمية]" : "";
-      lines.push(`المادة (${article.number}) من ${article.lawNameAr}${mark}: ${article.textAr}`);
-      lines.push(`{{cite:article:${article.id}}}`);
+      const label = citationLabel(article.number);
+      const lawName = article.lawNameAr.trim();
+      lines.push(`المادة (${label}) من ${lawName}${mark}: ${article.textAr}`);
+      lines.push(`{{cite:article:${article.id}:${textHash(article.textAr)}}}`);
       lines.push(`المصدر: ${article.sourceUrl} — ${article.version} — ${article.effectiveDate}`);
     }
   }
@@ -128,7 +131,7 @@ export function composeDraft(input: {
     for (const source of input.sharia) {
       const mark = source.isSample ? " [عيّنة فهرس]" : "";
       lines.push(`${source.reference}${mark}: ${source.textAr}`);
-      lines.push(`{{cite:sharia:${source.id}}}`);
+      lines.push(`{{cite:sharia:${source.id}:${textHash(source.textAr)}}}`);
       lines.push(`المصدر: ${source.sourceUrl}`);
     }
   }

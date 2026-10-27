@@ -8,7 +8,7 @@ import { Injectable } from "@nestjs/common";
 import { IntegrationProvider, MemoType, Prisma, User } from "@prisma/client";
 import { jurisdictionOf, type CourtType as Court, type MemoType as MemoKind } from "@elawyer/types";
 import { CorpusService } from "./corpus.service";
-import { validateCitations, type CitationRef } from "./domain/citations";
+import { knownArticle, textHash, validateCitations, type CitationRef } from "./domain/citations";
 import { composeDraft, readSlots } from "./domain/draft";
 import { decryptBytes, encryptBytes, generateDek, wrapKey } from "./domain/envelope";
 import { halalasToSar, nextInvoiceNumber, splitVatInclusive, zatcaQrBase64 } from "./domain/invoice";
@@ -832,11 +832,14 @@ export class WorkService {
   private async knownSet(citations: CitationRef[]) {
     const articleIds = citations.filter((item) => item.kind === "article").map((item) => item.id);
     const shariaIds = citations.filter((item) => item.kind === "sharia").map((item) => item.id);
-    const articles = await this.kernel.prisma.article.findMany({ where: { id: { in: articleIds } } });
+    const articles = await this.kernel.prisma.article.findMany({
+      where: { id: { in: articleIds } },
+      include: { law: { select: { nameAr: true } } },
+    });
     const sharia = await this.kernel.prisma.shariaSource.findMany({ where: { id: { in: shariaIds } } });
     return {
-      articles: new Map(articles.map((row) => [row.id, { number: row.number }])),
-      sharia: new Set(sharia.map((row) => row.id)),
+      articles: new Map(articles.map((row) => [row.id, knownArticle(row.number, row.law.nameAr, row.textAr)])),
+      sharia: new Map(sharia.map((row) => [row.id, { textHash: textHash(row.textAr), reference: row.reference }])),
     };
   }
 

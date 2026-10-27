@@ -360,7 +360,7 @@ export class CorpusService {
         rows.push({
           key: `hadith:${edition}:${hadith.hadithnumber}`,
           kind: "hadith",
-          reference: [parsed.metadata?.name || edition, bookName, String(number), grade].filter(Boolean).join(" — "),
+          reference: [parsed.metadata?.name || edition, bookName, `${book}/${number}`, `رقم ${hadith.hadithnumber}`, grade].filter(Boolean).join(" — "),
           textAr: hadith.text,
           textEn: "",
           sourceUrl: `https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/${file}`,

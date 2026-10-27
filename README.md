@@ -58,23 +58,25 @@ Open the link in the email (or the outbox file), set a password, then sign in at
 `.github/workflows/ci.yml` runs on every push and pull request to `main`. Each step is required. A failed step fails the workflow, and the image build does not start unless every gate passed. There is no status badge.
 
 1. `pnpm install --frozen-lockfile`
-2. `pnpm typecheck` on every package, with `strict`, `noUnusedLocals`, `noUnusedParameters`, `noImplicitReturns`, and `forceConsistentCasingInFileNames`
-3. `pnpm lint` with zero warnings
-4. Jest unit and integration tests against PostgreSQL 16 with pgvector and Redis
-5. Line coverage of at least 90% on `apps/api/src/domain`
-6. Playwright end-to-end tests
-7. Production builds of the API, web app, and admin console, with no `.map` files and obfuscated client JavaScript
-8. Locale completeness: missing keys and `TODO` values fail `packages/i18n`
-9. Secret scan with gitleaks, and `pnpm audit --audit-level high`
-10. A scan that rejects tool or model attribution in the source, commit authors, commit messages, and build output
-11. Web SEO tests for every public page in every locale: title, description, canonical URL, hreflang for all 11 locales plus `x-default`, and JSON-LD. Private routes are `noindex` and stay out of the sitemap
-12. Lighthouse CI on a mobile profile for every Arabic public page and the home page of each other locale. The run fails under 95 for SEO, accessibility, and best practices, and under 90 for performance
+2. `node corpus/audit.mjs` checks article sequence, official text where the source answers, Quran ayah counts, and hadith numbering. A defect fails the workflow.
+3. `pnpm typecheck` on every package, with `strict`, `noUnusedLocals`, `noUnusedParameters`, `noImplicitReturns`, and `forceConsistentCasingInFileNames`
+4. `pnpm lint` with zero warnings
+5. Jest unit and integration tests against PostgreSQL 16 with pgvector and Redis
+6. Line coverage of at least 90% on `apps/api/src/domain`
+7. Playwright end-to-end tests
+8. Production builds of the API, web app, and admin console, with no `.map` files and obfuscated client JavaScript
+9. Locale completeness: missing keys and `TODO` values fail `packages/i18n`
+10. Secret scan with gitleaks, and `pnpm audit --audit-level high`
+11. A scan that rejects tool or model attribution in the source, commit authors, commit messages, and build output
+12. Web SEO tests for every public page in every locale: title, description, canonical URL, hreflang for all 11 locales plus `x-default`, and JSON-LD. Private routes are `noindex` and stay out of the sitemap
+13. Lighthouse CI on a mobile profile for every Arabic public page and the home page of each other locale. The run fails under 95 for SEO, accessibility, and best practices, and under 90 for performance
 
 `extract-zip` has no patched release. Those two CVEs stay in `pnpm.auditConfig.ignoreCves` because PDF export uses the system browser and does not extract browser archives.
 
 ```bash
 pnpm lint
 pnpm typecheck && node scripts/ci/check-tsconfig.mjs
+node corpus/audit.mjs
 pnpm test
 pnpm exec playwright install chromium
 node scripts/ci/run-lighthouse.mjs

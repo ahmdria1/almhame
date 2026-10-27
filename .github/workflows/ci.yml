@@ -79,6 +79,8 @@ jobs:
           PGPASSWORD=elawyer psql -h 127.0.0.1 -U elawyer -d elawyer_test -c "CREATE EXTENSION IF NOT EXISTS vector"
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Corpus article audit
+        run: node corpus/audit.mjs
       - name: Generate Prisma client
         run: pnpm --filter @elawyer/api exec prisma generate
       - name: Migrate the application database

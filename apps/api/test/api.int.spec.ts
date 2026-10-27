@@ -153,12 +153,36 @@ describe("api integration", () => {
     expect(memo.citations.length).toBeGreaterThan(0);
     expect(memo.citations.every((item: { isSample: boolean }) => item.isSample)).toBe(true);
     expect(memo.body).toContain("ثانيًا:");
+    expect(memo.body).toMatch(/\{\{cite:article:[A-Za-z0-9_-]+:[a-f0-9]{64}\}\}/);
     const rejected = await request(app.getHttpServer())
       .patch(`/api/memos/${memo.id}`)
       .set("Authorization", `Bearer ${user.token}`)
       .send({ body: `${memo.body}\nالمادة (999)` })
       .expect(422);
     expect(rejected.body.error.code).toBe("CITATION_REJECTED");
+    const wrongNumber = await request(app.getHttpServer())
+      .patch(`/api/memos/${memo.id}`)
+      .set("Authorization", `Bearer ${user.token}`)
+      .send({ body: memo.body.replace(/المادة \(((?:[^()]|\([^()]*\))*)\)/, "المادة (99998)") })
+      .expect(422);
+    expect(wrongNumber.body.error.code).toBe("CITATION_REJECTED");
+    const otherStatute = await request(app.getHttpServer())
+      .patch(`/api/memos/${memo.id}`)
+      .set("Authorization", `Bearer ${user.token}`)
+      .send({
+        body: memo.body.replace(
+          /(المادة \((?:[^()]|\([^()]*\))*\) من )([^\n:]+?)(\s*(?:\[عيّنة غير رسمية\])?\s*:)/,
+          "$1نظام لا يخص هذه المادة$3",
+        ),
+      })
+      .expect(422);
+    expect(otherStatute.body.error.code).toBe("CITATION_REJECTED");
+    const badHash = await request(app.getHttpServer())
+      .patch(`/api/memos/${memo.id}`)
+      .set("Authorization", `Bearer ${user.token}`)
+      .send({ body: memo.body.replace(/(\{\{cite:article:[A-Za-z0-9_-]+:)[a-f0-9]{64}(\}\})/, `$1${"ab".repeat(32)}$2`) })
+      .expect(422);
+    expect(badHash.body.error.code).toBe("CITATION_REJECTED");
     const pdf = await request(app.getHttpServer())
       .get(`/api/memos/${memo.id}/export.pdf`)
       .set("Authorization", `Bearer ${user.token}`)

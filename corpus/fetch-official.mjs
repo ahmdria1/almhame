@@ -56,7 +56,7 @@ function decode(value) {
     .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)));
 }
 
-function htmlToText(fragment) {
+export function htmlToText(fragment) {
   let html = fragment.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<style[\s\S]*?<\/style>/gi, "");
   let index = 0;
   html = html.replace(/<ol\b[^>]*>/gi, () => {
@@ -148,7 +148,7 @@ function isoDate(value) {
   return `${match[1]}-${match[2]}-${match[3]}`;
 }
 
-function collectArticles(nodes, sourceUrl, bucket) {
+export function collectArticles(nodes, sourceUrl, bucket) {
   for (const node of nodes || []) {
     if (String(node.type) === "1") {
       const textAr = htmlToText(node.text || "");
@@ -167,7 +167,7 @@ function collectArticles(nodes, sourceUrl, bucket) {
   return bucket;
 }
 
-async function searchStatute(name) {
+export async function searchStatute(name) {
   const response = await fetch(`${GATEWAY}/statute/section-search`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -229,7 +229,7 @@ async function fetchMoj(law) {
 
 let bureauReachable = null;
 
-async function fetchHtml(url) {
+export async function fetchHtml(url) {
   if (!url) throw new Error("No Bureau URL");
   if (bureauReachable === false) throw new Error("Bureau TLS unreachable in this run");
   const direct = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(8000), headers: { "User-Agent": "elawyer-corpus" } }).catch((error) => error);

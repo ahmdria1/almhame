@@ -1,7 +1,8 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import { DEFAULT_JURISDICTION, JURISDICTION_CATALOG } from "@elawyer/types";
-import { validateCitations } from "./citations";
+import { knownArticle, textHash, validateCitations } from "./citations";
+import { citationLabel } from "./article-numbers";
 import { composeDraft, readSlots } from "./draft";
 import { EMBED_DIM, mockEmbed, vectorLiteral } from "./embeddings";
 import { decodeMasterKey, decryptBytes, decryptString, encryptBytes, encryptString, generateDek, unwrapKey, wrapKey } from "./envelope";
@@ -75,26 +76,66 @@ describe("plans and vat", () => {
   });
 });
 
-describe("citations", () => {
-  const known = {
-    articles: new Map([["a77", { number: "77" }]]),
-    sharia: new Set(["s1"]),
-  };
+describe("article numbers", () => {
+  const fixtures = JSON.parse(readFileSync(join(__dirname, "../../../../corpus/number-fixtures.json"), "utf8")) as [string, string][];
 
-  it("accepts only retrieved records", () => {
-    const text = "المادة (77) من العيّنة\n{{cite:article:a77}}\n{{cite:sharia:s1}}";
+  it("matches the shared heading fixtures", () => {
+    for (const [heading, label] of fixtures) expect(citationLabel(heading)).toBe(label);
+    expect(citationLabel("اختبار-1")).toBe("اختبار-1");
+    expect(citationLabel("كلمة بلا رقم")).toBe("كلمة بلا رقم");
+  });
+});
+
+describe("citations", () => {
+  const articleText = "نص عيّنة غير رسمي عن إنهاء العقد.";
+  const ayah = "يَا أَيُّهَا الَّذِينَ آمَنُوا";
+  const labor = knownArticle("77", "عيّنة نظام العمل", articleText);
+  const other = knownArticle("77", "نظام الإثبات", "نص من نظام آخر.");
+  const known = {
+    articles: new Map([
+      ["a77", labor],
+      ["proof77", other],
+    ]),
+    sharia: new Map([["s1", { textHash: textHash(ayah), reference: "2:282" }]]),
+  };
+  const valid = `المادة (77) من عيّنة نظام العمل: ${articleText}\n{{cite:article:a77:${labor.textHash}}}\n2:282: ${ayah}\n{{cite:sharia:s1:${textHash(ayah)}}}`;
+
+  it("accepts a citation that resolves to the statute, the number, and the text hash", () => {
     expect(
-      validateCitations(text, [
+      validateCitations(valid, [
         { kind: "article", id: "a77", number: "77" },
         { kind: "sharia", id: "s1" },
       ], known).ok,
     ).toBe(true);
   });
 
-  it("rejects an article number that is not in the corpus link set", () => {
-    const result = validateCitations("المادة (999) تخالف القاعدة", [{ kind: "article", id: "a77", number: "77" }], known);
+  it("rejects a wrong article number", () => {
+    const result = validateCitations(
+      valid.replace("المادة (77)", "المادة (78)"),
+      [{ kind: "article", id: "a77", number: "77" }, { kind: "sharia", id: "s1" }],
+      known,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.unknown).toContain("article:78");
+  });
+
+  it("rejects a non-existent article number", () => {
+    const result = validateCitations(`${valid}\nالمادة (999) تخالف القاعدة`, [
+      { kind: "article", id: "a77", number: "77" },
+      { kind: "sharia", id: "s1" },
+    ], known);
     expect(result.ok).toBe(false);
     expect(result.unknown).toContain("article:999");
+  });
+
+  it("rejects a number that belongs to another statute", () => {
+    const result = validateCitations(
+      valid.replace("من عيّنة نظام العمل", "من نظام الإثبات"),
+      [{ kind: "article", id: "a77", number: "77" }, { kind: "sharia", id: "s1" }],
+      known,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.unknown).toContain("statute:77");
   });
 
   it("rejects an unknown citation id", () => {
@@ -127,7 +168,8 @@ describe("draft composer", () => {
       ],
       sharia: [],
     });
-    expect(draft.body).toContain("المادة (77)");
+    expect(draft.body).toContain("المادة (77) من عيّنة نظام العمل");
+    expect(draft.body).toContain(`{{cite:article:a77:${textHash("نص عيّنة غير رسمي عن إنهاء العقد.")}}}`);
     expect(draft.body).not.toMatch(/المادة\s*\(?\s*84/);
     expect(draft.citations).toEqual([{ kind: "article", id: "a77", number: "77" }]);
   });
@@ -205,16 +247,46 @@ describe("remaining domain branches", () => {
     expect(() => decryptBytes(Buffer.from("no"), dek)).toThrow(/bad file/);
   });
 
-  it("rejects a mismatched article number and an unknown token", () => {
+  it("rejects a mismatched article number, a bad hash, and an unknown token", () => {
+    const articleText = "نص محفوظ.";
+    const row = knownArticle("77", "عيّنة نظام العمل", articleText);
     const known = {
-      articles: new Map([["a77", { number: "77" }]]),
-      sharia: new Set(["s1"]),
+      articles: new Map([["a77", row]]),
+      sharia: new Map([["s1", { textHash: textHash("آية"), reference: "2:282" }]]),
     };
-    const mismatch = validateCitations("نص", [{ kind: "article", id: "a77", number: "1" }], known);
+    const mismatch = validateCitations(`المادة (77) من عيّنة نظام العمل: ${articleText}\n{{cite:article:a77:${row.textHash}}}`, [{ kind: "article", id: "a77", number: "1" }], known);
     expect(mismatch.ok).toBe(false);
     expect(mismatch.unknown).toContain("mismatch:a77");
-    const token = validateCitations("{{cite:sharia:missing}}", [], known);
+    const badHash = validateCitations(
+      `المادة (77) من عيّنة نظام العمل: ${articleText}\n{{cite:article:a77:${"ab".repeat(32)}}}`,
+      [{ kind: "article", id: "a77", number: "77" }],
+      known,
+    );
+    expect(badHash.unknown).toContain("hash:a77");
+    const token = validateCitations("{{cite:sharia:missing:" + "cd".repeat(32) + "}}", [], known);
     expect(token.unknown).toContain("token:missing");
+    const regulation = composeDraft({
+      court: "general",
+      memoType: "lawsuit",
+      slots: readSlots(["المدعي: أحمد\nالمدعى عليه: الشركة\nالطلبات: التعويض\nانتهت العلاقة بعد سنوات دون إنذار كتابي ولم تُصرف المكافأة."]),
+      articles: [
+        {
+          id: "reg",
+          number: "١/٣٠",
+          textAr: "نص اللائحة.",
+          textEn: "",
+          lawNameAr: "اللوائح التنفيذية لنظام المرافعات الشرعية",
+          lawNameEn: "",
+          sourceUrl: "https://laws.moj.gov.sa/ar/legislation/example",
+          isSample: false,
+          version: "1",
+          effectiveDate: "2023-07-23",
+        },
+      ],
+      sharia: [],
+    });
+    expect(regulation.body).toContain("المادة (1/30) من اللوائح التنفيذية لنظام المرافعات الشرعية");
+    expect(regulation.body).not.toContain("المادة (1) من اللوائح");
   });
 
   it("asks for missing facts and still drafts without a retrieved article", () => {
