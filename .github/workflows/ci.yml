@@ -111,7 +111,7 @@ jobs:
       - name: Dependency audit
         run: pnpm audit --audit-level high
       - name: Tool trace scan
-        run: node scripts/ci/check-traces.mjs
+        run: node --test scripts/ci/check-traces.test.mjs && node scripts/ci/check-traces.mjs --baseline
 
   deploy:
     name: deploy images
