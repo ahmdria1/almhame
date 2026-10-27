@@ -266,6 +266,46 @@ describe("citation relevance and slot labels", () => {
     expect(draft.body).not.toContain("1:1");
   });
 
+  it("cites stored labor articles for a wage claim and rejects an unknown number", () => {
+    const labor = JSON.parse(readFileSync(join(__dirname, "../../../../corpus/official/boe/labor.json"), "utf8")) as {
+      nameAr: string;
+      articles: { number: string; textAr: string }[];
+    };
+    const facts = `${wage} انتهت خدمة العامل وجب على صاحب العمل دفع أجره وتصفية حقوقه خلال أسبوع.`;
+    const articles = labor.articles.map((article, index) => ground(`labor-${index}`, "labor", labor.nameAr, article.textAr, article.number));
+    const decision = selectGrounds({
+      court: "labor",
+      memoType: "lawsuit",
+      facts,
+      articles,
+      sharia: [],
+      presentLawKeys: ["labor"],
+    });
+    expect(decision.notice).toBeNull();
+    expect(decision.substantive.length).toBeGreaterThan(0);
+    expect(decision.substantive.every((article) => article.lawNameAr === "نظام العمل")).toBe(true);
+    const draft = composeDraft({
+      court: "labor",
+      memoType: "lawsuit",
+      slots: readSlots([`${facts}\nالمدعي: خالد بن سامي\nالمدعى عليه: شركة أفق\nالطلبات: أجر شهر أغسطس ومكافأة نهاية الخدمة`]),
+      articles: decision.substantive,
+      procedural: decision.procedural,
+      sharia: [],
+      notice: decision.notice,
+    });
+    expect(draft.body).toContain("من نظام العمل");
+    expect(draft.body).not.toContain("غير موجود في قاعدة النصوص الموثقة بعد");
+    expect(draft.citations.length).toBeGreaterThan(0);
+    const known = {
+      articles: new Map(decision.substantive.map((article) => [article.id, knownArticle(article.number, article.lawNameAr, article.textAr)])),
+      sharia: new Map(),
+    };
+    expect(validateCitations(draft.body, draft.citations, known).ok).toBe(true);
+    const rejected = validateCitations(`${draft.body}\nالمادة (99999)`, draft.citations, known);
+    expect(rejected.ok).toBe(false);
+    expect(rejected.unknown).toContain("article:99999");
+  });
+
   it("keeps procedural articles in the procedural section only when they match", () => {
     const facts = `${wage} ويطلب إثبات عدم الصرف بالبينة.`;
     const decision = selectGrounds({

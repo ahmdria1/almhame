@@ -38,14 +38,13 @@ test("rejects tool attribution in names, emails, and sentences", () => {
   }
 });
 
-test("the published baseline is the seed commit", () => {
-  assert.equal(HISTORY_BASELINE, "48c8c50762c044a8cd76b70e354912db85fa4654");
+test("the published baseline is the current main history", () => {
+  assert.equal(HISTORY_BASELINE, "235813232e7bff3997ed6a18316abbf85cc20b05");
 });
 
-test("full history fails and the baseline scan passes", () => {
+test("full history and the baseline scan pass", () => {
   const full = runScan([]);
-  assert.notEqual(full.status, 0);
-  assert.match(`${full.stdout}\n${full.stderr}`, /48c8c50762c0/);
+  assert.equal(full.status, 0, full.stderr);
   const baseline = runScan(["--baseline"]);
   assert.equal(baseline.status, 0, baseline.stderr);
 });

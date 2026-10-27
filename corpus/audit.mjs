@@ -4,6 +4,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { collectArticles, fetchHtml, parseLawPage, searchStatute } from "./fetch-official.mjs";
+import { parseLaborPage } from "./labor-page.mjs";
 import { citationLabel, isBlank, isRepealed, normalizeCompare, parseHeading } from "./article-numbers.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -112,7 +113,38 @@ async function gatewayModel(serial) {
   return data.model;
 }
 
+async function officialLabor(law) {
+  let html = "";
+  let via = "";
+  try {
+    const loaded = await fetchHtml(law.sourceUrl);
+    html = loaded.html;
+    via = loaded.via;
+  } catch (directError) {
+    const reason = directError instanceof Error ? directError.message : String(directError);
+    const response = await fetch(`https://r.jina.ai/${law.sourceUrl}`, {
+      redirect: "follow",
+      signal: AbortSignal.timeout(90000),
+      headers: { "X-Return-Format": "html", "User-Agent": "elawyer-corpus" },
+    }).catch((error) => error);
+    const htmlText = response instanceof Response ? await response.text() : "";
+    if (response instanceof Response && response.ok && htmlText.includes("article_item")) {
+      html = htmlText;
+      via = "reader";
+    } else {
+      const archived = await archivedHtml(law.sourceUrl).catch((error) => error);
+      if (archived instanceof Error || !archived) throw new Error(`${reason}; archive ${archived instanceof Error ? archived.message : "empty"}`);
+      html = archived.html;
+      via = `archive:${archived.timestamp}`;
+    }
+  }
+  const parsed = parseLaborPage(html, { key: law.key, nameAr: law.nameAr, url: law.sourceUrl, courts: law.courts || ["labor", "appeal"] });
+  if (!parsed.articles.length) throw new Error(`${via || "source"} parsed no labor articles`);
+  return { articles: parsed.articles, via };
+}
+
 export async function officialArticles(law) {
+  if (law.key === "labor") return officialLabor(law);
   if (law.mojSerial) {
     const model = await gatewayModel(law.mojSerial);
     const source = model.bureauOfExpertsAtTheCouncilOfMinistersUrl || law.sourceUrl;
@@ -471,7 +503,19 @@ async function main() {
   const laws = [];
   for (const name of names) laws.push(JSON.parse(await readFile(path.join(boeDir, name), "utf8")));
   const byKey = new Map(laws.map((law) => [law.key, law]));
-  if (laws.length !== 19) fixtureDefects.push(`expected 19 statutes, found ${laws.length}`);
+  if (laws.length !== 20) fixtureDefects.push(`expected 20 statutes, found ${laws.length}`);
+  const labor = byKey.get("labor");
+  if (!labor) fixtureDefects.push("labor statute missing");
+  else {
+    const labels = new Set((labor.articles || []).map((article) => citationLabel(article.number)));
+    for (const label of ["11 مكرر", "79 مكرر", "131 مكرر", "229 مكرر", "84", "88", "90"]) {
+      if (!labels.has(label)) fixtureDefects.push(`labor missing article ${label}`);
+    }
+    const article2 = (labor.articles || []).find((article) => citationLabel(article.number) === "2");
+    if (!article2 || !article2.textAr.includes("طبيعي أو اعتباري") || article2.textAr.includes("صاحب العمل: كل شخص طبيعي يعمل لمصلحة صاحب عمل")) {
+      fixtureDefects.push("labor article 2 is not the consolidated text");
+    }
+  }
   const rows = [];
   for (const law of laws.sort((a, b) => a.key.localeCompare(b.key))) {
     process.stderr.write(`audit ${law.key}\n`);

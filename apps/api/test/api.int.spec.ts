@@ -1,11 +1,12 @@
 import { execFileSync } from "child_process";
-import { mkdtempSync, writeFileSync } from "fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import path from "path";
 import { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { createApp } from "../src/main";
 import { AuthService } from "../src/auth.service";
+import { CorpusService } from "../src/corpus.service";
 import { PrismaService } from "../src/prisma.service";
 import { signSandbox } from "../src/domain/payments";
 
@@ -377,5 +378,40 @@ describe("api integration", () => {
     } finally {
       await prisma.planSetting.update({ where: { jurisdiction_code: { jurisdiction: "SA", code: "basic" } }, data: { chatLimit: null } });
     }
+  });
+
+  it("cites labor law articles for a wage claim and rejects an unknown article", async () => {
+    const labor = JSON.parse(readFileSync(path.join(__dirname, "../../../corpus/official/boe/labor.json"), "utf8"));
+    labor.isSample = false;
+    labor.articles = labor.articles.map((article: { textEn?: string }) => ({ ...article, isSample: false, textEn: article.textEn || "" }));
+    await app.get(CorpusService).importRecords({ laws: [labor], sharia: [], confirmOfficial: true });
+    const user = await account();
+    const chat = await request(app.getHttpServer())
+      .post("/api/chats")
+      .set("Authorization", `Bearer ${user.token}`)
+      .send({ court: "labor", memoType: "lawsuit" })
+      .expect(201);
+    const told = await request(app.getHttpServer())
+      .post(`/api/chats/${chat.body.chat.id}/messages`)
+      .set("Authorization", `Bearer ${user.token}`)
+      .send({
+        text: "المدعي: خالد بن سامي\nالمدعى عليه: شركة أفق للمقاولات الطلبات: أجر شهر أغسطس ومكافأة نهاية الخدمة\nانتهت خدمة العامل وجب على صاحب العمل دفع أجره وتصفية حقوقه خلال أسبوع، ولم يُصرف أجر شهر أغسطس ولا مكافأة نهاية الخدمة.",
+      })
+      .expect(201);
+    expect(told.body.counsel.content).not.toContain("نظام العمل غير موجود في قاعدة النصوص الموثقة بعد");
+    const drafted = await request(app.getHttpServer())
+      .post(`/api/chats/${chat.body.chat.id}/draft`)
+      .set("Authorization", `Bearer ${user.token}`)
+      .send({})
+      .expect(201);
+    expect(drafted.body.memo.body).toContain("من نظام العمل");
+    expect(drafted.body.memo.body).not.toContain("غير موجود في قاعدة النصوص الموثقة بعد");
+    expect(drafted.body.memo.citations.length).toBeGreaterThan(0);
+    const rejected = await request(app.getHttpServer())
+      .patch(`/api/memos/${drafted.body.memo.id}`)
+      .set("Authorization", `Bearer ${user.token}`)
+      .send({ body: `${drafted.body.memo.body}\nالمادة (99999)` })
+      .expect(422);
+    expect(rejected.body.error.code).toBe("CITATION_REJECTED");
   });
 });

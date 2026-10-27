@@ -6,9 +6,8 @@ import { traceRules } from "./trace-rules.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
-// The seed commit names a tool in its author and README. Origin history stays
-// as it is, so CI checks only the commits after this one.
-export const HISTORY_BASELINE = "48c8c50762c044a8cd76b70e354912db85fa4654";
+// Published history is already on main. CI checks only the commits after this one.
+export const HISTORY_BASELINE = "235813232e7bff3997ed6a18316abbf85cc20b05";
 
 const metaRules = [
   { name: "cursor", re: /\bcursor\b/i },

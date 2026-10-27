@@ -53,6 +53,8 @@ const HUNDREDS = new Map([
   ["المئة", 100],
   ["المائتين", 200],
   ["المائتان", 200],
+  ["المئتين", 200],
+  ["المئتان", 200],
   ["مئتين", 200],
   ["الثلاثمائة", 300],
   ["ثلاثمائة", 300],
@@ -91,7 +93,7 @@ function westernDigits(value) {
 
 function wordsOf(value) {
   return westernDigits(value)
-    .replace(/[«»":：،,.\-–—]/g, " ")
+    .replace(/[()«»":：،,.\-–—]/g, " ")
     .replace(/المادية/g, " ")
     .replace(/المادة/g, " ")
     .split(/\s+/)
@@ -119,7 +121,9 @@ function parsed(kind, article, extra) {
 
 export function parseHeading(raw) {
   const original = normalizeSpace(raw).replace(/[:：]\s*$/g, "").trim();
-  const western = westernDigits(original);
+  const currentClause = original.match(/المادة[^)]*?حالياً/);
+  const working = currentClause ? currentClause[0].replace(/حالياً/g, " ").replace(/\s+/g, " ").trim() : original;
+  const western = westernDigits(working);
   const bis = /مكرر/.test(western);
   let withoutBis = western.replace(/مكرر(?:ة|ا)?/g, " ").replace(/\s+/g, " ").trim();
   let duplicate = "";
