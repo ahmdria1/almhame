@@ -112,6 +112,10 @@ export class ElawyerClient {
     return this.request("/chats", { method: "POST", body: JSON.stringify(input) }) as Promise<{ chat: ChatSummary }>;
   }
 
+  updateChat(id: string, input: { court?: CourtType; memoType?: MemoType }) {
+    return this.request(`/chats/${id}`, { method: "PATCH", body: JSON.stringify(input) }) as Promise<{ chat: ChatSummary }>;
+  }
+
   chat(id: string) {
     return this.request(`/chats/${id}`) as Promise<{
       chat: ChatSummary;

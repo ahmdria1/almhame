@@ -240,6 +240,18 @@ export class ProductController {
     };
   }
 
+  @Patch("chats/:id")
+  async updateChat(@Req() req: Request, @Param("id") id: string, @Body() body: { court?: string; memoType?: string }) {
+    if (body.court && !COURTS.includes(body.court as (typeof COURTS)[number])) fail("VALIDATION", 400, "Court is required");
+    if (body.memoType && !MEMO_TYPES.includes(body.memoType as (typeof MEMO_TYPES)[number])) fail("VALIDATION", 400, "Memo type is required");
+    return {
+      chat: await this.work.updateChat(await userIdFrom(this.jwt, req), id, {
+        court: body.court as (typeof COURTS)[number] | undefined,
+        memoType: body.memoType as (typeof MEMO_TYPES)[number] | undefined,
+      }),
+    };
+  }
+
   @Get("chats/:id")
   async chat(@Req() req: Request, @Param("id") id: string) {
     return this.work.getChat(await userIdFrom(this.jwt, req), id);

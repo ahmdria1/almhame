@@ -119,6 +119,22 @@ export class WorkService {
     return this.presentChat(chat, this.kernel.dekOf(user.wrappedDataKey));
   }
 
+  async updateChat(userId: string, chatId: string, input: { court?: Court; memoType?: MemoKind }) {
+    const user = await this.fresh(userId);
+    const chat = await this.ownedChat(userId, chatId);
+    const court = (input.court || chat.court) as Court;
+    const memoType = (input.memoType || chat.memoType) as MemoKind;
+    if (!courtAllowed(user.planCode, court)) fail("PLAN_COURT", 403, "This court is not included in the current plan");
+    const updated = await this.kernel.prisma.chat.update({
+      where: { id: chat.id },
+      data: { court: court as CourtType, memoType: memoType as MemoType },
+    });
+    if (chat.caseId) {
+      await this.kernel.prisma.caseFile.update({ where: { id: chat.caseId }, data: { court: court as CourtType } });
+    }
+    return this.presentChat(updated, this.kernel.dekOf(user.wrappedDataKey));
+  }
+
   async getChat(userId: string, chatId: string) {
     const user = await this.fresh(userId);
     const dek = this.kernel.dekOf(user.wrappedDataKey);

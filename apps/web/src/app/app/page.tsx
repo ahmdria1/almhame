@@ -138,10 +138,18 @@ export default function WorkspacePage() {
         </div>
         <div className="border-t border-ink-200 p-3 dark:border-white/10">
           <div className="mb-2 flex gap-2">
-            <select data-testid="memo-type-select" className="rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-navy-800" value={memoType} onChange={(event) => setMemoType(event.target.value as MemoType)}>
+            <select data-testid="memo-type-select" className="rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-navy-800" value={memoType} onChange={(event) => {
+              const next = event.target.value as MemoType;
+              setMemoType(next);
+              if (active) void client.updateChat(active, { memoType: next }).then(() => loadList(active)).catch((err) => setError(err instanceof ApiError ? err.message : t("common.error")));
+            }}>
               {MEMO_TYPES.map((item) => <option key={item} value={item}>{t(`memos.${item}`)}</option>)}
             </select>
-            <select data-testid="court-select" className="rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-navy-800" value={court} onChange={(event) => setCourt(event.target.value as CourtType)}>
+            <select data-testid="court-select" className="rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-navy-800" value={court} onChange={(event) => {
+              const next = event.target.value as CourtType;
+              setCourt(next);
+              if (active) void client.updateChat(active, { court: next }).then(() => loadList(active)).catch((err) => setError(err instanceof ApiError ? err.message : t("common.error")));
+            }}>
               {COURTS.map((item) => <option key={item} value={item}>{t(`courts.${item}`)}</option>)}
             </select>
           </div>
