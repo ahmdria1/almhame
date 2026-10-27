@@ -4,6 +4,7 @@ import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
 import { generateDek, wrapKey } from "./domain/envelope";
 import { generateOtpCode, hashOtp, isPhone, normalizePhone, otpMatches } from "./domain/otp";
+import { debugCodeResponseEnabled } from "./config";
 import { fail } from "./http-error";
 import { Kernel } from "./kernel";
 import { sendAuthMail } from "./mail";
@@ -190,9 +191,7 @@ export class AuthService {
     await sendAuthMail(this.kernel.config, { to: target, code, purpose, link });
     return {
       challengeId: challenge.id,
-      ...(this.kernel.config.nodeEnv === "test" || (this.kernel.config.emailDebug && this.kernel.config.nodeEnv !== "production")
-        ? { debugCode: code }
-        : {}),
+      ...(debugCodeResponseEnabled(this.kernel.config) ? { debugCode: code } : {}),
     };
   }
 
@@ -202,6 +201,11 @@ export class AuthService {
       fail("OTP_INVALID", 400, "The code is wrong or expired");
     }
     if (!otpMatches(code, challenge.codeHash, this.kernel.config.otpPepper)) {
+      const attempts = challenge.attempts + 1;
+      await this.kernel.prisma.otpChallenge.update({
+        where: { id: challenge.id },
+        data: { attempts, ...(attempts >= 5 ? { consumedAt: new Date() } : {}) },
+      });
       fail("OTP_INVALID", 400, "The code is wrong or expired");
     }
     await this.kernel.prisma.otpChallenge.update({ where: { id: challenge.id }, data: { consumedAt: new Date() } });

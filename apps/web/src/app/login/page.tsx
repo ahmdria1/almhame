@@ -22,7 +22,7 @@ export default function LoginPage() {
         email: String(form.get("email") || ""),
         password: String(form.get("password") || ""),
       });
-      setSession(result.accessToken, result.user);
+      setSession(result.user);
       router.push("/app");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t("common.error"));

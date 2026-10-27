@@ -79,6 +79,10 @@ export function resolvePlan(
   };
 }
 
+export function chatsCounted(plan: PlanDef, lifetime: number, period: number): number {
+  return plan.code === "free" ? lifetime : period;
+}
+
 export function chatQuota(plan: PlanDef, chatCount: number): { ok: true } | { ok: false; code: "QUOTA_CHATS" } {
   if (plan.chatLimit != null && chatCount >= plan.chatLimit) return { ok: false, code: "QUOTA_CHATS" };
   return { ok: true };

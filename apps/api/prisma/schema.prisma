@@ -80,6 +80,7 @@ model User {
   planCode        PlanCode  @default(free)
   planRenewsAt    DateTime?
   chatCount       Int       @default(0)
+  chatCountPeriod Int       @default(0)
   memoCountPeriod Int       @default(0)
   periodStartedAt DateTime  @default(now())
   wrappedDataKey  String
@@ -126,6 +127,7 @@ model OtpChallenge {
   purpose    String        @default("email_verify")
   target     String
   codeHash   String
+  attempts   Int           @default(0)
   expiresAt  DateTime
   consumedAt DateTime?
   createdAt  DateTime      @default(now())
@@ -311,10 +313,10 @@ model ShariaSource {
 }
 
 model CorpusEmbedding {
-  id         String   @id @default(cuid())
+  id         String                       @id @default(cuid())
   targetType String
-  targetId   String   @unique
-  embedding  Float[]
+  targetId   String                       @unique
+  embedding  Unsupported("vector(384)")
 }
 
 model Wallet {

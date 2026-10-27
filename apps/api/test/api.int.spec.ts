@@ -23,17 +23,25 @@ describe("api integration", () => {
     const mobile = phone();
     const email = `user${seq}@example.sa`;
     const password = "test-pass-123";
+    const ip = `198.51.100.${seq % 250}`;
     const signup = await request(app.getHttpServer())
       .post("/api/auth/signup")
+      .set("X-Forwarded-For", ip)
       .send({ name, phone: mobile, email, password, consent: true })
       .expect(201);
     expect(signup.body.debugCode).toMatch(/^\d{6}$/);
-    const blocked = await request(app.getHttpServer()).post("/api/auth/login").send({ email, password }).expect(403);
+    const blocked = await request(app.getHttpServer()).post("/api/auth/login").set("X-Forwarded-For", ip).send({ email, password }).expect(403);
     expect(blocked.body.error.code).toBe("EMAIL_UNVERIFIED");
     const verified = await request(app.getHttpServer())
       .post("/api/auth/verify")
+      .set("X-Forwarded-For", ip)
       .send({ challengeId: signup.body.challengeId, code: signup.body.debugCode })
       .expect(201);
+    const setCookie = verified.headers["set-cookie"];
+    const cookies = Array.isArray(setCookie) ? setCookie.join(";") : setCookie || "";
+    expect(cookies).toContain("elw_access=");
+    expect(cookies.toLowerCase()).toContain("httponly");
+    expect(cookies.toLowerCase()).toContain("samesite=strict");
     return { token: verified.body.accessToken as string, email, mobile, password, userId: verified.body.user.id as string };
   }
 
@@ -223,5 +231,125 @@ describe("api integration", () => {
     expect(text.includes("bodyEnc")).toBe(false);
     const distance = await prisma.$queryRaw<{ distance: number }[]>`SELECT ('[1,0,0]'::vector <=> '[0,1,0]'::vector) AS distance`;
     expect(Number(distance[0].distance)).toBeCloseTo(1, 5);
+    const indexes = await prisma.$queryRaw<{ indexname: string }[]>`
+      SELECT indexname FROM pg_indexes WHERE indexname = 'CorpusEmbedding_embedding_hnsw'
+    `;
+    expect(indexes.map((row) => row.indexname)).toContain("CorpusEmbedding_embedding_hnsw");
+  });
+
+  it("burns a code after five wrong tries and limits verify by IP", async () => {
+    const mobile = phone();
+    const email = `user${seq}@example.sa`;
+    const signup = await request(app.getHttpServer())
+      .post("/api/auth/signup")
+      .set("X-Forwarded-For", "203.0.113.10")
+      .send({ name: "أحمد العمراني", phone: mobile, email, password: "test-pass-123", consent: true })
+      .expect(201);
+    const wrong = signup.body.debugCode === "000000" ? "111111" : "000000";
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const rejected = await request(app.getHttpServer())
+        .post("/api/auth/verify")
+        .set("X-Forwarded-For", "203.0.113.10")
+        .send({ challengeId: signup.body.challengeId, code: wrong })
+        .expect(400);
+      expect(rejected.body.error.code).toBe("OTP_INVALID");
+    }
+    const burned = await request(app.getHttpServer())
+      .post("/api/auth/verify")
+      .set("X-Forwarded-For", "203.0.113.11")
+      .send({ challengeId: signup.body.challengeId, code: signup.body.debugCode })
+      .expect(400);
+    expect(burned.body.error.code).toBe("OTP_INVALID");
+
+    const other = phone();
+    const otherEmail = `user${seq}@example.sa`;
+    const second = await request(app.getHttpServer())
+      .post("/api/auth/signup")
+      .set("X-Forwarded-For", "203.0.113.20")
+      .send({ name: "أحمد العمراني", phone: other, email: otherEmail, password: "test-pass-123", consent: true })
+      .expect(201);
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await request(app.getHttpServer())
+        .post("/api/auth/verify")
+        .set("X-Forwarded-For", "203.0.113.20")
+        .send({ challengeId: second.body.challengeId, code: "000000" })
+        .expect(400);
+    }
+    await request(app.getHttpServer())
+      .post("/api/auth/verify")
+      .set("X-Forwarded-For", "203.0.113.20")
+      .send({ challengeId: second.body.challengeId, code: second.body.debugCode })
+      .expect(429);
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await request(app.getHttpServer())
+        .post("/api/auth/reset")
+        .set("X-Forwarded-For", "203.0.113.30")
+        .send({ challengeId: "missing-challenge", code: "000000", password: "test-pass-123" })
+        .expect(400);
+    }
+    await request(app.getHttpServer())
+      .post("/api/auth/reset")
+      .set("X-Forwarded-For", "203.0.113.30")
+      .send({ challengeId: "missing-challenge", code: "000000", password: "test-pass-123" })
+      .expect(429);
+  });
+
+  it("lets a paid plan chat again after the free lifetime limit, and resets on renewal", async () => {
+    const user = await account();
+    for (let index = 0; index < 5; index += 1) {
+      await request(app.getHttpServer())
+        .post("/api/chats")
+        .set("Authorization", `Bearer ${user.token}`)
+        .send({ court: "general", memoType: "lawsuit" })
+        .expect(201);
+    }
+    const blocked = await request(app.getHttpServer())
+      .post("/api/chats")
+      .set("Authorization", `Bearer ${user.token}`)
+      .send({ court: "general", memoType: "lawsuit" })
+      .expect(402);
+    expect(blocked.body.error.code).toBe("QUOTA_CHATS");
+    const checkout = await request(app.getHttpServer())
+      .post("/api/billing/checkout")
+      .set("Authorization", `Bearer ${user.token}`)
+      .send({ purpose: "subscription", planCode: "basic", cycle: "monthly", idempotencyKey: `plan-${user.userId}` })
+      .expect(201);
+    const sig = signSandbox("sandbox", checkout.body.intentId);
+    await request(app.getHttpServer()).post("/api/payments/confirm").send({ intentId: checkout.body.intentId, sig }).expect(201);
+    await request(app.getHttpServer())
+      .post("/api/chats")
+      .set("Authorization", `Bearer ${user.token}`)
+      .send({ court: "general", memoType: "lawsuit" })
+      .expect(201);
+    const upgraded = await prisma.user.findUnique({ where: { id: user.userId } });
+    expect(upgraded?.planCode).toBe("basic");
+    expect(upgraded?.chatCount).toBe(6);
+    expect(upgraded?.chatCountPeriod).toBe(1);
+    await prisma.planSetting.update({ where: { code: "basic" }, data: { chatLimit: 1 } });
+    try {
+      const capped = await request(app.getHttpServer())
+        .post("/api/chats")
+        .set("Authorization", `Bearer ${user.token}`)
+        .send({ court: "general", memoType: "lawsuit" })
+        .expect(402);
+      expect(capped.body.error.code).toBe("QUOTA_CHATS");
+      const renewal = await request(app.getHttpServer())
+        .post("/api/billing/checkout")
+        .set("Authorization", `Bearer ${user.token}`)
+        .send({ purpose: "subscription", planCode: "basic", cycle: "monthly", idempotencyKey: `renew-${user.userId}` })
+        .expect(201);
+      const renewSig = signSandbox("sandbox", renewal.body.intentId);
+      await request(app.getHttpServer()).post("/api/payments/confirm").send({ intentId: renewal.body.intentId, sig: renewSig }).expect(201);
+      await request(app.getHttpServer())
+        .post("/api/chats")
+        .set("Authorization", `Bearer ${user.token}`)
+        .send({ court: "general", memoType: "lawsuit" })
+        .expect(201);
+      const renewed = await prisma.user.findUnique({ where: { id: user.userId } });
+      expect(renewed?.chatCountPeriod).toBe(1);
+      expect(renewed?.chatCount).toBe(7);
+    } finally {
+      await prisma.planSetting.update({ where: { code: "basic" }, data: { chatLimit: null } });
+    }
   });
 });

@@ -38,21 +38,35 @@ async function parse(res: Response) {
 }
 
 export class ElawyerClient {
+  private csrf = "";
+
   constructor(private readonly opts: ClientOptions) {}
 
+  private async ensureCsrf() {
+    if (this.csrf) return;
+    const res = await fetch(`${this.opts.baseUrl}/auth/csrf`, { credentials: this.opts.credentials ?? "include" });
+    const data = (await res.json().catch(() => null)) as { csrfToken?: string } | null;
+    if (data?.csrfToken) this.csrf = data.csrfToken;
+  }
+
   private async request(path: string, init: RequestInit = {}) {
+    const method = (init.method || "GET").toUpperCase();
+    if (method !== "GET" && method !== "HEAD") await this.ensureCsrf();
     const headers = new Headers(init.headers);
     if (init.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
       headers.set("Content-Type", "application/json");
     }
     const token = this.opts.getToken?.();
     if (token) headers.set("Authorization", `Bearer ${token}`);
+    if (this.csrf && method !== "GET" && method !== "HEAD") headers.set("X-CSRF-Token", this.csrf);
     const res = await fetch(`${this.opts.baseUrl}${path}`, {
       ...init,
       headers,
       credentials: this.opts.credentials ?? "include",
     });
-    return parse(res);
+    const data = (await parse(res)) as { csrfToken?: string } | null;
+    if (data?.csrfToken) this.csrf = data.csrfToken;
+    return data;
   }
 
   signup(input: { name: string; phone: string; email: string; password: string; consent: boolean }) {

@@ -13,7 +13,7 @@ import { composeDraft, readSlots } from "./domain/draft";
 import { decryptBytes, encryptBytes, generateDek, wrapKey } from "./domain/envelope";
 import { halalasToSar, nextInvoiceNumber, splitVatInclusive, zatcaQrBase64 } from "./domain/invoice";
 import { isPhone, normalizePhone } from "./domain/otp";
-import { chatQuota, courtAllowed, memoQuota } from "./domain/plans";
+import { chatQuota, chatsCounted, courtAllowed, memoQuota } from "./domain/plans";
 import { signSandbox } from "./domain/payments";
 import { fail } from "./http-error";
 import { Kernel } from "./kernel";
@@ -104,12 +104,18 @@ export class WorkService {
       const user = await tx.user.findUnique({ where: { id: userId } });
       if (!user) fail("NOT_FOUND", 404, "Account was not found");
       const plan = await this.kernel.plan(user.planCode);
-      const quota = chatQuota(plan, user.chatCount);
+      const quota = chatQuota(plan, chatsCounted(plan, user.chatCount, user.chatCountPeriod));
       if (!quota.ok) fail("QUOTA_CHATS", 402, "The free chat limit has been reached");
       if (!courtAllowed(plan, court as Court)) fail("PLAN_COURT", 403, "This court is not included in the current plan");
       const dek = this.kernel.dekOf(user.wrappedDataKey);
       const title = input.title?.trim() || "محادثة جديدة";
-      await tx.user.update({ where: { id: userId }, data: { chatCount: { increment: 1 } } });
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          chatCount: { increment: 1 },
+          ...(user.planCode === "free" ? {} : { chatCountPeriod: { increment: 1 } }),
+        },
+      });
       const caseFile = await tx.caseFile.create({
         data: { userId, court, titleEnc: this.kernel.enc(dek, title), notesEnc: this.kernel.enc(dek, "{}") },
       });
@@ -222,7 +228,7 @@ export class WorkService {
       plaintiff: slots.plaintiff || "المذكور في الوقائع",
       defendant: slots.defendant || "المذكور في الوقائع",
       facts: texts.join("\n"),
-      requests: slots.requests || "الحكم وفق الوقائع، مع تحميل الرسوم على المدعى عليه.",
+      requests: slots.requests || "الحكم وفق الوقائع، مع تحميل الرسوم على المدّعى عليه.",
     };
     const retrieved = await this.corpus.retrieve(chat.court, filled.facts);
     const allowed = retrieved.articles.map((article) => article.number);
@@ -784,7 +790,7 @@ export class WorkService {
     if (user.planCode !== "free" && user.planRenewsAt && user.planRenewsAt.getTime() < Date.now()) {
       return this.kernel.prisma.user.update({
         where: { id: userId },
-        data: { planCode: "free", memoCountPeriod: 0, planRenewsAt: null },
+        data: { planCode: "free", memoCountPeriod: 0, chatCountPeriod: 0, planRenewsAt: null },
       });
     }
     return user;

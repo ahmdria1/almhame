@@ -85,8 +85,8 @@ export default function WorkspacePage() {
     }
   }
 
-  const limit = user?.chatLimit ?? 5;
-  const left = Math.max(0, limit - (user?.chatCount ?? 0));
+  const freeLimit = user?.planCode === "free" ? user.chatLimit ?? 5 : null;
+  const left = freeLimit == null ? 0 : Math.max(0, freeLimit - (user?.chatCount ?? 0));
   const visible = chats.filter((chat) => !query || chat.title.includes(query));
   const completeness = Math.min(100, (docs.length ? 40 : 0) + (messages.length > 1 ? 30 : 0) + (parties.plaintiff ? 30 : 0));
 
@@ -173,7 +173,7 @@ export default function WorkspacePage() {
         </div>
         {user?.planCode === "free" ? (
           <div className="mt-4 rounded-2xl bg-teal-100 p-3 text-sm text-teal-700">
-            <p>{t("workspace.remaining", { left, total: limit })}</p>
+            <p>{t("workspace.remaining", { left, total: freeLimit ?? 5 })}</p>
             <Link href="/app/plans" className="mt-2 inline-block font-semibold">{t("workspace.upgrade")}</Link>
           </div>
         ) : null}

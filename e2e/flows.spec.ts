@@ -1,3 +1,4 @@
+import { readFileSync } from "fs";
 import { expect, test, type Page } from "@playwright/test";
 
 const API = "http://127.0.0.1:4710/api";
@@ -17,8 +18,9 @@ async function signUp(page: Page, label: string) {
   await page.getByTestId("signup-consent").check();
   await page.getByTestId("signup-submit").click();
   await page.waitForURL(/\/otp/);
-  const code = await page.evaluate(() => sessionStorage.getItem("elw_debug_code") || "");
-  expect(code).toMatch(/^\d{6}$/);
+  const mail = JSON.parse(readFileSync(`/workspace/data/outbox/email_verify-${email}.json`, "utf8")) as { code: string };
+  expect(mail.code).toMatch(/^\d{6}$/);
+  const code = mail.code;
   await page.getByTestId("otp-input").fill(code);
   await page.getByTestId("otp-submit").click();
   await page.waitForURL(/\/app/);
@@ -57,18 +59,12 @@ test("chat, draft, and pdf export", async ({ page }) => {
   const memoId = page.url().split("/").pop();
   const downloaded = page.waitForResponse((response) => response.url().includes("/export.pdf") && response.status() === 200);
   await page.getByTestId("export-pdf").click();
-  await downloaded;
-  const file = await page.evaluate(async (id) => {
-    const token = sessionStorage.getItem("elw_token");
-    const response = await fetch(`http://127.0.0.1:4710/api/memos/${id}/export.pdf`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    return { status: response.status, head: String.fromCharCode(...bytes.slice(0, 4)), size: bytes.length };
-  }, memoId);
-  expect(file.status).toBe(200);
-  expect(file.head).toBe("%PDF");
-  expect(file.size).toBeGreaterThan(1000);
+  const pdfResponse = await downloaded;
+  const bytes = await pdfResponse.body();
+  expect(pdfResponse.status()).toBe(200);
+  expect(bytes.subarray(0, 4).toString()).toBe("%PDF");
+  expect(bytes.length).toBeGreaterThan(1000);
+  expect(memoId).toBeTruthy();
 });
 
 test("free chat quota", async ({ page }) => {

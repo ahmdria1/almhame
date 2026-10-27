@@ -1,4 +1,5 @@
 import { execFile } from "child_process";
+import { randomUUID } from "crypto";
 import { readdir, readFile } from "fs/promises";
 import path from "path";
 import { promisify } from "util";
@@ -367,12 +368,13 @@ export class CorpusService {
   }
 
   private async storeVector(targetType: string, targetId: string, text: string) {
-    const embedding = await this.embed(text);
-    await this.kernel.prisma.corpusEmbedding.upsert({
-      where: { targetId },
-      create: { targetType, targetId, embedding },
-      update: { targetType, embedding },
-    });
+    const literal = vectorLiteral(await this.embed(text));
+    await this.kernel.prisma.$executeRaw`
+      INSERT INTO "CorpusEmbedding" ("id", "targetType", "targetId", "embedding")
+      VALUES (${randomUUID()}, ${targetType}, ${targetId}, CAST(${literal} AS vector))
+      ON CONFLICT ("targetId") DO UPDATE
+      SET "targetType" = EXCLUDED."targetType", "embedding" = EXCLUDED."embedding"
+    `;
   }
 
   private async rankArticles(court: string, like: string, vector: string) {
@@ -383,20 +385,15 @@ export class CorpusService {
         AND (a."textAr" ILIKE ${like} OR a."textEn" ILIKE ${like} OR l."nameAr" ILIKE ${like})
       LIMIT 8
     `);
-    let vectorIds: { id: string }[] = [];
-    try {
-      vectorIds = await this.kernel.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
-        SELECT a.id
-        FROM "Article" a
-        JOIN "Law" l ON l.id = a."lawId"
-        JOIN "CorpusEmbedding" e ON e."targetId" = a.id AND e."targetType" = 'article'
-        WHERE ${court}::"CourtType" = ANY(l.courts)
-        ORDER BY (translate(e.embedding::text, '{}', '[]'))::vector <=> CAST(${vector} AS vector)
-        LIMIT 8
-      `);
-    } catch {
-      vectorIds = [];
-    }
+    const vectorIds = await this.kernel.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+      SELECT a.id
+      FROM "Article" a
+      JOIN "Law" l ON l.id = a."lawId"
+      JOIN "CorpusEmbedding" e ON e."targetId" = a.id AND e."targetType" = 'article'
+      WHERE ${court}::"CourtType" = ANY(l.courts)
+      ORDER BY e.embedding <=> CAST(${vector} AS vector)
+      LIMIT 8
+    `);
     const ids = [...new Set([...keyword.map((row) => row.id), ...vectorIds.map((row) => row.id)])];
     if (ids.length === 0) {
       const fallback = await this.kernel.prisma.article.findMany({
@@ -420,19 +417,14 @@ export class CorpusService {
         AND ("textAr" ILIKE ${like} OR reference ILIKE ${like})
       LIMIT 4
     `);
-    let vectorIds: { id: string }[] = [];
-    try {
-      vectorIds = await this.kernel.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
-        SELECT s.id
-        FROM "ShariaSource" s
-        JOIN "CorpusEmbedding" e ON e."targetId" = s.id AND e."targetType" = 'sharia'
-        WHERE ${court}::"CourtType" = ANY(s.courts)
-        ORDER BY (translate(e.embedding::text, '{}', '[]'))::vector <=> CAST(${vector} AS vector)
-        LIMIT 4
-      `);
-    } catch {
-      vectorIds = [];
-    }
+    const vectorIds = await this.kernel.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+      SELECT s.id
+      FROM "ShariaSource" s
+      JOIN "CorpusEmbedding" e ON e."targetId" = s.id AND e."targetType" = 'sharia'
+      WHERE ${court}::"CourtType" = ANY(s.courts)
+      ORDER BY e.embedding <=> CAST(${vector} AS vector)
+      LIMIT 4
+    `);
     const ids = [...new Set([...keyword.map((row) => row.id), ...vectorIds.map((row) => row.id)])];
     const rows = ids.length
       ? await this.kernel.prisma.shariaSource.findMany({ where: { id: { in: ids } } })

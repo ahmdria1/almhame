@@ -28,10 +28,7 @@ export default function SignupPage() {
         password: String(form.get("password") || ""),
         consent: form.get("consent") === "on",
       });
-      sessionStorage.setItem("elw_challenge", result.challengeId);
-      sessionStorage.setItem("elw_email", email);
-      if (result.debugCode) sessionStorage.setItem("elw_debug_code", result.debugCode);
-      router.push(`/otp?challenge=${result.challengeId}`);
+      router.push(`/otp?challenge=${result.challengeId}&email=${encodeURIComponent(email)}`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t("common.error"));
     } finally {

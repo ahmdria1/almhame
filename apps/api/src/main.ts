@@ -6,6 +6,7 @@ import { NestFactory } from "@nestjs/core";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
+import { csrfMiddleware } from "./cookies";
 import { assertProductionProviders, loadConfig } from "./config";
 import { RELEASE_STAMP } from "./kernel";
 
@@ -15,6 +16,7 @@ export async function createApp() {
   const app = await NestFactory.create(AppModule, { logger: ["error", "warn", "log"] });
   app.setGlobalPrefix("api");
   app.use(cookieParser());
+  app.use(csrfMiddleware);
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -28,7 +30,11 @@ export async function createApp() {
       },
     }),
   );
-  app.enableCors({ origin: config.corsOrigins, credentials: true });
+  app.enableCors({
+    origin: config.corsOrigins,
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization", "X-CSRF-Token", "X-Signature"],
+  });
   const instance = app.getHttpAdapter().getInstance();
   instance.set("trust proxy", 1);
   app.useGlobalPipes(

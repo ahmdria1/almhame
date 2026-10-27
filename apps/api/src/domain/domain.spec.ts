@@ -3,9 +3,11 @@ import { composeDraft, readSlots } from "./draft";
 import { EMBED_DIM, mockEmbed } from "./embeddings";
 import { decodeMasterKey, decryptString, encryptString, generateDek, unwrapKey, wrapKey } from "./envelope";
 import { halalasToSar, splitVatInclusive, zatcaQrBase64 } from "./invoice";
+import { createHash, createHmac } from "crypto";
+import { buildTrandata, decryptTrandata, encryptTrandata } from "./alrajhi";
 import { otpMatches, hashOtp, normalizePhone } from "./otp";
-import { buildTrandata, decryptTrandata, encryptTrandata, sandboxSignatureOk, signSandbox } from "./payments";
-import { chatQuota, memoQuota, PLAN_DEFS } from "./plans";
+import { sandboxSignatureOk, signSandbox } from "./payments";
+import { chatQuota, chatsCounted, memoQuota, PLAN_DEFS } from "./plans";
 
 const master = decodeMasterKey(Buffer.from("0123456789abcdef0123456789abcdef").toString("base64"));
 
@@ -23,10 +25,13 @@ describe("envelope", () => {
 });
 
 describe("otp and phone", () => {
-  it("hashes codes and normalizes Saudi mobiles", () => {
-    const hash = hashOtp("123456", "pepper");
-    expect(otpMatches("123456", hash, "pepper")).toBe(true);
-    expect(otpMatches("000000", hash, "pepper")).toBe(false);
+  it("hashes codes with hmac and normalizes Saudi mobiles", () => {
+    const pepper = "pepper-value";
+    const hash = hashOtp("123456", pepper);
+    expect(hash).toBe(createHmac("sha256", pepper).update("123456").digest("hex"));
+    expect(hash).not.toBe(createHash("sha256").update(`${pepper}:123456`).digest("hex"));
+    expect(otpMatches("123456", hash, pepper)).toBe(true);
+    expect(otpMatches("000000", hash, pepper)).toBe(false);
     expect(normalizePhone("0551234567")).toBe("+966551234567");
   });
 });
@@ -35,6 +40,9 @@ describe("plans and vat", () => {
   it("enforces free chat and memo quotas", () => {
     expect(chatQuota(PLAN_DEFS.free, 4).ok).toBe(true);
     expect(chatQuota(PLAN_DEFS.free, 5)).toEqual({ ok: false, code: "QUOTA_CHATS" });
+    expect(chatsCounted(PLAN_DEFS.free, 5, 0)).toBe(5);
+    expect(chatsCounted(PLAN_DEFS.basic, 5, 0)).toBe(0);
+    expect(chatQuota(PLAN_DEFS.basic, chatsCounted(PLAN_DEFS.basic, 5, 0)).ok).toBe(true);
     expect(memoQuota(PLAN_DEFS.basic, 30)).toEqual({ ok: false, code: "QUOTA_MEMOS" });
     expect(PLAN_DEFS.basic.priceHalalas).toBe(9900);
     expect(PLAN_DEFS.pro.priceHalalas).toBe(24900);

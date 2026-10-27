@@ -1,17 +1,17 @@
-import { createHash, randomInt, timingSafeEqual } from "crypto";
+import { createHmac, randomInt, timingSafeEqual } from "crypto";
 
 export function generateOtpCode(): string {
   return String(randomInt(0, 1_000_000)).padStart(6, "0");
 }
 
 export function hashOtp(code: string, pepper: string): string {
-  return createHash("sha256").update(`${pepper}:${code}`).digest("hex");
+  return createHmac("sha256", pepper).update(code).digest("hex");
 }
 
 export function otpMatches(code: string, hash: string, pepper: string): boolean {
-  const actual = Buffer.from(hashOtp(code, pepper), "utf8");
-  const expected = Buffer.from(hash, "utf8");
-  return actual.length === expected.length && timingSafeEqual(actual, expected);
+  const actual = createHmac("sha256", pepper).update(code).digest();
+  const expected = Buffer.from(hash, "hex");
+  return expected.length === actual.length && timingSafeEqual(actual, expected);
 }
 
 export function normalizePhone(input: string): string {

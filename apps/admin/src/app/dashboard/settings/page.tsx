@@ -20,7 +20,7 @@ const LABELS: Record<string, string> = {
   paymentGateway: "بوابة الدفع",
   smsProvider: "مزود الرسائل",
   smtpConfigured: "البريد مهيأ",
-  emailDebug: "إظهار رمز التجربة",
+  emailDebug: "إظهار رمز التحقق في الاستجابة",
 };
 
 export default function SettingsPage() {

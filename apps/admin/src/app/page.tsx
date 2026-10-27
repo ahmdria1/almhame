@@ -1,26 +1,23 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4710/api";
+import { adminFetch, rememberCsrf } from "../lib/api";
 
 export default function AdminLogin() {
   const [error, setError] = useState("");
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const response = await fetch(`${API}/admin/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: form.get("email"), password: form.get("password") }),
-    });
-    const data = await response.json();
-    if (!response.ok) {
+    try {
+      const data = await adminFetch<{ csrfToken?: string }>("/admin/login", {
+        method: "POST",
+        body: JSON.stringify({ email: form.get("email"), password: form.get("password") }),
+      });
+      rememberCsrf(data.csrfToken || "");
+      window.location.href = "./dashboard";
+    } catch {
       setError("تعذر الدخول");
-      return;
     }
-    sessionStorage.setItem("elw_admin", data.accessToken);
-    window.location.href = "./dashboard";
   }
   return (
     <main className="grid min-h-screen place-items-center px-4">

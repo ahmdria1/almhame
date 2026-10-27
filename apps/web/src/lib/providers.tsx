@@ -4,7 +4,7 @@ import { ElawyerClient } from "@elawyer/api-client";
 import { dirFor, isLocale, LANGUAGE_NAMES, translate } from "@elawyer/i18n";
 import { LOCALES, type Locale, type SessionUser } from "@elawyer/types";
 import * as Sentry from "@sentry/browser";
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { installReleaseMark } from "./mark";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4710/api";
@@ -18,7 +18,7 @@ type AppContextValue = {
   client: ElawyerClient;
   user: SessionUser | null;
   ready: boolean;
-  setSession: (token: string, user: SessionUser) => void;
+  setSession: (user: SessionUser) => void;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   languages: typeof LANGUAGE_NAMES;
@@ -28,15 +28,11 @@ type AppContextValue = {
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const tokenRef = useRef<string | null>(null);
   const [locale, setLocaleState] = useState<Locale>("ar");
   const [theme, setThemeState] = useState<"light" | "dark">("light");
   const [user, setUser] = useState<SessionUser | null>(null);
   const [ready, setReady] = useState(false);
-  const client = useMemo(
-    () => new ElawyerClient({ baseUrl: API, getToken: () => tokenRef.current, credentials: "include" }),
-    [],
-  );
+  const client = useMemo(() => new ElawyerClient({ baseUrl: API, credentials: "include" }), []);
 
   useEffect(() => {
     installReleaseMark();
@@ -58,16 +54,18 @@ export function Providers({ children }: { children: React.ReactNode }) {
     const savedTheme = localStorage.getItem("elw_theme");
     if (isLocale(savedLocale || "")) applyLocale(savedLocale as Locale, setLocaleState);
     if (savedTheme === "dark" || savedTheme === "light") applyTheme(savedTheme, setThemeState);
-    const stored = sessionStorage.getItem("elw_token");
-    if (stored) tokenRef.current = stored;
-    const boot = stored
-      ? client.me().then((result) => setUser(result.user))
-      : client.refresh().then((result) => {
-          tokenRef.current = result.accessToken;
-          sessionStorage.setItem("elw_token", result.accessToken);
+    client
+      .me()
+      .then((result) => setUser(result.user))
+      .catch(async () => {
+        try {
+          const result = await client.refresh();
           setUser(result.user);
-        });
-    boot.catch(() => setUser(null)).finally(() => setReady(true));
+        } catch {
+          setUser(null);
+        }
+      })
+      .finally(() => setReady(true));
   }, [client]);
 
   const value: AppContextValue = {
@@ -86,15 +84,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
     client,
     user,
     ready,
-    setSession: (token, nextUser) => {
-      tokenRef.current = token;
-      sessionStorage.setItem("elw_token", token);
+    setSession: (nextUser) => {
       setUser(nextUser);
     },
     logout: async () => {
       await client.logout().catch(() => undefined);
-      tokenRef.current = null;
-      sessionStorage.removeItem("elw_token");
       setUser(null);
     },
     refreshUser: async () => {

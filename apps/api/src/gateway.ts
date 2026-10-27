@@ -13,7 +13,10 @@ export class ChatGateway {
   @SubscribeMessage("send")
   async send(@MessageBody() body: { chatId?: string; text?: string }, @ConnectedSocket() socket: Socket) {
     try {
-      const token = String(socket.handshake.auth?.token || "");
+      const headerToken = String(socket.handshake.auth?.token || "");
+      const cookie = String(socket.handshake.headers.cookie || "");
+      const fromCookie = cookie.match(/(?:^|;\s*)elw_access=([^;]+)/);
+      const token = headerToken || (fromCookie ? decodeURIComponent(fromCookie[1]) : "");
       const payload = await this.jwt.verifyAsync<{ sub: string; role: string }>(token);
       if (payload.role !== "user" || !body.chatId || !body.text) {
         socket.emit("error", { code: "UNAUTHENTICATED" });

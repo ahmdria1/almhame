@@ -19,8 +19,6 @@ export default function ForgotPage() {
     try {
       const result = await client.forgot({ email });
       if (result.challengeId) {
-        sessionStorage.setItem("elw_challenge", result.challengeId);
-        if (result.debugCode) sessionStorage.setItem("elw_debug_code", result.debugCode);
         router.push(`/reset?challenge=${result.challengeId}`);
       }
     } catch (err) {

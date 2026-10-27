@@ -17,7 +17,16 @@ import { WorkService } from "./work.service";
 
 @Module({
   imports: [
-    ThrottlerModule.forRoot([{ ttl: 60000, limit: 300 }]),
+    ThrottlerModule.forRoot({
+      throttlers: [{ ttl: 60000, limit: 300 }],
+      getTracker: (req: Record<string, unknown>) => {
+        const headers = req.headers as Record<string, string | string[] | undefined> | undefined;
+        const header = headers?.["x-forwarded-for"];
+        const raw = Array.isArray(header) ? header[0] : header || "";
+        const ip = typeof req.ip === "string" ? req.ip : "";
+        return (raw.split(",")[0] || ip || "local").trim();
+      },
+    }),
     JwtModule.registerAsync({
       useFactory: () => ({
         secret: process.env.JWT_SECRET,

@@ -38,7 +38,7 @@ export default function PlansPage() {
   return (
     <section>
       <h2 className="text-2xl font-bold text-navy-700">الاشتراكات والباقات</h2>
-      <p className="mt-1 text-sm text-ink-500">عدّل السعر الشهري بالهللة وحصص المذكرات والمحادثات. اترك حد المحادثات فارغًا لغير المحدود.</p>
+      <p className="mt-1 text-sm text-ink-500">عدّل السعر الشهري بالهللة وحصص المذكرات والمحادثات. اترك حد المحادثات فارغًا إذا كان غير محدود.</p>
       {error ? <p className="mt-3 text-sm text-red-700">{error}</p> : null}
       {note ? <p className="mt-3 text-sm text-teal-600">{note}</p> : null}
       <div className="mt-4 grid gap-4">

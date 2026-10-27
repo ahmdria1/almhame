@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { adminFetch } from "../lib/api";
 
 const LINKS = [
   ["/dashboard", "نظرة عامة"],
@@ -37,8 +38,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
           type="button"
           className="m-3 text-sm text-white/80"
           onClick={() => {
-            sessionStorage.removeItem("elw_admin");
-            window.location.href = "/";
+            void adminFetch("/admin/logout", { method: "POST" }).finally(() => {
+              window.location.href = "/";
+            });
           }}
         >
           خروج

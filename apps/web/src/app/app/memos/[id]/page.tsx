@@ -29,9 +29,7 @@ export default function MemoEditorPage() {
   }
 
   async function download(kind: "pdf" | "docx") {
-    const token = sessionStorage.getItem("elw_token");
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4710/api"}/memos/${id}/export.${kind}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
       credentials: "include",
     });
     if (!response.ok) {
@@ -65,7 +63,7 @@ export default function MemoEditorPage() {
         <div className="grid gap-2">
           {citations.map((item) => (
             <a key={item.id} href={item.sourceUrl} target="_blank" rel="noreferrer" className="rounded-2xl border border-ink-200 bg-white p-3 text-sm dark:border-white/10 dark:bg-navy-800">
-              <span className="font-semibold">{item.kind === "article" ? `${t("common.sample")} ${item.number}` : item.title}</span>
+              <span className="font-semibold">{item.kind === "article" ? item.number : item.title}</span>
               <p className="mt-1 line-clamp-3 text-ink-500">{item.excerpt}</p>
               {item.isSample ? <span className="mt-2 inline-block rounded-full bg-warning-soft px-2 py-0.5 text-xs text-warning">{t("common.sample")}</span> : null}
             </a>

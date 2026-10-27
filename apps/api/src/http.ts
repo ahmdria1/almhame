@@ -23,6 +23,7 @@ import { COURTS, MEMO_TYPES, PLAN_CODES } from "@elawyer/types";
 import { AdminService } from "./admin.service";
 import { AuthService } from "./auth.service";
 import { BillingService } from "./billing.service";
+import { clearAdminCookie, clearSessionCookies, cookieSecure, issueCsrf, setAccessCookie, setAdminCookie, setRefreshCookie } from "./cookies";
 import { CorpusService } from "./corpus.service";
 import { fail } from "./http-error";
 import { Kernel } from "./kernel";
@@ -115,19 +116,10 @@ export class CheckoutDto {
   idempotencyKey?: string;
 }
 
-function refreshCookie(res: Response, token: string, secure: boolean) {
-  res.cookie("elw_refresh", token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure,
-    path: "/api/auth",
-    maxAge: 30 * 24 * 3600 * 1000,
-  });
-}
-
 async function userIdFrom(jwt: JwtService, req: Request) {
   const header = req.headers.authorization || "";
-  const token = header.startsWith("Bearer ") ? header.slice(7) : "";
+  const bearer = header.startsWith("Bearer ") ? header.slice(7) : "";
+  const token = bearer || req.cookies?.elw_access || "";
   if (!token) fail("UNAUTHENTICATED", 401, "Sign in");
   try {
     const payload = await jwt.verifyAsync<{ sub: string; role: string }>(token);
@@ -140,7 +132,8 @@ async function userIdFrom(jwt: JwtService, req: Request) {
 
 async function adminIdFrom(jwt: JwtService, req: Request) {
   const header = req.headers.authorization || "";
-  const token = header.startsWith("Bearer ") ? header.slice(7) : "";
+  const bearer = header.startsWith("Bearer ") ? header.slice(7) : "";
+  const token = bearer || req.cookies?.elw_admin || "";
   if (!token) fail("UNAUTHENTICATED", 401, "Sign in");
   try {
     const payload = await jwt.verifyAsync<{ sub: string; role: string }>(token);
@@ -175,12 +168,19 @@ export class AuthController {
     return this.auth.signup(body);
   }
 
+  @Get("csrf")
+  csrf(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    return { csrfToken: issueCsrf(req, res, cookieSecure(this.kernel.config.nodeEnv)) };
+  }
+
   @Post("login")
   @Throttle({ default: { limit: 30, ttl: 60000 } })
-  async login(@Body() body: LoginDto, @Res({ passthrough: true }) res: Response) {
+  async login(@Body() body: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const result = await this.auth.login(body.email, body.password);
-    refreshCookie(res, result.refreshToken, this.kernel.config.nodeEnv === "production");
-    return { accessToken: result.accessToken, user: result.user };
+    const secure = cookieSecure(this.kernel.config.nodeEnv);
+    setAccessCookie(res, result.accessToken, secure);
+    setRefreshCookie(res, result.refreshToken, secure);
+    return { accessToken: result.accessToken, user: result.user, csrfToken: issueCsrf(req, res, secure) };
   }
 
   @Post("resend")
@@ -196,29 +196,34 @@ export class AuthController {
   }
 
   @Post("reset")
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   reset(@Body() body: ResetDto) {
     return this.auth.resetPassword(body.challengeId, body.code, body.password);
   }
 
   @Post("verify")
-  async verify(@Body() body: VerifyDto, @Res({ passthrough: true }) res: Response) {
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  async verify(@Body() body: VerifyDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const result = await this.auth.verify(body.challengeId, body.code);
-    refreshCookie(res, result.refreshToken, this.kernel.config.nodeEnv === "production");
-    return { accessToken: result.accessToken, user: result.user };
+    const secure = cookieSecure(this.kernel.config.nodeEnv);
+    setAccessCookie(res, result.accessToken, secure);
+    setRefreshCookie(res, result.refreshToken, secure);
+    return { accessToken: result.accessToken, user: result.user, csrfToken: issueCsrf(req, res, secure) };
   }
 
   @Post("refresh")
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const result = await this.auth.refresh(req.cookies?.elw_refresh || "");
-    refreshCookie(res, result.refreshToken, this.kernel.config.nodeEnv === "production");
-    return { accessToken: result.accessToken, user: result.user };
+    const secure = cookieSecure(this.kernel.config.nodeEnv);
+    setAccessCookie(res, result.accessToken, secure);
+    setRefreshCookie(res, result.refreshToken, secure);
+    return { accessToken: result.accessToken, user: result.user, csrfToken: issueCsrf(req, res, secure) };
   }
 
   @Post("logout")
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     await this.auth.logout(req.cookies?.elw_refresh || "");
-    res.clearCookie("elw_refresh", { path: "/api/auth" });
+    clearSessionCookies(res);
     return { ok: true };
   }
 }
@@ -493,17 +498,27 @@ export class AdminController {
     private readonly admin: AdminService,
     private readonly corpus: CorpusService,
     private readonly jwt: JwtService,
+    private readonly kernel: Kernel,
   ) {}
 
   @Post("login")
   @Throttle({ default: { limit: 20, ttl: 60000 } })
-  login(@Body() body: { email?: string; password?: string }) {
+  async login(@Body() body: { email?: string; password?: string }, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     if (!body.email || !body.password) fail("VALIDATION", 400, "Email and password are required");
-    return this.auth.adminLogin(body.email, body.password);
+    const result = await this.auth.adminLogin(body.email, body.password);
+    const secure = cookieSecure(this.kernel.config.nodeEnv);
+    setAdminCookie(res, result.accessToken, secure);
+    return { ...result, csrfToken: issueCsrf(req, res, secure) };
+  }
+
+  @Post("logout")
+  async logout(@Res({ passthrough: true }) res: Response) {
+    clearAdminCookie(res);
+    return { ok: true };
   }
 
   @Post("activate")
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   activate(@Body() body: ResetDto) {
     return this.auth.activateAdmin(body.challengeId, body.code, body.password);
   }

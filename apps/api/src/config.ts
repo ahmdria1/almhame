@@ -128,6 +128,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   };
 }
 
+const DEV_KMS_MASTER_KEY = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
+const DEV_JWT_SECRET = "replace-with-a-long-random-string";
+const DEV_OTP_PEPPER = "replace-with-another-long-random-string";
+
+export function debugCodeResponseEnabled(config: AppConfig): boolean {
+  return config.nodeEnv === "test";
+}
+
 export function assertProductionProviders(config: AppConfig): void {
   if (config.nodeEnv !== "production") return;
   const blocked: string[] = [];
@@ -136,7 +144,13 @@ export function assertProductionProviders(config: AppConfig): void {
   if (config.smsProvider === "mock") blocked.push("SMS_PROVIDER");
   if (config.paymentGateway === "sandbox" || config.paymentGateway === "mock") blocked.push("PAYMENT_GATEWAY");
   if (!config.smtpHost || !config.smtpFrom) blocked.push("SMTP_HOST");
-  if (config.otpDebug || config.emailDebug) blocked.push("EMAIL_DEBUG");
+  if (config.otpDebug) blocked.push("OTP_DEBUG");
+  if (config.emailDebug) blocked.push("EMAIL_DEBUG");
+  if (debugCodeResponseEnabled(config)) blocked.push("DEBUG_CODE");
+  if (config.jwtSecret === DEV_JWT_SECRET || config.jwtSecret.length < 32) blocked.push("JWT_SECRET");
+  if (config.otpPepper === DEV_OTP_PEPPER || config.otpPepper.length < 32) blocked.push("OTP_PEPPER");
+  const kmsBytes = Buffer.from(config.kmsMasterKey, "base64");
+  if (config.kmsMasterKey === DEV_KMS_MASTER_KEY || kmsBytes.length < 32) blocked.push("KMS_MASTER_KEY");
   if (blocked.length) {
     throw new Error(`Refusing to boot with mock or missing providers: ${blocked.join(", ")}`);
   }

@@ -1,15 +1,10 @@
 import { Injectable } from "@nestjs/common";
 import { createHash, randomUUID } from "crypto";
 import { PlanCode } from "@prisma/client";
+import { buildTrandata, decryptTrandata, encryptTrandata } from "./domain/alrajhi";
 import { PLAN_DEFS, yearlyHalalas } from "./domain/plans";
 import { halalasToSar, nextInvoiceNumber, splitVatInclusive, zatcaQrBase64 } from "./domain/invoice";
-import {
-  buildTrandata,
-  decryptTrandata,
-  encryptTrandata,
-  sandboxSignatureOk,
-  signSandbox,
-} from "./domain/payments";
+import { sandboxSignatureOk, signSandbox } from "./domain/payments";
 import { fail } from "./http-error";
 import { Kernel } from "./kernel";
 
@@ -211,7 +206,7 @@ export class BillingService {
           renews.setUTCDate(renews.getUTCDate() + (intent.cycle === "yearly" ? 365 : 30));
           await tx.user.update({
             where: { id: user.id },
-            data: { planCode: intent.planCode, planRenewsAt: renews, memoCountPeriod: 0, periodStartedAt: issued },
+            data: { planCode: intent.planCode, planRenewsAt: renews, memoCountPeriod: 0, chatCountPeriod: 0, periodStartedAt: issued },
           });
           await tx.walletTransaction.create({
             data: {

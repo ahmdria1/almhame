@@ -1,5 +1,5 @@
 import { PlanCode, User } from "@prisma/client";
-import { PLAN_DEFS, PlanDef } from "./domain/plans";
+import { chatsCounted, PLAN_DEFS, PlanDef } from "./domain/plans";
 
 export function presentUser(user: User, plan: PlanDef = PLAN_DEFS[user.planCode as PlanCode]) {
   return {
@@ -10,7 +10,7 @@ export function presentUser(user: User, plan: PlanDef = PLAN_DEFS[user.planCode 
     locale: user.locale,
     theme: user.theme,
     planCode: user.planCode,
-    chatCount: user.chatCount,
+    chatCount: chatsCounted(plan, user.chatCount, user.chatCountPeriod),
     chatLimit: plan.chatLimit,
     memoCountPeriod: user.memoCountPeriod,
     memoLimit: plan.memoLimit,

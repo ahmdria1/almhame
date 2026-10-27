@@ -52,8 +52,8 @@ export const MEMO_TITLE: Record<MemoType, string> = {
 
 export function readSlots(userTexts: string[]): DraftSlots & { ready: boolean; question: string } {
   const joined = userTexts.map((line) => line.trim()).filter(Boolean).join("\n");
-  const plaintiff = joined.match(/المدعي\s*[:：]\s*([^\n]+)/)?.[1]?.trim();
-  const defendant = joined.match(/المدعى عليه\s*[:：]\s*([^\n]+)/)?.[1]?.trim();
+  const plaintiff = joined.match(/المدّ?عي\s*[:：]\s*([^\n]+)/)?.[1]?.trim();
+  const defendant = joined.match(/المدّ?عى عليه\s*[:：]\s*([^\n]+)/)?.[1]?.trim();
   const requests = joined.match(/الطلبات\s*[:：]\s*([^\n]+)/)?.[1]?.trim();
   const facts = joined;
   if (facts.length < 30) {
@@ -73,7 +73,7 @@ export function readSlots(userTexts: string[]): DraftSlots & { ready: boolean; q
       facts,
       requests: requests || "",
       ready: false,
-      question: "من المدعي؟ أجب بالصيغة: المدعي: الاسم.",
+      question: "من المدّعي؟ أجب بالصيغة: المدّعي: الاسم.",
     };
   }
   if (!defendant) {
@@ -83,14 +83,14 @@ export function readSlots(userTexts: string[]): DraftSlots & { ready: boolean; q
       facts,
       requests: requests || "",
       ready: false,
-      question: "من المدعى عليه؟ أجب بالصيغة: المدعى عليه: الاسم.",
+      question: "من المدّعى عليه؟ أجب بالصيغة: المدّعى عليه: الاسم.",
     };
   }
   return {
     plaintiff,
     defendant,
     facts,
-    requests: requests || "الحكم وفق الوقائع، مع تحميل المدعى عليه الرسوم.",
+    requests: requests || "الحكم وفق الوقائع، مع تحميل المدّعى عليه الرسوم.",
     ready: true,
     question: "الوقائع كافية للصياغة. راجع المذكرة بعد إنشائها، ولا تودعها قبل مطابقة المصادر.",
   };
@@ -107,7 +107,7 @@ export function composeDraft(input: {
   const title = MEMO_TITLE[input.memoType];
   const lines: string[] = ["بسم الله الرحمن الرحيم", "", title, "", COURT_HEADING[input.court]];
   if (input.letterhead) lines.push(input.letterhead);
-  lines.push("", `المدعي: ${input.slots.plaintiff}`, `المدعى عليه: ${input.slots.defendant}`, "", "أولًا: الوقائع", input.slots.facts, "", "ثانيًا: الأسانيد النظامية");
+  lines.push("", `المدّعي: ${input.slots.plaintiff}`, `المدّعى عليه: ${input.slots.defendant}`, "", "أولًا: الوقائع", input.slots.facts, "", "ثانيًا: الأسانيد النظامية");
   if (input.articles.length === 0) {
     lines.push("لم يُسترجع من المدونة نص نظامي لهذه الوقائع، فلا يُذكر رقم مادة.");
   } else {
