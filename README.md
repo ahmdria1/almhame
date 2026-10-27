@@ -71,7 +71,7 @@ Open the link in the email (or the outbox file), set a password, then sign in at
 12. Web SEO tests for every public page in every locale: title, description, canonical URL, hreflang for all 11 locales plus `x-default`, and JSON-LD. Private routes are `noindex` and stay out of the sitemap
 13. Lighthouse CI on a mobile profile for every Arabic public page and the home page of each other locale. The run fails under 95 for SEO, accessibility, and best practices, and under 90 for performance
 
-`extract-zip` has no patched release. Those two CVEs stay in `pnpm.auditConfig.ignoreCves` because PDF export uses the system browser and does not extract browser archives.
+`extract-zip` has no patched release. `CVE-2026-56876` and `CVE-2026-19693` stay in `pnpm.auditConfig.ignoreCves`. See `SECURITY.md` for the dependency path and why PDF export does not unpack a browser archive.
 
 ```bash
 pnpm lint
