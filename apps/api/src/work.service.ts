@@ -196,6 +196,10 @@ export class WorkService {
     });
     const texts = history.map((message) => this.kernel.dec(dek, message.contentEnc));
     const slots = readSlots(texts);
+    if (slots.ready) {
+      const gap = await this.corpus.governingGap(chat.court, jurisdictionOf(chat.jurisdiction).code);
+      if (gap) slots.question = `${slots.question}\n${gap}`;
+    }
     if (chat.caseId) {
       await this.kernel.prisma.caseFile.update({
         where: { id: chat.caseId },
@@ -232,7 +236,7 @@ export class WorkService {
     const filled = {
       plaintiff: slots.plaintiff || "المذكور في الوقائع",
       defendant: slots.defendant || "المذكور في الوقائع",
-      facts: texts.join("\n"),
+      facts: slots.facts.length >= 30 ? slots.facts : texts.join("\n"),
       requests: slots.requests || "الحكم وفق الوقائع، مع تحميل الرسوم على المدّعى عليه.",
     };
     const place = jurisdictionOf(chat.jurisdiction);
@@ -242,8 +246,8 @@ export class WorkService {
     const headings = (template?.courtHeadings || null) as Record<string, string> | null;
     const courtHeading = headings?.[chat.court];
     if (!template || !courtHeading) fail("VALIDATION", 400, "No document template for this court");
-    const retrieved = await this.corpus.retrieve(chat.court, filled.facts, place.code);
-    const allowed = retrieved.articles.map((article) => article.number);
+    const retrieved = await this.corpus.retrieve(chat.court, filled.facts, place.code, chat.memoType);
+    const allowed = [...retrieved.substantive, ...retrieved.procedural].map((article) => article.number);
     filled.facts = await this.maybeRewriteFacts(filled.facts, allowed);
     const org = user.orgId ? await this.kernel.prisma.organization.findUnique({ where: { id: user.orgId } }) : null;
     const letterhead = (await this.kernel.plan(user.planCode, place.code)).letterhead ? org?.letterheadName || "" : "";
@@ -251,8 +255,10 @@ export class WorkService {
       court: chat.court,
       memoType: chat.memoType as MemoKind,
       slots: filled,
-      articles: retrieved.articles,
+      articles: retrieved.substantive,
+      procedural: retrieved.procedural,
       sharia: retrieved.sharia,
+      notice: retrieved.notice,
       letterhead,
       title: template.titleAr,
       courtHeading,

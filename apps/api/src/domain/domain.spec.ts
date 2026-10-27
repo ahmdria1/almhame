@@ -4,6 +4,7 @@ import { DEFAULT_JURISDICTION, JURISDICTION_CATALOG } from "@elawyer/types";
 import { knownArticle, textHash, validateCitations } from "./citations";
 import { citationLabel } from "./article-numbers";
 import { composeDraft, readSlots } from "./draft";
+import { courtSubject, isFillerCitation, missingStatuteNotice, searchStems, selectGrounds, type GroundArticle } from "./relevance";
 import { EMBED_DIM, mockEmbed, vectorLiteral } from "./embeddings";
 import { decodeMasterKey, decryptBytes, decryptString, encryptBytes, encryptString, generateDek, unwrapKey, wrapKey } from "./envelope";
 import { halalasToSar, nextInvoiceNumber, splitVatInclusive, zatcaQrBase64 } from "./invoice";
@@ -172,6 +173,162 @@ describe("draft composer", () => {
     expect(draft.body).toContain(`{{cite:article:a77:${textHash("نص عيّنة غير رسمي عن إنهاء العقد.")}}}`);
     expect(draft.body).not.toMatch(/المادة\s*\(?\s*84/);
     expect(draft.citations).toEqual([{ kind: "article", id: "a77", number: "77" }]);
+  });
+});
+
+describe("citation relevance and slot labels", () => {
+  const wage = "أعمل لدى شركة أفق للمقاولات منذ ثلاث سنوات بعقد غير محدد المدة، وبراتب شهري قدره ثمانية آلاف ريال. انتهت العلاقة في أغسطس 2026 دون إنذار كتابي، ولم يُصرف أجر شهر أغسطس ولا مكافأة نهاية الخدمة.";
+  const laborText = "إذا انتهت علاقة العمل وجب على صاحب العمل أن يدفع إلى العامل أجره ومكافأة نهاية الخدمة خلال أسبوع من انتهائها.";
+  const oath = "يشترط أن يكون الحالف أهلاً للتصرف فيما يحلف عليه، ولا تقبل النيابة في أداء اليمين.";
+  const proof = "يقع إثبات عدم صرف الأجر ومكافأة نهاية الخدمة على من يدعيه بالبينة.";
+  const venue = "تختص المحكمة العامة بنظر الدعاوى الخارجة عن اختصاص المحاكم الأخرى وفق قواعد المرافعات.";
+
+  function ground(id: string, lawKey: string, lawNameAr: string, textAr: string, number = "90"): GroundArticle {
+    return {
+      id,
+      number,
+      textAr,
+      textEn: "",
+      lawKey,
+      lawNameAr,
+      lawNameEn: "",
+      sourceUrl: "https://example.sa/source",
+      isSample: false,
+      version: "1",
+      effectiveDate: "2026-01-01",
+    };
+  }
+
+  it("splits every slot label on one line, with or without shadda", () => {
+    const slots = readSlots([
+      wage,
+      "المدّعى عليه: شركة أفق للمقاولات الطلبات: إلزام المدعى عليه بأجر شهر أغسطس ومكافأة نهاية الخدمة",
+      "المدعي: خالد بن سامي",
+    ]);
+    expect(slots.defendant).toBe("شركة أفق للمقاولات");
+    expect(slots.requests).toBe("إلزام المدعى عليه بأجر شهر أغسطس ومكافأة نهاية الخدمة");
+    expect(slots.plaintiff).toBe("خالد بن سامي");
+    expect(slots.facts).toBe(wage);
+    expect(slots.defendant.includes("الطلبات")).toBe(false);
+    const marked = readSlots([`الوقائع：${wage} المدّعي：خالد المدعى عليه：شركة الأفق الطلبات：الأجر`]);
+    expect(marked.plaintiff).toBe("خالد");
+    expect(marked.defendant).toBe("شركة الأفق");
+    expect(marked.requests).toBe("الأجر");
+    expect(marked.facts).toBe(wage);
+    expect(searchStems("في الأجر على الشركة")).toEqual(["أجر", "شركة"]);
+    expect(isFillerCitation("1:1", "بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ")).toBe(true);
+    expect(isFillerCitation("فاتحة", "بسم الله الرحمن الرحيم")).toBe(true);
+    expect(isFillerCitation("2:282", "يا أيها الذين آمنوا إذا تداينتم بدين")).toBe(false);
+    expect(courtSubject("labor")?.nameAr).toBe("نظام العمل");
+    expect(courtSubject("unknown")).toBeNull();
+  });
+
+  it("adds no statutory citation when the labor statute is missing", () => {
+    const decision = selectGrounds({
+      court: "labor",
+      memoType: "lawsuit",
+      facts: wage,
+      articles: [
+        ground("oath", "evidence", "نظام الإثبات", oath, "94"),
+        ground("proof", "evidence", "نظام الإثبات", proof, "50"),
+        ground("venue", "sharia-procedure", "نظام المرافعات الشرعية", venue, "31"),
+      ],
+      sharia: [
+        {
+          id: "basmala",
+          kind: "quran",
+          reference: "1:1",
+          textAr: "بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ",
+          textEn: "",
+          sourceUrl: "https://tanzil.net/download/",
+          isSample: false,
+        },
+      ],
+      presentLawKeys: ["evidence", "sharia-procedure"],
+    });
+    expect(decision.substantive).toEqual([]);
+    expect(decision.procedural).toEqual([]);
+    expect(decision.sharia).toEqual([]);
+    expect(decision.notice).toBe(missingStatuteNotice("نظام العمل"));
+    const draft = composeDraft({
+      court: "labor",
+      memoType: "lawsuit",
+      slots: readSlots([`${wage}\nالمدعي: خالد\nالمدعى عليه: شركة أفق\nالطلبات: الأجر`]),
+      articles: decision.substantive,
+      procedural: decision.procedural,
+      sharia: decision.sharia,
+      notice: decision.notice,
+    });
+    expect(draft.citations).toEqual([]);
+    expect(draft.body).toContain("نظام العمل غير موجود في قاعدة النصوص الموثقة بعد، ولم يُضف سند نظامي.");
+    expect(draft.body).not.toContain("{{cite:");
+    expect(draft.body).not.toContain("نظام الإثبات");
+    expect(draft.body).not.toContain("1:1");
+  });
+
+  it("keeps procedural articles in the procedural section only when they match", () => {
+    const facts = `${wage} ويطلب إثبات عدم الصرف بالبينة.`;
+    const decision = selectGrounds({
+      court: "labor",
+      memoType: "lawsuit",
+      facts,
+      articles: [
+        ground("proof", "evidence", "نظام الإثبات", proof, "40"),
+        ground("venue", "sharia-procedure", "نظام المرافعات الشرعية", venue, "31"),
+        ground("labor", "labor", "نظام العمل", laborText, "88"),
+      ],
+      sharia: [],
+      presentLawKeys: ["evidence", "sharia-procedure"],
+    });
+    expect(decision.substantive).toEqual([]);
+    expect(decision.notice).toContain("نظام العمل");
+    expect(decision.procedural.map((article) => article.id)).toEqual(["proof"]);
+    const draft = composeDraft({
+      court: "labor",
+      memoType: "lawsuit",
+      slots: { plaintiff: "خالد", defendant: "شركة أفق", facts, requests: "الأجر" },
+      articles: decision.substantive,
+      procedural: decision.procedural,
+      sharia: [],
+      notice: decision.notice,
+    });
+    const statutory = draft.body.split("الأسانيد الإجرائية")[0];
+    const procedural = draft.body.split("الأسانيد الإجرائية")[1].split("ثالثًا")[0];
+    expect(statutory).not.toContain("نظام الإثبات");
+    expect(statutory).not.toContain("نظام المرافعات");
+    expect(procedural).toContain("المادة (40) من نظام الإثبات");
+    expect(procedural).not.toContain("نظام المرافعات");
+    const matched = selectGrounds({
+      court: "labor",
+      memoType: "lawsuit",
+      facts: wage,
+      articles: [ground("labor", "labor", "نظام العمل", laborText, "88"), ground("proof", "evidence", "نظام الإثبات", proof, "40")],
+      sharia: [],
+      presentLawKeys: ["labor", "evidence"],
+    });
+    expect(matched.notice).toBeNull();
+    expect(matched.substantive.map((article) => article.lawKey)).toEqual(["labor"]);
+    expect(matched.procedural).toEqual([]);
+    const unmatched = selectGrounds({
+      court: "commercial",
+      memoType: "lawsuit",
+      facts: wage,
+      articles: [ground("oath", "companies", "نظام الشركات", oath, "2")],
+      sharia: [],
+      presentLawKeys: ["companies"],
+    });
+    expect(unmatched.substantive).toEqual([]);
+    expect(unmatched.notice).toContain("لا تطابق هذه الوقائع");
+    const appeal = selectGrounds({
+      court: "appeal",
+      memoType: "appeal",
+      facts: wage,
+      articles: [ground("proof", "evidence", "نظام الإثبات", proof, "40")],
+      sharia: [],
+      presentLawKeys: ["sharia-procedure", "evidence"],
+    });
+    expect(appeal.procedural.map((article) => article.id)).toEqual(["proof"]);
+    expect(appeal.notice).toBeNull();
   });
 });
 

@@ -132,28 +132,34 @@ describe("api integration", () => {
     expect(blocked.body.error.code).toBe("QUOTA_CHATS");
   });
 
-  it("drafts only from the sample corpus and rejects an invented article", async () => {
+  it("states that the labor statute is missing and rejects an invented article", async () => {
     const user = await account();
     const chat = await request(app.getHttpServer())
       .post("/api/chats")
       .set("Authorization", `Bearer ${user.token}`)
       .send({ court: "labor", memoType: "lawsuit" })
       .expect(201);
-    await request(app.getHttpServer())
+    const told = await request(app.getHttpServer())
       .post(`/api/chats/${chat.body.chat.id}/messages`)
       .set("Authorization", `Bearer ${user.token}`)
-      .send({ text: "المدعي أحمد العمراني يطالب شركة الأفق للمقاولات بأجر شهر أغسطس الذي لم يصرف بعد انتهاء الخدمة." })
+      .send({
+        text: "المدعي: أحمد العمراني\nالمدعى عليه: شركة الأفق للمقاولات الطلبات: أجر شهر أغسطس\nيطالب بأجر شهر أغسطس الذي لم يصرف بعد انتهاء الخدمة لدى الشركة.",
+      })
       .expect(201);
+    expect(told.body.counsel.content).toContain("نظام العمل غير موجود في قاعدة النصوص الموثقة بعد");
+    expect(told.body.readyToDraft).toBe(true);
     const drafted = await request(app.getHttpServer())
       .post(`/api/chats/${chat.body.chat.id}/draft`)
       .set("Authorization", `Bearer ${user.token}`)
       .send({})
       .expect(201);
     const memo = drafted.body.memo;
-    expect(memo.citations.length).toBeGreaterThan(0);
-    expect(memo.citations.every((item: { isSample: boolean }) => item.isSample)).toBe(true);
+    expect(memo.citations).toEqual([]);
     expect(memo.body).toContain("ثانيًا:");
-    expect(memo.body).toMatch(/\{\{cite:article:[A-Za-z0-9_-]+:[a-f0-9]{64}\}\}/);
+    expect(memo.body).toContain("نظام العمل غير موجود في قاعدة النصوص الموثقة بعد، ولم يُضف سند نظامي.");
+    expect(memo.body).not.toMatch(/\{\{cite:/);
+    expect(memo.body).toContain("المدّعى عليه: شركة الأفق للمقاولات");
+    expect(memo.body).not.toContain("المدّعى عليه: شركة الأفق للمقاولات الطلبات");
     const rejected = await request(app.getHttpServer())
       .patch(`/api/memos/${memo.id}`)
       .set("Authorization", `Bearer ${user.token}`)
@@ -163,24 +169,19 @@ describe("api integration", () => {
     const wrongNumber = await request(app.getHttpServer())
       .patch(`/api/memos/${memo.id}`)
       .set("Authorization", `Bearer ${user.token}`)
-      .send({ body: memo.body.replace(/المادة \(((?:[^()]|\([^()]*\))*)\)/, "المادة (99998)") })
+      .send({ body: `${memo.body}\nالمادة (99998)` })
       .expect(422);
     expect(wrongNumber.body.error.code).toBe("CITATION_REJECTED");
     const otherStatute = await request(app.getHttpServer())
       .patch(`/api/memos/${memo.id}`)
       .set("Authorization", `Bearer ${user.token}`)
-      .send({
-        body: memo.body.replace(
-          /(المادة \((?:[^()]|\([^()]*\))*\) من )([^\n:]+?)(\s*(?:\[عيّنة غير رسمية\])?\s*:)/,
-          "$1نظام لا يخص هذه المادة$3",
-        ),
-      })
+      .send({ body: `${memo.body}\nالمادة (1) من نظام لا يخص هذه المادة: نص` })
       .expect(422);
     expect(otherStatute.body.error.code).toBe("CITATION_REJECTED");
     const badHash = await request(app.getHttpServer())
       .patch(`/api/memos/${memo.id}`)
       .set("Authorization", `Bearer ${user.token}`)
-      .send({ body: memo.body.replace(/(\{\{cite:article:[A-Za-z0-9_-]+:)[a-f0-9]{64}(\}\})/, `$1${"ab".repeat(32)}$2`) })
+      .send({ body: `${memo.body}\n{{cite:article:missing:${"ab".repeat(32)}}}` })
       .expect(422);
     expect(badHash.body.error.code).toBe("CITATION_REJECTED");
     const pdf = await request(app.getHttpServer())

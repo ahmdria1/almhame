@@ -8,6 +8,7 @@ import { Prisma } from "@prisma/client";
 import { DEFAULT_JURISDICTION, type JurisdictionCode } from "@elawyer/types";
 import { parse } from "csv-parse/sync";
 import { EMBED_DIM, mockEmbed, vectorLiteral } from "./domain/embeddings";
+import { PROCEDURAL_KEYS, courtSubject, isProceduralKey, missingStatuteNotice, proceduralContext, searchStems, selectGrounds } from "./domain/relevance";
 import { Kernel } from "./kernel";
 import { fail } from "./http-error";
 
@@ -204,12 +205,32 @@ export class CorpusService {
     };
   }
 
-  async retrieve(court: string, query: string, jurisdiction: JurisdictionCode = DEFAULT_JURISDICTION) {
-    const like = `%${query.slice(0, 80).replace(/[%_]/g, "")}%`;
+  async governingGap(court: string, jurisdiction: JurisdictionCode = DEFAULT_JURISDICTION): Promise<string | null> {
+    const subject = courtSubject(court);
+    if (!subject) return null;
+    const found = await this.kernel.prisma.law.count({ where: { jurisdiction, key: { in: subject.keys } } });
+    return found > 0 ? null : missingStatuteNotice(subject.nameAr);
+  }
+
+  async retrieve(court: string, query: string, jurisdiction: JurisdictionCode = DEFAULT_JURISDICTION, memoType = "lawsuit") {
+    const subject = courtSubject(court);
+    const defined = subject?.keys ?? [];
+    const presentRows = defined.length
+      ? await this.kernel.prisma.law.findMany({ where: { jurisdiction, key: { in: defined } }, select: { key: true } })
+      : [];
     const vector = vectorLiteral(await this.embed(query));
-    const articles = await this.rankArticles(jurisdiction, court, like, vector);
-    const sharia = await this.rankSharia(jurisdiction, court, like, vector);
-    return { articles: articles.slice(0, 2), sharia: sharia.slice(0, 1) };
+    const subjectKeys = defined.filter((key) => presentRows.some((row) => row.key === key) && !isProceduralKey(key));
+    const articles = await this.rankArticles(jurisdiction, subjectKeys, query, vector);
+    const procedural = proceduralContext(query, memoType) ? await this.rankArticles(jurisdiction, [...PROCEDURAL_KEYS], query, vector) : [];
+    const sharia = await this.rankSharia(jurisdiction, court, query, vector);
+    return selectGrounds({
+      court,
+      memoType,
+      facts: query,
+      articles: [...articles, ...procedural],
+      sharia,
+      presentLawKeys: presentRows.map((row) => row.key),
+    });
   }
 
   async counts() {
@@ -389,34 +410,32 @@ export class CorpusService {
     `;
   }
 
-  private async rankArticles(jurisdiction: string, court: string, like: string, vector: string) {
-    const keyword = await this.kernel.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
-      SELECT a.id FROM "Article" a
-      JOIN "Law" l ON l.id = a."lawId"
-      WHERE l.jurisdiction = ${jurisdiction}
-        AND ${court} = ANY(l.courts)
-        AND (a."textAr" ILIKE ${like} OR a."textEn" ILIKE ${like} OR l."nameAr" ILIKE ${like})
-      LIMIT 8
-    `);
+  private async rankArticles(jurisdiction: string, lawKeys: string[], query: string, vector: string) {
+    if (lawKeys.length === 0) return [];
+    const keys = Prisma.join(lawKeys);
+    const stems = searchStems(query).slice(0, 8).map((stem) => stem.replace(/[%_]/g, ""));
+    const keyword = stems.length
+      ? await this.kernel.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+          SELECT a.id FROM "Article" a
+          JOIN "Law" l ON l.id = a."lawId"
+          WHERE l.jurisdiction = ${jurisdiction}
+            AND l.key IN (${keys})
+            AND (${Prisma.join(stems.map((stem) => Prisma.sql`a."textAr" ILIKE ${"%" + stem + "%"}`), " OR ")})
+          LIMIT 12
+        `)
+      : [];
     const vectorIds = await this.kernel.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
       SELECT a.id
       FROM "Article" a
       JOIN "Law" l ON l.id = a."lawId"
       JOIN "CorpusEmbedding" e ON e."targetId" = a.id AND e."targetType" = 'article'
       WHERE l.jurisdiction = ${jurisdiction}
-        AND ${court} = ANY(l.courts)
+        AND l.key IN (${keys})
       ORDER BY e.embedding <=> CAST(${vector} AS vector)
       LIMIT 8
     `);
     const ids = [...new Set([...keyword.map((row) => row.id), ...vectorIds.map((row) => row.id)])];
-    if (ids.length === 0) {
-      const fallback = await this.kernel.prisma.article.findMany({
-        where: { law: { jurisdiction, courts: { has: court } } },
-        include: { law: true },
-        take: 2,
-      });
-      return fallback.map((row) => this.presentArticle(row));
-    }
+    if (ids.length === 0) return [];
     const rows = await this.kernel.prisma.article.findMany({ where: { id: { in: ids } }, include: { law: true } });
     const order = new Map(ids.map((id, index) => [id, index]));
     return rows
@@ -424,27 +443,31 @@ export class CorpusService {
       .map((row) => this.presentArticle(row));
   }
 
-  private async rankSharia(jurisdiction: string, court: string, like: string, vector: string) {
-    const keyword = await this.kernel.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
-      SELECT id FROM "ShariaSource"
-      WHERE jurisdiction = ${jurisdiction}
-        AND ${court} = ANY(courts)
-        AND ("textAr" ILIKE ${like} OR reference ILIKE ${like})
-      LIMIT 4
-    `);
+  private async rankSharia(jurisdiction: string, court: string, query: string, vector: string) {
+    const stems = searchStems(query).slice(0, 6).map((stem) => stem.replace(/[%_]/g, ""));
+    const keyword = stems.length
+      ? await this.kernel.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+          SELECT id FROM "ShariaSource"
+          WHERE jurisdiction = ${jurisdiction}
+            AND ${court} = ANY(courts)
+            AND reference <> '1:1'
+            AND (${Prisma.join(stems.map((stem) => Prisma.sql`"textAr" ILIKE ${"%" + stem + "%"}`), " OR ")})
+          LIMIT 8
+        `)
+      : [];
     const vectorIds = await this.kernel.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
       SELECT s.id
       FROM "ShariaSource" s
       JOIN "CorpusEmbedding" e ON e."targetId" = s.id AND e."targetType" = 'sharia'
       WHERE s.jurisdiction = ${jurisdiction}
         AND ${court} = ANY(s.courts)
+        AND s.reference <> '1:1'
       ORDER BY e.embedding <=> CAST(${vector} AS vector)
       LIMIT 4
     `);
     const ids = [...new Set([...keyword.map((row) => row.id), ...vectorIds.map((row) => row.id)])];
-    const rows = ids.length
-      ? await this.kernel.prisma.shariaSource.findMany({ where: { id: { in: ids } } })
-      : await this.kernel.prisma.shariaSource.findMany({ where: { jurisdiction, courts: { has: court } }, take: 1 });
+    if (ids.length === 0) return [];
+    const rows = await this.kernel.prisma.shariaSource.findMany({ where: { id: { in: ids } } });
     return rows.map((row) => ({
       id: row.id,
       kind: row.kind,
@@ -463,13 +486,14 @@ export class CorpusService {
     textEn: string;
     sourceUrl: string;
     isSample: boolean;
-    law: { nameAr: string; nameEn: string; version: string; effectiveDate: Date };
+    law: { key: string; nameAr: string; nameEn: string; version: string; effectiveDate: Date };
   }) {
     return {
       id: row.id,
       number: row.number,
       textAr: row.textAr,
       textEn: row.textEn,
+      lawKey: row.law.key,
       lawNameAr: row.law.nameAr,
       lawNameEn: row.law.nameEn,
       sourceUrl: row.sourceUrl,

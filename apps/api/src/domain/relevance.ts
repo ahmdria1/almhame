@@ -1,0 +1,160 @@
+import type { CourtType, MemoType } from "@elawyer/types";
+import type { RetrievedArticle, RetrievedSharia } from "./draft";
+
+export interface GroundArticle extends RetrievedArticle {
+  lawKey: string;
+}
+
+export interface GroundDecision {
+  substantive: RetrievedArticle[];
+  procedural: RetrievedArticle[];
+  sharia: RetrievedSharia[];
+  notice: string | null;
+}
+
+const SUBJECTS: Record<CourtType, { keys: string[]; nameAr: string }> = {
+  labor: { keys: ["labor"], nameAr: "نظام العمل" },
+  commercial: {
+    keys: ["companies", "commercial-papers", "bankruptcy", "commercial-fraud", "civil-transactions"],
+    nameAr: "الأنظمة التجارية",
+  },
+  criminal: { keys: ["cybercrime", "harassment", "financial-fraud"], nameAr: "الأنظمة الجزائية" },
+  personal_status: { keys: ["personal-status"], nameAr: "نظام الأحوال الشخصية" },
+  enforcement: { keys: ["enforcement"], nameAr: "نظام التنفيذ" },
+  administrative: { keys: ["bog-procedure"], nameAr: "نظام المرافعات أمام ديوان المظالم" },
+  general: { keys: ["civil-transactions"], nameAr: "نظام المعاملات المدنية" },
+  appeal: { keys: ["sharia-procedure"], nameAr: "نظام المرافعات الشرعية" },
+  supreme: { keys: ["sharia-procedure"], nameAr: "نظام المرافعات الشرعية" },
+};
+
+export const PROCEDURAL_KEYS = [
+  "evidence",
+  "sharia-procedure",
+  "sharia-procedure-regulation",
+  "criminal-procedure",
+  "commercial-courts",
+  "commercial-courts-regulation",
+] as const;
+
+const PROCEDURAL = new Set<string>(PROCEDURAL_KEYS);
+
+const STOP = new Set(
+  "في من على إلى الى عن مع أو او ثم قد كان كانت يكون تكون هذا هذه ذلك تلك الذي التي الذين كل كما غير بعد قبل عند لدى دون لم لن لا إن ان أن اذا إذا أي بين وهو وهي هو هي تم خلال حيث بينه عليه عليها لهم لها وما وماذا هناك هنا سوف قد وقد".split(/\s+/),
+);
+
+export function isProceduralKey(key: string): boolean {
+  return PROCEDURAL.has(key);
+}
+
+export function courtSubject(court: string): { keys: string[]; nameAr: string } | null {
+  return SUBJECTS[court as CourtType] ?? null;
+}
+
+export function missingStatuteNotice(nameAr: string): string {
+  return `${nameAr} غير موجود في قاعدة النصوص الموثقة بعد، ولم يُضف سند نظامي.`;
+}
+
+export function searchStems(text: string): string[] {
+  const seen = new Set<string>();
+  const stems: string[] = [];
+  for (const token of text.split(/[^\u0621-\u064A]+/)) {
+    const stem = token.replace(/^(?:ال|وال|بال|كال|فال|لل)/, "");
+    if (stem.length < 3 || STOP.has(stem) || seen.has(stem)) continue;
+    seen.add(stem);
+    stems.push(stem);
+  }
+  return stems;
+}
+
+function folded(token: string): string {
+  return token
+    .replace(/[\u064B-\u0652\u0670\u0640]/g, "")
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/ى/g, "ي")
+    .replace(/^(?:ال|وال|بال|كال|فال|لل)/, "")
+    .replace(/^[وفبلك]/, "");
+}
+
+function stemsOf(text: string): string[] {
+  const seen = new Set<string>();
+  for (const token of text.split(/[^\u0621-\u064A\u064B-\u0652\u0670]+/)) {
+    const stem = folded(token);
+    if (stem.length < 3 || STOP.has(stem)) continue;
+    seen.add(stem);
+  }
+  return [...seen];
+}
+
+export function overlapScore(facts: string, text: string): { shared: number; ratio: number } {
+  const left = new Set(stemsOf(facts));
+  const right = stemsOf(text);
+  if (right.length === 0 || left.size === 0) return { shared: 0, ratio: 0 };
+  const shared = right.filter((stem) => left.has(stem)).length;
+  return { shared, ratio: shared / right.length };
+}
+
+export function clearsRelevance(facts: string, text: string): boolean {
+  const score = overlapScore(facts, text);
+  return score.shared >= 3 && score.ratio >= 0.2;
+}
+
+export function proceduralContext(facts: string, memoType: string): boolean {
+  if (memoType === "appeal") return true;
+  return /إثبات|بيّ?نة|يمين|تبليغ|اختصاص|بطلان|مرافع|إعلان|شهادة/.test(facts);
+}
+
+export function isFillerCitation(reference: string, text: string): boolean {
+  if (/^1:1(?:\b|[\s:—-]|$)/.test(reference.trim())) return true;
+  const bare = text.replace(/[\u064B-\u0652\u0670\u0640\s]/g, "");
+  return bare === "بسماللهالرحمنالرحيم";
+}
+
+function keepRelevant<T extends { id: string; textAr: string }>(facts: string, rows: T[]): T[] {
+  const ranked = rows
+    .map((row) => ({ row, score: overlapScore(facts, row.textAr) }))
+    .filter((item) => clearsRelevance(facts, item.row.textAr))
+    .sort((a, b) => b.score.shared - a.score.shared || b.score.ratio - a.score.ratio);
+  const seen = new Set<string>();
+  const kept: T[] = [];
+  for (const item of ranked) {
+    if (seen.has(item.row.id)) continue;
+    seen.add(item.row.id);
+    kept.push(item.row);
+  }
+  return kept;
+}
+
+export function selectGrounds(input: {
+  court: string;
+  memoType: MemoType | string;
+  facts: string;
+  articles: GroundArticle[];
+  sharia: RetrievedSharia[];
+  presentLawKeys: string[];
+}): GroundDecision {
+  const subject = courtSubject(input.court);
+  const defined = subject?.keys || [];
+  const present = defined.some((key) => input.presentLawKeys.includes(key));
+  const subjectKeys = new Set(defined.filter((key) => !isProceduralKey(key)));
+  const substantive = present
+    ? keepRelevant(
+        input.facts,
+        input.articles.filter((article) => subjectKeys.has(article.lawKey)),
+      ).slice(0, 2)
+    : [];
+  const procedural = proceduralContext(input.facts, input.memoType)
+    ? keepRelevant(
+        input.facts,
+        input.articles.filter((article) => isProceduralKey(article.lawKey)),
+      ).slice(0, 2)
+    : [];
+  const sharia = keepRelevant(
+    input.facts,
+    input.sharia.filter((source) => !isFillerCitation(source.reference, source.textAr)),
+  ).slice(0, 1);
+  let notice: string | null = null;
+  if (subject && !present) notice = missingStatuteNotice(subject.nameAr);
+  else if (subject && substantive.length === 0 && procedural.length === 0) notice = "لم يُضف سند نظامي لأن المواد المحفوظة لا تطابق هذه الوقائع.";
+  return { substantive, procedural, sharia, notice };
+}
