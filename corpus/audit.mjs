@@ -113,6 +113,21 @@ async function gatewayModel(serial) {
   return data.model;
 }
 
+const BOE_PAGE_KEYS = new Set([
+  "labor",
+  "narcotics",
+  "bribery",
+  "forgery",
+  "money-laundering",
+  "terrorism",
+  "juveniles",
+  "weapons",
+  "abuse",
+  "trafficking",
+  "traffic",
+  "criminal-procedure-regulation",
+]);
+
 async function officialLabor(law) {
   let html = "";
   let via = "";
@@ -124,7 +139,7 @@ async function officialLabor(law) {
     const reason = directError instanceof Error ? directError.message : String(directError);
     const response = await fetch(`https://r.jina.ai/${law.sourceUrl}`, {
       redirect: "follow",
-      signal: AbortSignal.timeout(90000),
+      signal: AbortSignal.timeout(20000),
       headers: { "X-Return-Format": "html", "User-Agent": "elawyer-corpus" },
     }).catch((error) => error);
     const htmlText = response instanceof Response ? await response.text() : "";
@@ -144,7 +159,7 @@ async function officialLabor(law) {
 }
 
 export async function officialArticles(law) {
-  if (law.key === "labor") return officialLabor(law);
+  if (BOE_PAGE_KEYS.has(law.key)) return officialLabor(law);
   if (law.mojSerial) {
     const model = await gatewayModel(law.mojSerial);
     const source = model.bureauOfExpertsAtTheCouncilOfMinistersUrl || law.sourceUrl;
@@ -503,7 +518,7 @@ async function main() {
   const laws = [];
   for (const name of names) laws.push(JSON.parse(await readFile(path.join(boeDir, name), "utf8")));
   const byKey = new Map(laws.map((law) => [law.key, law]));
-  if (laws.length !== 20) fixtureDefects.push(`expected 20 statutes, found ${laws.length}`);
+  if (laws.length !== 31) fixtureDefects.push(`expected 31 statutes, found ${laws.length}`);
   const labor = byKey.get("labor");
   if (!labor) fixtureDefects.push("labor statute missing");
   else {
@@ -516,6 +531,22 @@ async function main() {
       fixtureDefects.push("labor article 2 is not the consolidated text");
     }
   }
+  const bribery = byKey.get("bribery");
+  if (!bribery) fixtureDefects.push("bribery statute missing");
+  else {
+    const labels = new Set((bribery.articles || []).map((article) => citationLabel(article.number)));
+    for (const label of ["9", "9 مكرر (1)", "9 مكرر (2)"]) {
+      if (!labels.has(label)) fixtureDefects.push(`bribery missing article ${label}`);
+    }
+    const article9 = (bribery.articles || []).find((article) => citationLabel(article.number) === "9");
+    if (!article9 || !article9.textAr.includes("أو وعد بها") || article9.textAr.includes("إضافة مادتين")) {
+      fixtureDefects.push("bribery article 9 is not the consolidated text");
+    }
+  }
+  const narcotics = byKey.get("narcotics");
+  if (!narcotics || (narcotics.articles || []).length !== 74) fixtureDefects.push("narcotics statute is not the 74-article text");
+  const traffic = byKey.get("traffic");
+  if (!traffic || (traffic.articles || []).length !== 85) fixtureDefects.push("traffic statute is not the full 85-article text");
   const rows = [];
   for (const law of laws.sort((a, b) => a.key.localeCompare(b.key))) {
     process.stderr.write(`audit ${law.key}\n`);

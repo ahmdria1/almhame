@@ -306,6 +306,69 @@ describe("citation relevance and slot labels", () => {
     expect(rejected.unknown).toContain("article:99999");
   });
 
+  it("cites the narcotics law for possession and the bribery law for a bribe, and rejects an unknown number", () => {
+    const narcotics = JSON.parse(readFileSync(join(__dirname, "../../../../corpus/official/boe/narcotics.json"), "utf8")) as {
+      nameAr: string;
+      articles: { number: string; textAr: string }[];
+    };
+    const bribery = JSON.parse(readFileSync(join(__dirname, "../../../../corpus/official/boe/bribery.json"), "utf8")) as {
+      nameAr: string;
+      articles: { number: string; textAr: string }[];
+    };
+    const articles = [
+      ...narcotics.articles.map((article, index) => ground(`narcotics-${index}`, "narcotics", narcotics.nameAr, article.textAr, article.number)),
+      ...bribery.articles.map((article, index) => ground(`bribery-${index}`, "bribery", bribery.nameAr, article.textAr, article.number)),
+    ];
+    const possession = "دفاع عن حيازة مواد مخدرة. يعاقب كل من حاز مواد مخدرة أو مؤثرات عقلية أو أحرزها أو نقلها أو سلمها أو تسلمها لغير قصد الاتجار أو الترويج أو التعاطي أو الاستعمال الشخصي.";
+    const drug = selectGrounds({
+      court: "criminal",
+      memoType: "defense",
+      facts: possession,
+      articles,
+      sharia: [],
+      presentLawKeys: ["narcotics", "bribery"],
+    });
+    expect(drug.notice).toBeNull();
+    expect(drug.substantive.length).toBeGreaterThan(0);
+    expect(drug.substantive.every((article) => article.lawKey === "narcotics")).toBe(true);
+    const drugDraft = composeDraft({
+      court: "criminal",
+      memoType: "defense",
+      slots: readSlots([`${possession}\nالمدعي: النيابة العامة\nالمدعى عليه: خالد\nالطلبات: البراءة`]),
+      articles: drug.substantive,
+      procedural: drug.procedural,
+      sharia: [],
+      notice: drug.notice,
+    });
+    expect(drugDraft.body).toContain("نظام مكافحة المخدرات والمؤثرات العقلية");
+    const bribeFacts = "قضية رشوة. يعفى الراشي أو الوسيط من العقوبة الأصلية والتبعية إذا أخبر السلطات بالجريمة قبل اكتشافها.";
+    const bribe = selectGrounds({
+      court: "criminal",
+      memoType: "defense",
+      facts: bribeFacts,
+      articles,
+      sharia: [],
+      presentLawKeys: ["narcotics", "bribery"],
+    });
+    expect(bribe.notice).toBeNull();
+    expect(bribe.substantive.every((article) => article.lawKey === "bribery")).toBe(true);
+    const bribeDraft = composeDraft({
+      court: "criminal",
+      memoType: "defense",
+      slots: readSlots([`${bribeFacts}\nالمدعي: النيابة العامة\nالمدعى عليه: موظف عام\nالطلبات: البراءة`]),
+      articles: bribe.substantive,
+      procedural: [],
+      sharia: [],
+      notice: null,
+    });
+    expect(bribeDraft.body).toContain("نظام مكافحة الرشوة");
+    const known = {
+      articles: new Map(bribe.substantive.map((article) => [article.id, knownArticle(article.number, article.lawNameAr, article.textAr)])),
+      sharia: new Map(),
+    };
+    expect(validateCitations(`${bribeDraft.body}\nالمادة (99999)`, bribeDraft.citations, known).ok).toBe(false);
+  });
+
   it("keeps procedural articles in the procedural section only when they match", () => {
     const facts = `${wage} ويطلب إثبات عدم الصرف بالبينة.`;
     const decision = selectGrounds({

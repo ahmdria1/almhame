@@ -12,13 +12,32 @@ export interface GroundDecision {
   notice: string | null;
 }
 
+export const CRIMINAL_TOPICS: { key: string; nameAr: string; pattern: RegExp }[] = [
+  { key: "narcotics", nameAr: "نظام مكافحة المخدرات والمؤثرات العقلية", pattern: /مخدر|مؤثرات عقلية|مؤثر عقلي/ },
+  { key: "bribery", nameAr: "نظام مكافحة الرشوة", pattern: /رشوة|مرتش|راشي/ },
+  { key: "forgery", nameAr: "النظام الجزائي لجرائم التزوير", pattern: /تزوير|مزور/ },
+  { key: "money-laundering", nameAr: "نظام مكافحة غسل الأموال", pattern: /غسل الأموال|غسل اموال|متحصلات الجريمة/ },
+  { key: "terrorism", nameAr: "نظام مكافحة جرائم الإرهاب وتمويله", pattern: /إرهاب|ارهاب|تمويل الإرهاب/ },
+  { key: "juveniles", nameAr: "نظام الأحداث", pattern: /قاصر|لم يتم الثامنة عشرة|دار الأحداث/ },
+  { key: "weapons", nameAr: "نظام الأسلحة والذخائر", pattern: /سلاح ناري|ذخيرة|بندقية|مسدس/ },
+  { key: "abuse", nameAr: "نظام الحماية من الإيذاء", pattern: /إيذاء|عنف أسري/ },
+  { key: "trafficking", nameAr: "نظام مكافحة جرائم الاتجار بالأشخاص", pattern: /اتجار بالأشخاص|اتجار بالبشر/ },
+  { key: "traffic", nameAr: "نظام المرور", pattern: /حادث سير|مخالفة مرورية|رخصة قيادة/ },
+  { key: "cybercrime", nameAr: "نظام مكافحة جرائم المعلوماتية", pattern: /جرائم معلوماتية|اختراق|شبكة معلوماتية/ },
+  { key: "harassment", nameAr: "نظام مكافحة جريمة التحرش", pattern: /تحرش/ },
+  { key: "financial-fraud", nameAr: "نظام مكافحة الاحتيال المالي وخيانة الأمانة", pattern: /احتيال مالي|خيانة الأمانة/ },
+  { key: "commercial-fraud", nameAr: "نظام مكافحة الغش التجاري", pattern: /غش تجاري/ },
+];
+
+const CRIMINAL_KEYS = CRIMINAL_TOPICS.map((topic) => topic.key);
+
 const SUBJECTS: Record<CourtType, { keys: string[]; nameAr: string }> = {
   labor: { keys: ["labor"], nameAr: "نظام العمل" },
   commercial: {
     keys: ["companies", "commercial-papers", "bankruptcy", "commercial-fraud", "civil-transactions"],
     nameAr: "الأنظمة التجارية",
   },
-  criminal: { keys: ["cybercrime", "harassment", "financial-fraud"], nameAr: "الأنظمة الجزائية" },
+  criminal: { keys: CRIMINAL_KEYS, nameAr: "الأنظمة الجزائية" },
   personal_status: { keys: ["personal-status"], nameAr: "نظام الأحوال الشخصية" },
   enforcement: { keys: ["enforcement"], nameAr: "نظام التنفيذ" },
   administrative: { keys: ["bog-procedure"], nameAr: "نظام المرافعات أمام ديوان المظالم" },
@@ -32,6 +51,7 @@ export const PROCEDURAL_KEYS = [
   "sharia-procedure",
   "sharia-procedure-regulation",
   "criminal-procedure",
+  "criminal-procedure-regulation",
   "commercial-courts",
   "commercial-courts-regulation",
 ] as const;
@@ -134,7 +154,9 @@ export function selectGrounds(input: {
   presentLawKeys: string[];
 }): GroundDecision {
   const subject = courtSubject(input.court);
-  const defined = subject?.keys || [];
+  const topics = input.court === "criminal" ? CRIMINAL_TOPICS.filter((topic) => topic.pattern.test(input.facts)) : [];
+  const defined = topics.length ? topics.map((topic) => topic.key) : subject?.keys || [];
+  const noticeName = topics.length ? topics.map((topic) => topic.nameAr).join("، ") : subject?.nameAr || "";
   const present = defined.some((key) => input.presentLawKeys.includes(key));
   const subjectKeys = new Set(defined.filter((key) => !isProceduralKey(key)));
   const substantive = present
@@ -154,7 +176,7 @@ export function selectGrounds(input: {
     input.sharia.filter((source) => !isFillerCitation(source.reference, source.textAr)),
   ).slice(0, 1);
   let notice: string | null = null;
-  if (subject && !present) notice = missingStatuteNotice(subject.nameAr);
+  if (subject && !present) notice = missingStatuteNotice(noticeName);
   else if (subject && substantive.length === 0 && procedural.length === 0) notice = "لم يُضف سند نظامي لأن المواد المحفوظة لا تطابق هذه الوقائع.";
   return { substantive, procedural, sharia, notice };
 }

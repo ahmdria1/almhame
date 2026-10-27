@@ -28,6 +28,17 @@ export const LAWS = [
   { key: "harassment", nameAr: "نظام مكافحة جريمة التحرش", courts: ["criminal"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/f9de1b7f-7526-4c44-b9f3-a9f8015cf5b6/1" },
   { key: "commercial-fraud", nameAr: "نظام مكافحة الغش التجاري", courts: ["commercial", "criminal"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/85eb2897-bec6-4c0c-b1d7-ac7c008ec09c/1" },
   { key: "financial-fraud", nameAr: "نظام مكافحة الاحتيال المالي وخيانة الأمانة", courts: ["criminal", "commercial"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/905e11b3-4d66-496c-9c1b-ad240106367f/1" },
+  { key: "narcotics", nameAr: "نظام مكافحة المخدرات والمؤثرات العقلية", courts: ["criminal"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/221b3286-a3c6-4ea4-97c7-a9a700f18273/1" },
+  { key: "bribery", nameAr: "نظام مكافحة الرشوة", courts: ["criminal"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/75e963c8-9ff3-4d10-88a4-a9a700f17f21/1" },
+  { key: "forgery", nameAr: "النظام الجزائي لجرائم التزوير", courts: ["criminal"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/c1878d16-7ce0-4710-993b-a9a700f17ac5/1" },
+  { key: "money-laundering", nameAr: "نظام مكافحة غسل الأموال", courts: ["criminal"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/0657dfce-95f8-463a-9d87-aa3900ec7b51/1" },
+  { key: "terrorism", nameAr: "نظام مكافحة جرائم الإرهاب وتمويله", courts: ["criminal"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/57694209-3eed-46c7-a5d8-a9ed012761d4/1" },
+  { key: "juveniles", nameAr: "نظام الأحداث", courts: ["criminal"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/4ec27eee-f917-408c-85eb-a9f6011ea426/1" },
+  { key: "weapons", nameAr: "نظام الأسلحة والذخائر", courts: ["criminal"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/a445af93-671f-496b-818a-a9a700f19150/1" },
+  { key: "abuse", nameAr: "نظام الحماية من الإيذاء", courts: ["criminal"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/83f450eb-7985-461f-b053-a9a700f2ba08/1" },
+  { key: "trafficking", nameAr: "نظام مكافحة جرائم الاتجار بالأشخاص", courts: ["criminal"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/4e09c59d-f173-4971-8a38-a9a700f27025/1" },
+  { key: "traffic", nameAr: "نظام المرور", courts: ["criminal"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/85364e57-c01e-41ba-8def-a9a700f183e9/1" },
+  { key: "criminal-procedure-regulation", nameAr: "اللائحة التنفيذية لنظام الإجراءات الجزائية", courts: ["criminal", "appeal", "supreme"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/9a0249b7-f835-48fa-8d1e-a9a700f1981a/1" },
   { key: "sharia-procedure-regulation", nameAr: "اللوائح التنفيذية لنظام المرافعات الشرعية", courts: ["general", "appeal", "supreme"], url: "" },
   { key: "commercial-courts-regulation", nameAr: "اللائحة التنفيذية لنظام المحاكم التجارية", courts: ["commercial", "appeal"], url: "" },
 ];
@@ -339,7 +350,13 @@ async function main() {
       let via = "boe";
       try {
         const loaded = await fetchHtml(law.url);
-        parsed = parseLawPage(loaded.html, law);
+        const pageKeys = new Set(["labor", "narcotics", "bribery", "forgery", "money-laundering", "terrorism", "juveniles", "weapons", "abuse", "trafficking", "traffic", "criminal-procedure-regulation"]);
+        if (pageKeys.has(law.key)) {
+          const { parseLaborPage } = await import("./labor-page.mjs");
+          parsed = parseLaborPage(loaded.html, law);
+        } else {
+          parsed = parseLawPage(loaded.html, law);
+        }
         via = loaded.via;
         await writeFile(path.join(outDir, "boe", `${law.key}.html`), loaded.html);
       } catch (boeError) {

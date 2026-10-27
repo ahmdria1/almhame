@@ -59,6 +59,13 @@ function stripOwnHeading(text, heading) {
   return tidy(text);
 }
 
+function cleanQuoted(value) {
+  return tidy(String(value || "").split(/\s+-\s*(?:إضافة|تعديل|إحلال|حذف)\s/)[0])
+    .replace(/"+\s*\.?\s*$/g, "")
+    .replace(/[«»]/g, "")
+    .trim();
+}
+
 function quotedReformulations(popup) {
   const start = popup.search(/على النحو الآتي/);
   const body = start < 0 ? popup : popup.slice(start);
@@ -68,7 +75,7 @@ function quotedReformulations(popup) {
     const colon = cleaned.search(/[:：]/);
     if (colon < 0) return null;
     const title = `المادة ${cleaned.slice(0, colon).replace(/\s+/g, " ").trim()}`;
-    const text = tidy(cleaned.slice(colon + 1));
+    const text = cleanQuoted(cleaned.slice(colon + 1));
     if (!parseHeading(title).ok || !text) return null;
     return { title, text };
   }).filter(Boolean);
@@ -182,10 +189,16 @@ export function consolidateVisible(heading, visible, popups) {
       if (own) {
         text = own.text;
         shell = false;
-      } else {
+      } else if (!/إضافة ماد/.test(flat)) {
         const cut = flat.indexOf('"');
         text = tidy(cut > 0 ? flat.slice(0, cut) : flat);
         shell = true;
+      }
+      if (/إضافة ماد/.test(flat)) {
+        for (const item of reformulated) {
+          if (!item.text || citationLabel(item.title) === citationLabel(heading)) continue;
+          added.push({ number: item.title, textAr: item.text, shell: false });
+        }
       }
       continue;
     }
@@ -222,6 +235,20 @@ export function consolidateVisible(heading, visible, popups) {
   return { textAr: tidy(text).replace(/"+\s*(\.)?\s*$/g, (_, dot) => (dot ? "." : "")), shell, added };
 }
 
+function dropFollowingArticles(heading, text) {
+  const own = parseHeading(heading);
+  const kept = [];
+  for (const line of String(text || "").split("\n")) {
+    const trimmed = line.trim();
+    if (/^الماد/.test(trimmed)) {
+      const parsed = parseHeading(trimmed);
+      if (parsed.ok && !(own.ok && parsed.label === own.label && parsed.kind === own.kind)) break;
+    }
+    kept.push(line);
+  }
+  return tidy(kept.join("\n"));
+}
+
 function headingOf(item) {
   const headings = [...item.matchAll(/<h3 class="center">([\s\S]*?)<\/h3>/gi)].map((match) => htmlToText(match[1]).replace(/\s+/g, " ").trim());
   return headings.find((heading) => /المادة|مكرر|حالياً/.test(heading)) || "";
@@ -252,8 +279,10 @@ export function parseLaborPage(html, law) {
     for (const popup of popups) visibleHtml = visibleHtml.replace(popup, "");
     const visible = extractBalanced(visibleHtml, /<div class="HTMLContainer">/g).map(containerText).join("\n");
     const consolidated = consolidateVisible(heading, visible, popupTexts);
-    rows.push({ number: heading, textAr: consolidated.textAr, sourceUrl: law.url, shell: consolidated.shell });
-    for (const extra of consolidated.added) rows.push({ ...extra, sourceUrl: law.url });
+    rows.push({ number: heading, textAr: dropFollowingArticles(heading, consolidated.textAr), sourceUrl: law.url, shell: consolidated.shell });
+    for (const extra of consolidated.added) {
+      rows.push({ ...extra, textAr: dropFollowingArticles(extra.number, extra.textAr), sourceUrl: law.url });
+    }
   }
   const chosen = new Map();
   for (const row of rows) {
