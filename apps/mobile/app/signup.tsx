@@ -9,6 +9,7 @@ export default function Signup() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState("");
 
@@ -18,17 +19,18 @@ export default function Signup() {
       <TextInput style={styles.input} placeholder="الاسم" value={name} onChangeText={setName} />
       <TextInput style={styles.input} placeholder="الجوال" value={phone} onChangeText={setPhone} />
       <TextInput style={styles.input} placeholder="البريد" value={email} onChangeText={setEmail} autoCapitalize="none" />
+      <TextInput style={styles.input} placeholder="كلمة المرور" value={password} onChangeText={setPassword} secureTextEntry />
       <Pressable onPress={() => setConsent((value) => !value)}><Text style={styles.consent}>{consent ? "☑" : "☐"} أوافق على معالجة بياناتي</Text></Pressable>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Pressable style={styles.button} onPress={async () => {
         try {
-          const result = await client().signup({ name, phone, email, consent });
+          const result = await client().signup({ name, phone, email, password, consent });
           router.push({ pathname: "/otp", params: { challenge: result.challengeId, debug: result.debugCode || "" } });
         } catch (err) {
           setError(err instanceof Error ? err.message : "تعذر الإرسال");
         }
       }}>
-        <Text style={styles.buttonText}>أرسل الرمز</Text>
+        <Text style={styles.buttonText}>أرسل رمز البريد</Text>
       </Pressable>
       <Link href="/login" style={styles.link}>لديك حساب؟ دخول</Link>
     </View>

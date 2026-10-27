@@ -17,12 +17,11 @@ import { Kernel } from "./kernel";
 export class BillingService {
   constructor(private readonly kernel: Kernel) {}
 
-  plans() {
+  async plans() {
     const pay = this.kernel.config.payPerMemoHalalas;
-    return {
-      payPerMemoHalalas: pay,
-      plans: (Object.keys(PLAN_DEFS) as PlanCode[]).map((code) => {
-        const plan = PLAN_DEFS[code];
+    const plans = await Promise.all(
+      (Object.keys(PLAN_DEFS) as PlanCode[]).map(async (code) => {
+        const plan = await this.kernel.plan(code);
         return {
           code,
           priceHalalas: plan.priceHalalas,
@@ -37,7 +36,8 @@ export class BillingService {
           payPerMemoHalalas: pay,
         };
       }),
-    };
+    );
+    return { payPerMemoHalalas: pay, plans };
   }
 
   async checkout(userId: string, input: {
@@ -55,7 +55,7 @@ export class BillingService {
     const cycle = input.cycle || "monthly";
     if (input.purpose === "subscription") {
       if (!input.planCode || input.planCode === "free") fail("VALIDATION", 400, "Choose a paid plan");
-      const plan = PLAN_DEFS[input.planCode];
+      const plan = await this.kernel.plan(input.planCode);
       amount = cycle === "yearly" ? yearlyHalalas(plan.priceHalalas) : plan.priceHalalas;
       planCode = input.planCode;
     }

@@ -1,16 +1,23 @@
 import { Injectable, OnModuleInit } from "@nestjs/common";
-import { AuthService } from "./auth.service";
-import { CorpusService } from "./corpus.service";
+import { PLAN_DEFS } from "./domain/plans";
+import { Kernel } from "./kernel";
 
 @Injectable()
 export class BootstrapService implements OnModuleInit {
-  constructor(
-    private readonly corpus: CorpusService,
-    private readonly auth: AuthService,
-  ) {}
+  constructor(private readonly kernel: Kernel) {}
 
   async onModuleInit() {
-    await this.corpus.ensureSample();
-    await this.auth.ensureAdmin();
+    for (const plan of Object.values(PLAN_DEFS)) {
+      await this.kernel.prisma.planSetting.upsert({
+        where: { code: plan.code },
+        update: {},
+        create: {
+          code: plan.code,
+          priceHalalas: plan.priceHalalas,
+          memoLimit: plan.memoLimit,
+          chatLimit: plan.chatLimit,
+        },
+      });
+    }
   }
 }

@@ -13,7 +13,7 @@ import { composeDraft, readSlots } from "./domain/draft";
 import { decryptBytes, encryptBytes, generateDek, wrapKey } from "./domain/envelope";
 import { halalasToSar, nextInvoiceNumber, splitVatInclusive, zatcaQrBase64 } from "./domain/invoice";
 import { isPhone, normalizePhone } from "./domain/otp";
-import { chatQuota, courtAllowed, memoQuota, PLAN_DEFS } from "./domain/plans";
+import { chatQuota, courtAllowed, memoQuota } from "./domain/plans";
 import { signSandbox } from "./domain/payments";
 import { fail } from "./http-error";
 import { Kernel } from "./kernel";
@@ -33,7 +33,8 @@ export class WorkService {
   ) {}
 
   async account(userId: string) {
-    return presentUser(await this.fresh(userId));
+    const user = await this.fresh(userId);
+    return presentUser(user, await this.kernel.plan(user.planCode));
   }
 
   async updateAccount(userId: string, input: { name?: string; locale?: string; theme?: string; notifyHearings?: boolean }) {
@@ -43,7 +44,7 @@ export class WorkService {
     if (input.theme === "light" || input.theme === "dark") data.theme = input.theme;
     if (typeof input.notifyHearings === "boolean") data.notifyHearings = input.notifyHearings;
     const user = await this.kernel.prisma.user.update({ where: { id: userId }, data });
-    return presentUser(user);
+    return presentUser(user, await this.kernel.plan(user.planCode));
   }
 
   async exportAccount(userId: string) {
@@ -56,7 +57,7 @@ export class WorkService {
     const memos = await this.kernel.prisma.memo.findMany({ where: { userId } });
     const documents = await this.kernel.prisma.document.findMany({ where: { userId } });
     return {
-      profile: presentUser(user),
+      profile: presentUser(user, await this.kernel.plan(user.planCode)),
       chats: chats.map((chat) => ({
         id: chat.id,
         title: this.kernel.dec(dek, chat.titleEnc),
@@ -102,9 +103,10 @@ export class WorkService {
     const chat = await this.kernel.prisma.$transaction(async (tx) => {
       const user = await tx.user.findUnique({ where: { id: userId } });
       if (!user) fail("NOT_FOUND", 404, "Account was not found");
-      const quota = chatQuota(user.planCode, user.chatCount);
+      const plan = await this.kernel.plan(user.planCode);
+      const quota = chatQuota(plan, user.chatCount);
       if (!quota.ok) fail("QUOTA_CHATS", 402, "The free chat limit has been reached");
-      if (!courtAllowed(user.planCode, court as Court)) fail("PLAN_COURT", 403, "This court is not included in the current plan");
+      if (!courtAllowed(plan, court as Court)) fail("PLAN_COURT", 403, "This court is not included in the current plan");
       const dek = this.kernel.dekOf(user.wrappedDataKey);
       const title = input.title?.trim() || "محادثة جديدة";
       await tx.user.update({ where: { id: userId }, data: { chatCount: { increment: 1 } } });
@@ -124,7 +126,7 @@ export class WorkService {
     const chat = await this.ownedChat(userId, chatId);
     const court = (input.court || chat.court) as Court;
     const memoType = (input.memoType || chat.memoType) as MemoKind;
-    if (!courtAllowed(user.planCode, court)) fail("PLAN_COURT", 403, "This court is not included in the current plan");
+    if (!courtAllowed(await this.kernel.plan(user.planCode), court)) fail("PLAN_COURT", 403, "This court is not included in the current plan");
     const updated = await this.kernel.prisma.chat.update({
       where: { id: chat.id },
       data: { court: court as CourtType, memoType: memoType as MemoType },
@@ -226,7 +228,7 @@ export class WorkService {
     const allowed = retrieved.articles.map((article) => article.number);
     filled.facts = await this.maybeRewriteFacts(filled.facts, allowed);
     const org = user.orgId ? await this.kernel.prisma.organization.findUnique({ where: { id: user.orgId } }) : null;
-    const letterhead = PLAN_DEFS[user.planCode].letterhead ? org?.letterheadName || "" : "";
+    const letterhead = (await this.kernel.plan(user.planCode)).letterhead ? org?.letterheadName || "" : "";
     const draftBody = composeDraft({
       court: chat.court as Court,
       memoType: chat.memoType as MemoKind,
@@ -242,7 +244,7 @@ export class WorkService {
     const memo = await this.kernel.prisma.$transaction(async (tx) => {
       const current = await tx.user.findUnique({ where: { id: userId } });
       if (!current) fail("NOT_FOUND", 404, "Account was not found");
-      const quota = memoQuota(current.planCode, current.memoCountPeriod);
+      const quota = memoQuota(await this.kernel.plan(current.planCode), current.memoCountPeriod);
       if (!quota.ok) {
         if (!payPerMemo) fail("QUOTA_MEMOS", 402, "The memo quota has been reached");
         const price = this.kernel.config.payPerMemoHalalas;
@@ -378,12 +380,13 @@ export class WorkService {
 
   async exportMemo(userId: string, memoId: string, format: "pdf" | "docx") {
     const user = await this.fresh(userId);
-    if (format === "docx" && !PLAN_DEFS[user.planCode].word) {
+    const plan = await this.kernel.plan(user.planCode);
+    if (format === "docx" && !plan.word) {
       fail("FEATURE_WORD", 402, "Word export is not included in the current plan");
     }
     const memo = await this.getMemo(userId, memoId);
     const org = user.orgId ? await this.kernel.prisma.organization.findUnique({ where: { id: user.orgId } }) : null;
-    const letterhead = PLAN_DEFS[user.planCode].letterhead ? org?.letterheadName : "";
+    const letterhead = plan.letterhead ? org?.letterheadName : "";
     if (format === "docx") {
       return { filename: `${memo.title}.docx`, mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", bytes: await renderDocx({ title: memo.title, body: memo.body, letterhead }) };
     }
@@ -581,7 +584,7 @@ export class WorkService {
 
   async addHearing(userId: string, caseId: string, input: { kind: "hearing" | "objection_deadline"; occursAt: string; title: string }) {
     const user = await this.fresh(userId);
-    if (!PLAN_DEFS[user.planCode].caseManagement) fail("FEATURE_CASES", 402, "Case dates are not included in the current plan");
+    if (!(await this.kernel.plan(user.planCode)).caseManagement) fail("FEATURE_CASES", 402, "Case dates are not included in the current plan");
     const dek = this.kernel.dekOf(user.wrappedDataKey);
     const caseFile = await this.kernel.prisma.caseFile.findFirst({ where: { id: caseId, userId } });
     if (!caseFile) fail("NOT_FOUND", 404, "Case was not found");
@@ -735,7 +738,7 @@ export class WorkService {
   async updateOrg(userId: string, input: { name?: string; letterheadName?: string }) {
     const user = await this.fresh(userId);
     if (user.orgRole !== "owner" || !user.orgId) fail("FORBIDDEN", 403, "Only the chamber owner can edit this");
-    if (!PLAN_DEFS[user.planCode].letterhead && input.letterheadName) fail("FEATURE_CASES", 402, "Letterhead is part of the chambers plan");
+    if (!(await this.kernel.plan(user.planCode)).letterhead && input.letterheadName) fail("FEATURE_CASES", 402, "Letterhead is part of the chambers plan");
     const org = await this.kernel.prisma.organization.update({
       where: { id: user.orgId },
       data: {

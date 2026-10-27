@@ -1,8 +1,6 @@
 import { LOCALES } from "@elawyer/types";
 import { dictionaries, dirFor, translate } from "../src";
 
-const complete = new Set(["ar", "en"]);
-
 describe("locales", () => {
   const arKeys = Object.keys(dictionaries.ar).sort();
 
@@ -10,22 +8,16 @@ describe("locales", () => {
     expect(Object.keys(dictionaries).sort()).toEqual([...LOCALES].sort());
   });
 
-  it("keeps Arabic and English on the same keys", () => {
+  it("keeps every locale on the Arabic keys", () => {
     expect(Object.keys(dictionaries.en).sort()).toEqual(arKeys);
   });
 
-  it("marks unfinished locales with TODO and the same keys", () => {
+  it("rejects a missing key or a TODO value", () => {
     for (const locale of LOCALES) {
       expect(Object.keys(dictionaries[locale]).sort()).toEqual(arKeys);
-      if (complete.has(locale)) {
-        for (const value of Object.values(dictionaries[locale])) {
-          expect(value).not.toMatch(/^TODO/);
-          expect(value.trim().length).toBeGreaterThan(0);
-        }
-      } else {
-        for (const value of Object.values(dictionaries[locale])) {
-          expect(value).toBe("TODO");
-        }
+      for (const value of Object.values(dictionaries[locale])) {
+        expect(value).not.toMatch(/^TODO/);
+        expect(value.trim().length).toBeGreaterThan(0);
       }
     }
   });

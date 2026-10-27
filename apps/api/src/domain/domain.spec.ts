@@ -33,9 +33,9 @@ describe("otp and phone", () => {
 
 describe("plans and vat", () => {
   it("enforces free chat and memo quotas", () => {
-    expect(chatQuota("free", 4).ok).toBe(true);
-    expect(chatQuota("free", 5)).toEqual({ ok: false, code: "QUOTA_CHATS" });
-    expect(memoQuota("basic", 30)).toEqual({ ok: false, code: "QUOTA_MEMOS" });
+    expect(chatQuota(PLAN_DEFS.free, 4).ok).toBe(true);
+    expect(chatQuota(PLAN_DEFS.free, 5)).toEqual({ ok: false, code: "QUOTA_CHATS" });
+    expect(memoQuota(PLAN_DEFS.basic, 30)).toEqual({ ok: false, code: "QUOTA_MEMOS" });
     expect(PLAN_DEFS.basic.priceHalalas).toBe(9900);
     expect(PLAN_DEFS.pro.priceHalalas).toBe(24900);
     expect(PLAN_DEFS.office.priceHalalas).toBe(59900);

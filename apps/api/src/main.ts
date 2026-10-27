@@ -6,11 +6,12 @@ import { NestFactory } from "@nestjs/core";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
-import { loadConfig } from "./config";
+import { assertProductionProviders, loadConfig } from "./config";
 import { RELEASE_STAMP } from "./kernel";
 
 export async function createApp() {
   const config = loadConfig();
+  assertProductionProviders(config);
   const app = await NestFactory.create(AppModule, { logger: ["error", "warn", "log"] });
   app.setGlobalPrefix("api");
   app.use(cookieParser());

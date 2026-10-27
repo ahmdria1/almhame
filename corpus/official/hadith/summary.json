@@ -1,0 +1,158 @@
+[
+  {
+    "key": "bukhari",
+    "edition": "ara-bukhari",
+    "nameAr": "صحيح البخاري",
+    "count": 7589,
+    "sourceUrl": "https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/ara-bukhari.min.json",
+    "gradeField": true,
+    "sampleGrades": [],
+    "sampleRef": {
+      "book": 1,
+      "hadith": 1
+    }
+  },
+  {
+    "key": "muslim",
+    "edition": "ara-muslim",
+    "nameAr": "صحيح مسلم",
+    "count": 7563,
+    "sourceUrl": "https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/ara-muslim.min.json",
+    "gradeField": true,
+    "sampleGrades": [],
+    "sampleRef": {
+      "book": 0,
+      "hadith": 1
+    }
+  },
+  {
+    "key": "abudawud",
+    "edition": "ara-abudawud",
+    "nameAr": "سنن أبي داود",
+    "count": 5274,
+    "sourceUrl": "https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/ara-abudawud.min.json",
+    "gradeField": true,
+    "sampleGrades": [
+      {
+        "name": "Al-Albani",
+        "grade": "Hasan Sahih"
+      },
+      {
+        "name": "Muhammad Muhyi Al-Din Abdul Hamid",
+        "grade": "Hasan Sahih"
+      },
+      {
+        "name": "Shuaib Al Arnaut",
+        "grade": "Sahih Lighairihi"
+      },
+      {
+        "name": "Zubair Ali Zai",
+        "grade": "Isnaad Hasan"
+      }
+    ],
+    "sampleRef": {
+      "book": 1,
+      "hadith": 1
+    }
+  },
+  {
+    "key": "tirmidhi",
+    "edition": "ara-tirmidhi",
+    "nameAr": "جامع الترمذي",
+    "count": 3998,
+    "sourceUrl": "https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/ara-tirmidhi.min.json",
+    "gradeField": true,
+    "sampleGrades": [
+      {
+        "name": "Ahmad Muhammad Shakir",
+        "grade": "Sahih"
+      },
+      {
+        "name": "Al-Albani",
+        "grade": "Sahih"
+      },
+      {
+        "name": "Zubair Ali Zai",
+        "grade": "Sahih - Bukhari And Muslim"
+      }
+    ],
+    "sampleRef": {
+      "book": 1,
+      "hadith": 1
+    }
+  },
+  {
+    "key": "nasai",
+    "edition": "ara-nasai",
+    "nameAr": "سنن النسائي",
+    "count": 5765,
+    "sourceUrl": "https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/ara-nasai.min.json",
+    "gradeField": true,
+    "sampleGrades": [
+      {
+        "name": "Abu Ghuddah",
+        "grade": "Sahih"
+      },
+      {
+        "name": "Al-Albani",
+        "grade": "Sahih"
+      },
+      {
+        "name": "Zubair Ali Zai",
+        "grade": "Sahih Muslim"
+      }
+    ],
+    "sampleRef": {
+      "book": 1,
+      "hadith": 1
+    }
+  },
+  {
+    "key": "ibnmajah",
+    "edition": "ara-ibnmajah",
+    "nameAr": "سنن ابن ماجه",
+    "count": 4343,
+    "sourceUrl": "https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/ara-ibnmajah.min.json",
+    "gradeField": true,
+    "sampleGrades": [
+      {
+        "name": "Al-Albani",
+        "grade": "Sahih"
+      },
+      {
+        "name": "Muhammad Fouad Abd al-Baqi",
+        "grade": "Sahih"
+      },
+      {
+        "name": "Shuaib Al Arnaut",
+        "grade": "Sahih"
+      },
+      {
+        "name": "Zubair Ali Zai",
+        "grade": "Sahih"
+      }
+    ],
+    "sampleRef": {
+      "book": 0,
+      "hadith": 1
+    }
+  },
+  {
+    "key": "malik",
+    "edition": "ara-malik",
+    "nameAr": "موطأ مالك",
+    "count": 1858,
+    "sourceUrl": "https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/ara-malik.min.json",
+    "gradeField": true,
+    "sampleGrades": [
+      {
+        "name": "Salim al-Hilali",
+        "grade": "Sahih"
+      }
+    ],
+    "sampleRef": {
+      "book": 1,
+      "hadith": 1
+    }
+  }
+]

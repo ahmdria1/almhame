@@ -65,17 +65,30 @@ export function yearlyHalalas(monthly: number): number {
   return monthly * 12;
 }
 
-export function chatQuota(plan: PlanCode, chatCount: number): { ok: true } | { ok: false; code: "QUOTA_CHATS" } {
-  const limit = PLAN_DEFS[plan].chatLimit;
-  if (limit != null && chatCount >= limit) return { ok: false, code: "QUOTA_CHATS" };
+export function resolvePlan(
+  code: PlanCode,
+  override?: { priceHalalas: number; memoLimit: number; chatLimit: number | null } | null,
+): PlanDef {
+  const base = PLAN_DEFS[code];
+  if (!override) return base;
+  return {
+    ...base,
+    priceHalalas: override.priceHalalas,
+    memoLimit: override.memoLimit,
+    chatLimit: override.chatLimit,
+  };
+}
+
+export function chatQuota(plan: PlanDef, chatCount: number): { ok: true } | { ok: false; code: "QUOTA_CHATS" } {
+  if (plan.chatLimit != null && chatCount >= plan.chatLimit) return { ok: false, code: "QUOTA_CHATS" };
   return { ok: true };
 }
 
-export function memoQuota(plan: PlanCode, used: number): { ok: true } | { ok: false; code: "QUOTA_MEMOS" } {
-  if (used >= PLAN_DEFS[plan].memoLimit) return { ok: false, code: "QUOTA_MEMOS" };
+export function memoQuota(plan: PlanDef, used: number): { ok: true } | { ok: false; code: "QUOTA_MEMOS" } {
+  if (used >= plan.memoLimit) return { ok: false, code: "QUOTA_MEMOS" };
   return { ok: true };
 }
 
-export function courtAllowed(plan: PlanCode, court: CourtType): boolean {
-  return PLAN_DEFS[plan].courts.includes(court);
+export function courtAllowed(plan: PlanDef, court: CourtType): boolean {
+  return plan.courts.includes(court);
 }

@@ -13,6 +13,7 @@ async function signUp(page: Page, label: string) {
   await page.getByTestId("signup-name").fill("أحمد العمراني");
   await page.getByTestId("signup-phone").fill(mobile);
   await page.getByTestId("signup-email").fill(email);
+  await page.getByTestId("signup-password").fill("test-pass-123");
   await page.getByTestId("signup-consent").check();
   await page.getByTestId("signup-submit").click();
   await page.waitForURL(/\/otp/);
@@ -92,8 +93,21 @@ test("sandbox wallet top-up", async ({ page }) => {
 });
 
 test("admin session cannot read user content", async ({ request }) => {
+  const { execFileSync } = await import("child_process");
+  const { readFileSync } = await import("fs");
+  execFileSync("psql", [process.env.DATABASE_URL || "postgresql://elawyer:elawyer@127.0.0.1:5432/elawyer", "-c", 'DELETE FROM "OtpChallenge" WHERE "adminId" IS NOT NULL; DELETE FROM "AdminAccount";'], { stdio: "ignore" });
+  const created = JSON.parse(execFileSync("node", ["dist/cli.js", "create-admin", "--email", "e2e-admin@example.sa"], {
+    cwd: "apps/api",
+    env: { ...process.env, NODE_ENV: "test", OUTBOX_DIR: "/workspace/data/outbox", DATABASE_URL: process.env.DATABASE_URL || "postgresql://elawyer:elawyer@127.0.0.1:5432/elawyer" },
+    encoding: "utf8",
+  })) as { challengeId: string };
+  const mail = JSON.parse(readFileSync("/workspace/data/outbox/admin_activate-e2e-admin@example.sa.json", "utf8")) as { code: string };
+  const activated = await request.post(`${API}/admin/activate`, {
+    data: { challengeId: created.challengeId, code: mail.code, password: "test-admin-pass" },
+  });
+  expect(activated.ok()).toBeTruthy();
   const login = await request.post(`${API}/admin/login`, {
-    data: { email: process.env.ADMIN_EMAIL || "admin@example.sa", password: process.env.ADMIN_PASSWORD || "AdminPass123!" },
+    data: { email: "e2e-admin@example.sa", password: "test-admin-pass" },
   });
   expect(login.ok()).toBeTruthy();
   const token = (await login.json()).accessToken as string;

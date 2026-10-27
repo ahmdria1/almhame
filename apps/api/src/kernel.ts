@@ -1,7 +1,9 @@
 import { Injectable } from "@nestjs/common";
+import { PlanCode } from "@prisma/client";
 import { RELEASE_MARK, RELEASE_OWNER } from "@elawyer/types";
 import { AppConfig, loadConfig } from "./config";
 import { decodeMasterKey, decryptString, encryptString, unwrapKey } from "./domain/envelope";
+import { PlanDef, resolvePlan } from "./domain/plans";
 import { PrismaService } from "./prisma.service";
 
 export const RELEASE_STAMP = `${RELEASE_OWNER}|${RELEASE_MARK}|${process.env.BUILD_STAMP || "dev"}`;
@@ -28,5 +30,10 @@ export class Kernel {
 
   dec(dek: Buffer, payload: string): string {
     return decryptString(payload, dek);
+  }
+
+  async plan(code: PlanCode): Promise<PlanDef> {
+    const row = await this.prisma.planSetting.findUnique({ where: { code } });
+    return resolvePlan(code, row);
   }
 }

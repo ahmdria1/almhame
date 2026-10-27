@@ -2,9 +2,9 @@ import { defineConfig, devices } from "@playwright/test";
 
 const apiEnv = {
   ...process.env,
-  NODE_ENV: "development",
+  NODE_ENV: "test",
   PORT: "4710",
-  OTP_DEBUG: "true",
+  OUTBOX_DIR: "/workspace/data/outbox",
   LLM_PROVIDER: "mock",
   EMBEDDING_PROVIDER: "mock",
   PAYMENT_GATEWAY: "sandbox",
@@ -43,7 +43,7 @@ export default defineConfig({
       env: apiEnv,
     },
     {
-      command: "pnpm --filter @elawyer/web dev",
+      command: "pnpm --filter @elawyer/web start",
       url: "http://127.0.0.1:4720",
       reuseExistingServer: true,
       timeout: 180000,

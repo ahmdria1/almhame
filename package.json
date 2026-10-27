@@ -17,8 +17,7 @@
       "msgpackr-extract",
       "protobufjs",
       "ssh2",
-      "cpu-features",
-      "@napi-rs/canvas"
+      "cpu-features"
     ]
   },
   "engines": {

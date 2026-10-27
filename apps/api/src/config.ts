@@ -51,6 +51,9 @@ export interface AppConfig {
   smtpFrom: string;
   consentVersion: string;
   fontPath: string;
+  chromiumPath: string;
+  emailDebug: boolean;
+  outboxDir: string;
   nodeEnv: string;
   corsOrigins: string[];
 }
@@ -117,7 +120,24 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     smtpFrom: env.SMTP_FROM || "",
     consentVersion: env.PDPL_CONSENT_VERSION || "2026-01",
     fontPath: env.FONT_PATH || "",
+    chromiumPath: env.CHROMIUM_PATH || "",
+    emailDebug: env.EMAIL_DEBUG === "true",
+    outboxDir: env.OUTBOX_DIR || "",
     nodeEnv: env.NODE_ENV || "development",
     corsOrigins: [...new Set([webOrigin, adminOrigin, "http://127.0.0.1:4740", "http://localhost:4740", ...extra])],
   };
+}
+
+export function assertProductionProviders(config: AppConfig): void {
+  if (config.nodeEnv !== "production") return;
+  const blocked: string[] = [];
+  if (config.llmProvider === "mock") blocked.push("LLM_PROVIDER");
+  if (config.embeddingProvider === "mock") blocked.push("EMBEDDING_PROVIDER");
+  if (config.smsProvider === "mock") blocked.push("SMS_PROVIDER");
+  if (config.paymentGateway === "sandbox" || config.paymentGateway === "mock") blocked.push("PAYMENT_GATEWAY");
+  if (!config.smtpHost || !config.smtpFrom) blocked.push("SMTP_HOST");
+  if (config.otpDebug || config.emailDebug) blocked.push("EMAIL_DEBUG");
+  if (blocked.length) {
+    throw new Error(`Refusing to boot with mock or missing providers: ${blocked.join(", ")}`);
+  }
 }

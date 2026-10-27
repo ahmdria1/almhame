@@ -11,7 +11,7 @@ export default function Otp() {
   const [error, setError] = useState("");
   return (
     <View style={styles.screen}>
-      <Text style={styles.title}>أدخل الرمز</Text>
+      <Text style={styles.title}>تأكيد البريد</Text>
       <TextInput style={styles.input} value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={6} />
       {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
       <Pressable style={styles.button} onPress={async () => {

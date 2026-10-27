@@ -37,9 +37,7 @@ jobs:
       JWT_SECRET: ci-jwt-secret-0123456789abcdef
       KMS_MASTER_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
       OTP_PEPPER: ci-otp-pepper
-      OTP_DEBUG: "true"
-      ADMIN_EMAIL: admin@example.sa
-      ADMIN_PASSWORD: AdminPass123!
+      CHROMIUM_PATH: /usr/bin/chromium
       PAYMENT_GATEWAY: sandbox
       PAYMENT_SANDBOX_SECRET: sandbox-dev-secret
       LLM_PROVIDER: mock
@@ -59,7 +57,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - name: Install system packages
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client tesseract-ocr tesseract-ocr-ara poppler-utils
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client tesseract-ocr tesseract-ocr-ara poppler-utils chromium
       - name: Create the test database
         run: PGPASSWORD=elawyer psql -h 127.0.0.1 -U elawyer -d elawyer -c "CREATE DATABASE elawyer_test"
       - run: pnpm install --frozen-lockfile
@@ -68,6 +66,8 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm --filter @elawyer/api build
+      - run: pnpm --filter @elawyer/web build
+      - run: pnpm --filter @elawyer/admin build
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
       - name: Export the mobile web bundle

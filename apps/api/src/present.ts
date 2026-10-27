@@ -1,8 +1,7 @@
 import { PlanCode, User } from "@prisma/client";
-import { PLAN_DEFS } from "./domain/plans";
+import { PLAN_DEFS, PlanDef } from "./domain/plans";
 
-export function presentUser(user: User) {
-  const plan = PLAN_DEFS[user.planCode as PlanCode];
+export function presentUser(user: User, plan: PlanDef = PLAN_DEFS[user.planCode as PlanCode]) {
   return {
     id: user.id,
     name: user.name,

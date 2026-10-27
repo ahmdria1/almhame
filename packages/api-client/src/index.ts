@@ -55,18 +55,37 @@ export class ElawyerClient {
     return parse(res);
   }
 
-  signup(input: { name: string; phone: string; email: string; consent: boolean }) {
+  signup(input: { name: string; phone: string; email: string; password: string; consent: boolean }) {
     return this.request("/auth/signup", { method: "POST", body: JSON.stringify(input) }) as Promise<{
       challengeId: string;
       debugCode?: string;
     }>;
   }
 
-  login(input: { identifier: string }) {
+  login(input: { email: string; password: string }) {
     return this.request("/auth/login", { method: "POST", body: JSON.stringify(input) }) as Promise<{
+      accessToken: string;
+      user: SessionUser;
+    }>;
+  }
+
+  resend(input: { email: string }) {
+    return this.request("/auth/resend", { method: "POST", body: JSON.stringify(input) }) as Promise<{
       challengeId: string;
       debugCode?: string;
     }>;
+  }
+
+  forgot(input: { email: string }) {
+    return this.request("/auth/forgot", { method: "POST", body: JSON.stringify(input) }) as Promise<{
+      ok: boolean;
+      challengeId?: string;
+      debugCode?: string;
+    }>;
+  }
+
+  resetPassword(input: { challengeId: string; code: string; password: string }) {
+    return this.request("/auth/reset", { method: "POST", body: JSON.stringify(input) }) as Promise<{ ok: boolean }>;
   }
 
   verify(input: { challengeId: string; code: string }) {

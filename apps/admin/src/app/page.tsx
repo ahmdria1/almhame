@@ -31,7 +31,7 @@ export default function AdminLogin() {
         <input data-testid="admin-password" name="password" type="password" className="mt-3 h-12 w-full rounded-xl border px-3" placeholder="كلمة المرور" />
         {error ? <p className="mt-2 text-sm text-red-700">{error}</p> : null}
         <button className="mt-4 h-12 w-full rounded-xl bg-navy-700 font-semibold text-white" type="submit">دخول</button>
-        <p className="mt-3 text-xs text-ink-500">هذه اللوحة لا تعرض محتوى القضايا.</p>
+        <p className="mt-3 text-xs text-ink-500">أول مسؤول يُنشأ بأمر لمرة واحدة، ثم يُفعَّل من رابط البريد. هذه اللوحة لا تعرض محتوى القضايا.</p>
       </form>
     </main>
   );

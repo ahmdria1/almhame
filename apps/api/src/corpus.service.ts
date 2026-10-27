@@ -1,10 +1,15 @@
+import { execFile } from "child_process";
+import { readdir, readFile } from "fs/promises";
+import path from "path";
+import { promisify } from "util";
 import { Injectable } from "@nestjs/common";
 import { CourtType, Prisma } from "@prisma/client";
 import { parse } from "csv-parse/sync";
-import { SAMPLE_LAWS, SAMPLE_SHARIA } from "./corpus/sample-corpus";
 import { EMBED_DIM, mockEmbed, vectorLiteral } from "./domain/embeddings";
 import { Kernel } from "./kernel";
 import { fail } from "./http-error";
+
+const exec = promisify(execFile);
 
 interface LawInput {
   key: string;
@@ -53,12 +58,6 @@ export class CorpusService {
       return vector;
     }
     return mockEmbed(text);
-  }
-
-  async ensureSample() {
-    const count = await this.kernel.prisma.law.count();
-    if (count > 0) return;
-    await this.importRecords({ laws: SAMPLE_LAWS, sharia: SAMPLE_SHARIA, confirmOfficial: false });
   }
 
   async importRecords(input: { laws: LawInput[]; sharia: ShariaInput[]; confirmOfficial: boolean }) {
@@ -203,13 +202,161 @@ export class CorpusService {
   }
 
   async counts() {
-    const [laws, articles, sharia, sampleArticles] = await Promise.all([
+    const [laws, articles, sharia, sampleArticles, rows, runs, shariaByKind] = await Promise.all([
       this.kernel.prisma.law.count(),
       this.kernel.prisma.article.count(),
       this.kernel.prisma.shariaSource.count(),
       this.kernel.prisma.article.count({ where: { isSample: true } }),
+      this.kernel.prisma.law.findMany({
+        orderBy: { nameAr: "asc" },
+        include: { _count: { select: { articles: true } } },
+      }),
+      this.kernel.prisma.ingestionRun.findMany({ orderBy: { startedAt: "desc" }, take: 8 }),
+      this.kernel.prisma.shariaSource.groupBy({ by: ["kind"], _count: { _all: true } }),
     ]);
-    return { laws, articles, sharia, sampleArticles };
+    return {
+      laws,
+      articles,
+      sharia,
+      sampleArticles,
+      byLaw: rows.map((row) => ({
+        key: row.key,
+        nameAr: row.nameAr,
+        articles: row._count.articles,
+        sourceUrl: row.sourceUrl,
+        issuedHijri: row.issuedHijri,
+        effectiveDate: row.effectiveDate.toISOString().slice(0, 10),
+        statusLabel: row.statusLabel,
+        isSample: row.isSample,
+      })),
+      shariaByKind: Object.fromEntries(shariaByKind.map((row) => [row.kind, row._count._all])),
+      runs,
+    };
+  }
+
+  async startRefresh() {
+    const active = await this.kernel.prisma.ingestionRun.findFirst({ where: { status: "running" } });
+    if (active) return active;
+    const run = await this.kernel.prisma.ingestionRun.create({ data: { source: "official", status: "running" } });
+    void this.finishRefresh(run.id);
+    return run;
+  }
+
+  async importOfficial() {
+    const root = path.resolve(__dirname, "../../../corpus/official");
+    const boeDir = path.join(root, "boe");
+    const names = (await readdir(boeDir).catch(() => [] as string[])).filter((name) => name.endsWith(".json") && name !== "manifest-report.json" && name !== "blocked.json");
+    const laws: LawInput[] = [];
+    for (const name of names) {
+      const parsed = JSON.parse(await readFile(path.join(boeDir, name), "utf8")) as LawInput & {
+        issuedHijri?: string;
+        publishedHijri?: string;
+        statusLabel?: string;
+      };
+      parsed.isSample = false;
+      parsed.articles = parsed.articles.map((article) => ({ ...article, isSample: false, textEn: article.textEn || "" }));
+      laws.push(parsed);
+      await this.importRecords({ laws: [parsed], sharia: [], confirmOfficial: true });
+      const saved = await this.kernel.prisma.law.findUnique({ where: { key: parsed.key } });
+      if (saved) {
+        await this.kernel.prisma.law.update({
+          where: { id: saved.id },
+          data: {
+            issuedHijri: parsed.issuedHijri || "",
+            publishedHijri: parsed.publishedHijri || "",
+            statusLabel: parsed.statusLabel || "",
+          },
+        });
+      }
+    }
+    const sharia = await this.readSharia(root);
+    let shariaCount = 0;
+    for (let offset = 0; offset < sharia.length; offset += 200) {
+      const batch = sharia.slice(offset, offset + 200);
+      await this.kernel.prisma.$transaction(
+        batch.map((row) =>
+          this.kernel.prisma.shariaSource.upsert({
+            where: { key: row.key },
+            create: { ...row, courts: row.courts as CourtType[] },
+            update: {
+              reference: row.reference,
+              textAr: row.textAr,
+              sourceUrl: row.sourceUrl,
+              isSample: false,
+            },
+          }),
+        ),
+      );
+      shariaCount += batch.length;
+    }
+    const articles = laws.reduce((sum, law) => sum + law.articles.length, 0);
+    return { laws: laws.length, articles, sharia: shariaCount };
+  }
+
+  private async finishRefresh(id: string) {
+    try {
+      const script = path.resolve(__dirname, "../../../corpus/fetch-official.mjs");
+      await exec(process.execPath, [script], { cwd: path.resolve(__dirname, "../../.."), timeout: 30 * 60 * 1000, maxBuffer: 16 * 1024 * 1024 });
+      const result = await this.importOfficial();
+      await this.kernel.prisma.ingestionRun.update({
+        where: { id },
+        data: { status: "ok", finishedAt: new Date(), ...result },
+      });
+    } catch (error) {
+      await this.kernel.prisma.ingestionRun.update({
+        where: { id },
+        data: { status: "error", finishedAt: new Date(), note: error instanceof Error ? error.message.slice(0, 500) : "refresh failed" },
+      });
+    }
+  }
+
+  private async readSharia(root: string): Promise<ShariaInput[]> {
+    const rows: ShariaInput[] = [];
+    const quranPath = path.join(root, "tanzil", "quran-uthmani.txt");
+    const quran = await readFile(quranPath, "utf8").catch(() => "");
+    for (const line of quran.split("\n")) {
+      const match = line.match(/^(\d+)\|(\d+)\|(.*)$/);
+      if (!match || !match[3].trim()) continue;
+      const reference = `${match[1]}:${match[2]}`;
+      rows.push({
+        key: `quran:${reference}`,
+        kind: "quran",
+        reference,
+        textAr: match[3].trim(),
+        textEn: "",
+        sourceUrl: "https://tanzil.net/download/",
+        isSample: false,
+        courts: ["general", "personal_status", "criminal", "labor", "commercial", "appeal", "supreme"],
+      });
+    }
+    const hadithDir = path.join(root, "hadith");
+    const files = (await readdir(hadithDir).catch(() => [] as string[])).filter((name) => name.endsWith(".min.json"));
+    for (const file of files) {
+      const parsed = JSON.parse(await readFile(path.join(hadithDir, file), "utf8")) as {
+        metadata?: { name?: string; sections?: Record<string, string> };
+        hadiths?: { hadithnumber?: number; text?: string; grades?: { grade?: string }[]; reference?: { book?: number; hadith?: number } }[];
+      };
+      const edition = file.replace(".min.json", "");
+      const sections = parsed.metadata?.sections || {};
+      for (const hadith of parsed.hadiths || []) {
+        if (!hadith.text || hadith.hadithnumber == null) continue;
+        const book = hadith.reference?.book ?? 0;
+        const number = hadith.reference?.hadith ?? hadith.hadithnumber;
+        const grade = (hadith.grades || []).map((item) => item.grade).filter(Boolean).join("؛ ");
+        const bookName = sections[String(book)] || "";
+        rows.push({
+          key: `hadith:${edition}:${hadith.hadithnumber}`,
+          kind: "hadith",
+          reference: [parsed.metadata?.name || edition, bookName, String(number), grade].filter(Boolean).join(" — "),
+          textAr: hadith.text,
+          textEn: "",
+          sourceUrl: `https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/${file}`,
+          isSample: false,
+          courts: ["general", "personal_status", "criminal", "labor", "commercial"],
+        });
+      }
+    }
+    return rows;
   }
 
   private assertRecord(isSample: boolean, sourceUrl: string, confirmOfficial: boolean) {

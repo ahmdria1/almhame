@@ -41,6 +41,24 @@ function OtpForm() {
         {error ? <p className="text-sm text-danger">{error}</p> : null}
         <Button data-testid="otp-submit" type="submit">{t("auth.otpVerify")}</Button>
       </form>
+      <button
+        type="button"
+        className="mt-4 text-sm font-semibold text-teal-700"
+        onClick={async () => {
+          const email = sessionStorage.getItem("elw_email") || "";
+          if (!email) return;
+          try {
+            const result = await client.resend({ email });
+            sessionStorage.setItem("elw_challenge", result.challengeId);
+            if (result.debugCode) setDebugCode(result.debugCode);
+            router.replace(`/otp?challenge=${result.challengeId}`);
+          } catch (err) {
+            setError(err instanceof ApiError ? err.message : t("common.error"));
+          }
+        }}
+      >
+        {t("auth.resend")}
+      </button>
     </AuthShell>
   );
 }

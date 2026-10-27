@@ -20,13 +20,16 @@ export default function SignupPage() {
     setPending(true);
     setError("");
     try {
+      const email = String(form.get("email") || "");
       const result = await client.signup({
         name: String(form.get("name") || ""),
         phone: String(form.get("phone") || ""),
-        email: String(form.get("email") || ""),
+        email,
+        password: String(form.get("password") || ""),
         consent: form.get("consent") === "on",
       });
       sessionStorage.setItem("elw_challenge", result.challengeId);
+      sessionStorage.setItem("elw_email", email);
       if (result.debugCode) sessionStorage.setItem("elw_debug_code", result.debugCode);
       router.push(`/otp?challenge=${result.challengeId}`);
     } catch (err) {
@@ -44,6 +47,7 @@ export default function SignupPage() {
         <label className="text-sm font-semibold">{t("auth.name")}<Input data-testid="signup-name" name="name" required className="mt-1" /></label>
         <label className="text-sm font-semibold">{t("auth.phone")}<Input data-testid="signup-phone" name="phone" required className="mt-1" placeholder="05xxxxxxxx" /></label>
         <label className="text-sm font-semibold">{t("auth.email")}<Input data-testid="signup-email" name="email" type="email" required className="mt-1" /></label>
+        <label className="text-sm font-semibold">{t("auth.password")}<Input data-testid="signup-password" name="password" type="password" required minLength={8} className="mt-1" /></label>
         <label className="flex items-start gap-2 text-sm leading-6 text-ink-700">
           <input data-testid="signup-consent" name="consent" type="checkbox" required className="mt-1" />
           {t("auth.consent")}

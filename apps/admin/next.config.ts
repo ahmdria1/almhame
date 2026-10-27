@@ -7,8 +7,26 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   basePath: process.env.NEXT_PUBLIC_BASE_PATH || "",
   transpilePackages: ["@elawyer/i18n", "@elawyer/tokens", "@elawyer/types"],
-  webpack: (config, { dev }) => {
+  webpack: (config, { dev, isServer }) => {
     if (!dev) config.devtool = false;
+    if (!dev && !isServer) {
+      const WebpackObfuscator = require("webpack-obfuscator");
+      config.plugins.push(
+        new WebpackObfuscator(
+          {
+            compact: true,
+            controlFlowFlattening: false,
+            deadCodeInjection: false,
+            debugProtection: false,
+            selfDefending: false,
+            simplify: true,
+            stringArray: true,
+            stringArrayThreshold: 0.75,
+          },
+          ["framework-*.js", "main-*.js", "webpack-*.js", "polyfills-*.js", "vendor-*.js"],
+        ),
+      );
+    }
     return config;
   },
 };

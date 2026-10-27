@@ -15,7 +15,10 @@ data
 .turbo
 .DS_Store
 uploads
+corpus/official/cache
 apps/api/test/.db-state.json
+apps/api/test/outbox
+dump.rdb
 apps/mobile/.expo
 apps/mobile/dist
 *.tsbuildinfo

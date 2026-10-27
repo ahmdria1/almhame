@@ -70,6 +70,7 @@ model User {
   name            String
   phone           String    @unique
   email           String    @unique
+  passwordHash    String?
   phoneVerifiedAt DateTime?
   emailVerifiedAt DateTime?
   consentAt       DateTime
@@ -119,16 +120,20 @@ model Organization {
 }
 
 model OtpChallenge {
-  id         String    @id @default(cuid())
-  userId     String
+  id         String        @id @default(cuid())
+  userId     String?
+  adminId    String?
+  purpose    String        @default("email_verify")
   target     String
   codeHash   String
   expiresAt  DateTime
   consumedAt DateTime?
-  createdAt  DateTime  @default(now())
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime      @default(now())
+  user       User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  admin      AdminAccount? @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
   @@index([target, consumedAt])
+  @@index([adminId])
 }
 
 model Session {
@@ -142,11 +147,13 @@ model Session {
 }
 
 model AdminAccount {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String
-  name         String
-  createdAt    DateTime @default(now())
+  id              String         @id @default(cuid())
+  email           String         @unique
+  passwordHash    String
+  name            String
+  emailVerifiedAt DateTime?
+  createdAt       DateTime       @default(now())
+  challenges      OtpChallenge[]
 }
 
 model CaseFile {
@@ -264,9 +271,12 @@ model Law {
   nameAr        String
   nameEn        String
   sourceUrl     String
-  version       String
-  effectiveDate DateTime
-  isSample      Boolean    @default(true)
+  version        String
+  effectiveDate  DateTime
+  issuedHijri    String     @default("")
+  publishedHijri String     @default("")
+  statusLabel    String     @default("")
+  isSample       Boolean    @default(false)
   courts        CourtType[]
   createdAt     DateTime   @default(now())
   articles      Article[]
@@ -279,7 +289,7 @@ model Article {
   textAr    String
   textEn    String
   sourceUrl String
-  isSample  Boolean  @default(true)
+  isSample  Boolean  @default(false)
   law       Law      @relation(fields: [lawId], references: [id], onDelete: Cascade)
   citations MemoCitation[]
 
@@ -295,7 +305,7 @@ model ShariaSource {
   textAr    String
   textEn    String
   sourceUrl String
-  isSample  Boolean     @default(true)
+  isSample  Boolean     @default(false)
   courts    CourtType[]
   citations MemoCitation[]
 }
@@ -442,4 +452,24 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   @@index([createdAt])
+}
+
+model PlanSetting {
+  code          PlanCode @id
+  priceHalalas  Int
+  memoLimit     Int
+  chatLimit     Int?
+  updatedAt     DateTime @updatedAt
+}
+
+model IngestionRun {
+  id         String    @id @default(cuid())
+  source     String
+  status     String
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  laws       Int       @default(0)
+  articles   Int       @default(0)
+  sharia     Int       @default(0)
+  note       String    @default("")
 }

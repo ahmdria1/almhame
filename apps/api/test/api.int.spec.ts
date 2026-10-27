@@ -1,6 +1,11 @@
+import { execFileSync } from "child_process";
+import { mkdtempSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import path from "path";
 import { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { createApp } from "../src/main";
+import { AuthService } from "../src/auth.service";
 import { PrismaService } from "../src/prisma.service";
 import { signSandbox } from "../src/domain/payments";
 
@@ -17,22 +22,51 @@ describe("api integration", () => {
   async function account(name = "أحمد العمراني") {
     const mobile = phone();
     const email = `user${seq}@example.sa`;
+    const password = "test-pass-123";
     const signup = await request(app.getHttpServer())
       .post("/api/auth/signup")
-      .send({ name, phone: mobile, email, consent: true })
+      .send({ name, phone: mobile, email, password, consent: true })
       .expect(201);
     expect(signup.body.debugCode).toMatch(/^\d{6}$/);
+    const blocked = await request(app.getHttpServer()).post("/api/auth/login").send({ email, password }).expect(403);
+    expect(blocked.body.error.code).toBe("EMAIL_UNVERIFIED");
     const verified = await request(app.getHttpServer())
       .post("/api/auth/verify")
       .send({ challengeId: signup.body.challengeId, code: signup.body.debugCode })
       .expect(201);
-    return { token: verified.body.accessToken as string, email, mobile, userId: verified.body.user.id as string };
+    return { token: verified.body.accessToken as string, email, mobile, password, userId: verified.body.user.id as string };
   }
 
   beforeAll(async () => {
     app = await createApp();
     await app.init();
     prisma = app.get(PrismaService);
+    const law = await prisma.law.upsert({
+      where: { key: "test-fixture-labor" },
+      create: {
+        key: "test-fixture-labor",
+        nameAr: "قيد اختبار",
+        nameEn: "test fixture",
+        sourceUrl: "https://example.sa/test-fixture",
+        version: "test",
+        effectiveDate: new Date("2020-01-01"),
+        isSample: true,
+        courts: ["labor", "general"],
+      },
+      update: { isSample: true },
+    });
+    await prisma.article.upsert({
+      where: { lawId_number: { lawId: law.id, number: "اختبار-1" } },
+      create: {
+        lawId: law.id,
+        number: "اختبار-1",
+        textAr: "نص اختبار داخلي لا يُبذر في قاعدة الإنتاج.",
+        textEn: "test fixture",
+        sourceUrl: "https://example.sa/test-fixture#1",
+        isSample: true,
+      },
+      update: { isSample: true },
+    });
   });
 
   afterAll(async () => {
@@ -129,6 +163,12 @@ describe("api integration", () => {
     expect(pdf.headers["content-type"]).toContain("application/pdf");
     expect(Buffer.isBuffer(pdf.body)).toBe(true);
     expect(pdf.body.subarray(0, 4).toString()).toBe("%PDF");
+    const dir = mkdtempSync(path.join(tmpdir(), "elw-int-"));
+    const file = path.join(dir, "memo.pdf");
+    writeFileSync(file, pdf.body);
+    const extracted = execFileSync("pdftotext", ["-enc", "UTF-8", file, "-"], { encoding: "utf8" });
+    expect(extracted).toContain("صحيفة دعوى");
+    expect(extracted).toContain("ثانيًا");
     await request(app.getHttpServer())
       .get(`/api/memos/${memo.id}/export.docx`)
       .set("Authorization", `Bearer ${user.token}`)
@@ -160,9 +200,16 @@ describe("api integration", () => {
 
   it("gives the admin aggregate stats only", async () => {
     const user = await account();
+    await prisma.otpChallenge.deleteMany({ where: { adminId: { not: null } } });
+    await prisma.adminAccount.deleteMany();
+    const invited = await app.get(AuthService).inviteAdmin("admin@example.sa");
+    await request(app.getHttpServer())
+      .post("/api/admin/activate")
+      .send({ challengeId: invited.challengeId, code: invited.debugCode, password: "test-admin-pass" })
+      .expect(201);
     const admin = await request(app.getHttpServer())
       .post("/api/admin/login")
-      .send({ email: "admin@example.sa", password: "AdminPass123!" })
+      .send({ email: "admin@example.sa", password: "test-admin-pass" })
       .expect(201);
     const token = admin.body.accessToken as string;
     await request(app.getHttpServer()).get("/api/chats").set("Authorization", `Bearer ${token}`).expect(401);

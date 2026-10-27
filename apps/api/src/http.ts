@@ -40,14 +40,39 @@ export class SignupDto {
   @IsEmail()
   email!: string;
 
+  @IsString()
+  @Length(8, 72)
+  password!: string;
+
   @Equals(true)
   consent!: boolean;
 }
 
 export class LoginDto {
+  @IsEmail()
+  email!: string;
+
   @IsString()
-  @Length(3, 120)
-  identifier!: string;
+  @Length(8, 72)
+  password!: string;
+}
+
+export class EmailDto {
+  @IsEmail()
+  email!: string;
+}
+
+export class ResetDto {
+  @IsString()
+  challengeId!: string;
+
+  @IsString()
+  @Length(6, 6)
+  code!: string;
+
+  @IsString()
+  @Length(8, 72)
+  password!: string;
 }
 
 export class VerifyDto {
@@ -152,8 +177,28 @@ export class AuthController {
 
   @Post("login")
   @Throttle({ default: { limit: 30, ttl: 60000 } })
-  login(@Body() body: LoginDto) {
-    return this.auth.login(body.identifier);
+  async login(@Body() body: LoginDto, @Res({ passthrough: true }) res: Response) {
+    const result = await this.auth.login(body.email, body.password);
+    refreshCookie(res, result.refreshToken, this.kernel.config.nodeEnv === "production");
+    return { accessToken: result.accessToken, user: result.user };
+  }
+
+  @Post("resend")
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  resend(@Body() body: EmailDto) {
+    return this.auth.resend(body.email);
+  }
+
+  @Post("forgot")
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  forgot(@Body() body: EmailDto) {
+    return this.auth.forgot(body.email);
+  }
+
+  @Post("reset")
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  reset(@Body() body: ResetDto) {
+    return this.auth.resetPassword(body.challengeId, body.code, body.password);
   }
 
   @Post("verify")
@@ -457,6 +502,12 @@ export class AdminController {
     return this.auth.adminLogin(body.email, body.password);
   }
 
+  @Post("activate")
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  activate(@Body() body: ResetDto) {
+    return this.auth.activateAdmin(body.challengeId, body.code, body.password);
+  }
+
   @Get("stats")
   async stats(@Req() req: Request) {
     await adminIdFrom(this.jwt, req);
@@ -475,6 +526,48 @@ export class AdminController {
     const raw = typeof body === "string" ? body : JSON.stringify(body ?? {});
     const parsed = this.corpus.parseImport(raw, contentType, confirm === "true");
     return this.corpus.importRecords(parsed);
+  }
+
+  @Get("users")
+  async users(@Req() req: Request) {
+    await adminIdFrom(this.jwt, req);
+    return this.admin.users();
+  }
+
+  @Get("plans")
+  async plans(@Req() req: Request) {
+    await adminIdFrom(this.jwt, req);
+    return this.admin.plans();
+  }
+
+  @Patch("plans/:code")
+  async updatePlan(@Req() req: Request, @Param("code") code: string, @Body() body: { priceHalalas?: number; memoLimit?: number; chatLimit?: number | null }) {
+    await adminIdFrom(this.jwt, req);
+    return this.admin.updatePlan(code, body);
+  }
+
+  @Get("payments")
+  async payments(@Req() req: Request) {
+    await adminIdFrom(this.jwt, req);
+    return this.admin.payments();
+  }
+
+  @Get("audit")
+  async audit(@Req() req: Request) {
+    await adminIdFrom(this.jwt, req);
+    return this.admin.audit();
+  }
+
+  @Get("settings")
+  async settings(@Req() req: Request) {
+    await adminIdFrom(this.jwt, req);
+    return this.admin.settings();
+  }
+
+  @Post("corpus/refresh")
+  async refreshCorpus(@Req() req: Request) {
+    await adminIdFrom(this.jwt, req);
+    return this.corpus.startRefresh();
   }
 }
 
