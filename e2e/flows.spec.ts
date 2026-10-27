@@ -57,13 +57,18 @@ test("chat, draft, and pdf export", async ({ page }) => {
   await page.waitForURL(/\/app\/memos\//);
   await expect(page.getByTestId("memo-body")).toBeVisible();
   const memoId = page.url().split("/").pop();
-  const downloaded = page.waitForResponse((response) => response.url().includes("/export.pdf") && response.status() === 200);
+  let bytes = Buffer.alloc(0);
+  let status = 0;
+  await page.route("**/export.pdf", async (route) => {
+    const response = await route.fetch();
+    status = response.status();
+    bytes = await response.body();
+    await route.fulfill({ response });
+  });
   await page.getByTestId("export-pdf").click();
-  const pdfResponse = await downloaded;
-  const bytes = await pdfResponse.body();
-  expect(pdfResponse.status()).toBe(200);
+  await expect.poll(() => bytes.length).toBeGreaterThan(1000);
+  expect(status).toBe(200);
   expect(bytes.subarray(0, 4).toString()).toBe("%PDF");
-  expect(bytes.length).toBeGreaterThan(1000);
   expect(memoId).toBeTruthy();
 });
 
