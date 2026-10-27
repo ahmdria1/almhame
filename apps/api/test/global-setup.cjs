@@ -20,6 +20,9 @@ module.exports = async function globalSetup() {
   } else {
     url = process.env.TEST_DATABASE_URL || "postgresql://elawyer:elawyer@127.0.0.1:5432/elawyer_test";
   }
+  execSync(`psql "${url}" -c "CREATE EXTENSION IF NOT EXISTS vector"`, {
+    stdio: "inherit",
+  });
   execSync("pnpm exec prisma migrate deploy", {
     cwd: path.join(__dirname, ".."),
     env: { ...process.env, DATABASE_URL: url },

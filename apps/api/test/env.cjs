@@ -8,7 +8,7 @@ process.env.KMS_MASTER_KEY = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
 process.env.OTP_PEPPER = "test-otp-pepper";
 process.env.OTP_DEBUG = "true";
 process.env.NODE_ENV = "test";
-process.env.REDIS_URL = "";
+if (!process.env.REDIS_URL) process.env.REDIS_URL = "redis://127.0.0.1:6379";
 process.env.PAYMENT_GATEWAY = "sandbox";
 process.env.PAYMENT_SANDBOX_SECRET = "sandbox";
 process.env.WEB_ORIGIN = "http://127.0.0.1:4720";

@@ -53,15 +53,29 @@ node apps/api/dist/cli.js create-admin --email you@example.sa
 
 Open the link in the email (or the outbox file), set a password, then sign in at the admin console.
 
-Checks:
+## CI gates
+
+`.github/workflows/ci.yml` runs on every push and pull request to `main`. Each step is required. A failed step fails the workflow, and the image build does not start unless every gate passed. There is no status badge.
+
+1. `pnpm install --frozen-lockfile`
+2. `pnpm typecheck` on every package, with `strict`, `noUnusedLocals`, `noUnusedParameters`, `noImplicitReturns`, and `forceConsistentCasingInFileNames`
+3. `pnpm lint` with zero warnings
+4. Jest unit and integration tests against PostgreSQL 16 with pgvector and Redis
+5. Line coverage of at least 90% on `apps/api/src/domain`
+6. Playwright end-to-end tests
+7. Production builds of the API, web app, and admin console, with no `.map` files and obfuscated client JavaScript
+8. Locale completeness: missing keys and `TODO` values fail `packages/i18n`
+9. Secret scan with gitleaks, and `pnpm audit --audit-level high`
+10. A scan that rejects tool or model attribution in the source, commit authors, commit messages, and build output
+
+`extract-zip` has no patched release. Those two CVEs stay in `pnpm.auditConfig.ignoreCves` because PDF export uses the system browser and does not extract browser archives.
 
 ```bash
 pnpm lint
-pnpm typecheck
+pnpm typecheck && node scripts/ci/check-tsconfig.mjs
 pnpm test
 pnpm exec playwright install chromium
 pnpm test:e2e
-pnpm --filter @elawyer/mobile build
 ```
 
 `USE_TESTCONTAINERS=1` starts `pgvector/pgvector:pg16` for the API integration tests. Leave it at `0` to use `TEST_DATABASE_URL`.

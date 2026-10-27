@@ -19,6 +19,14 @@ const mapper = {
 
 module.exports = {
   testTimeout: 120000,
+  collectCoverageFrom: ["src/domain/**/*.ts", "!src/domain/**/*.spec.ts"],
+  coverageDirectory: "<rootDir>/coverage",
+  coverageReporters: ["text", "text-summary", "json-summary"],
+  coverageThreshold: {
+    "./src/domain/": {
+      lines: 90,
+    },
+  },
   projects: [
     {
       displayName: "unit",

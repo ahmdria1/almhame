@@ -9,8 +9,7 @@
     "sourceMap": false,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "strictPropertyInitialization": false,
-    "noUnusedLocals": false
+    "strictPropertyInitialization": false
   },
   "include": ["src"],
   "exclude": ["src/**/*.spec.ts"]

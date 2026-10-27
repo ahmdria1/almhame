@@ -2,10 +2,20 @@ name: ci
 
 on:
   push:
+    branches: [main]
   pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
-  check:
+  gates:
+    name: required gates
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -47,8 +57,11 @@ jobs:
       ADMIN_ORIGIN: http://127.0.0.1:4730
       API_PUBLIC_URL: http://127.0.0.1:4710
       NEXT_PUBLIC_API_URL: http://127.0.0.1:4710/api
+      NODE_ENV: test
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
         with:
           version: 10.33.4
@@ -58,17 +71,52 @@ jobs:
           cache: pnpm
       - name: Install system packages
         run: sudo apt-get update && sudo apt-get install -y postgresql-client tesseract-ocr tesseract-ocr-ara poppler-utils chromium
-      - name: Create the test database
-        run: PGPASSWORD=elawyer psql -h 127.0.0.1 -U elawyer -d elawyer -c "CREATE DATABASE elawyer_test"
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @elawyer/api exec prisma generate
-      - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm test
-      - run: pnpm --filter @elawyer/api build
-      - run: pnpm --filter @elawyer/web build
-      - run: pnpm --filter @elawyer/admin build
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e
-      - name: Export the mobile web bundle
-        run: pnpm --filter @elawyer/mobile build
+      - name: Prepare Postgres
+        run: |
+          PGPASSWORD=elawyer psql -h 127.0.0.1 -U elawyer -d postgres -c "SELECT 1 FROM pg_database WHERE datname = 'elawyer_test'" | grep -q 1 || PGPASSWORD=elawyer psql -h 127.0.0.1 -U elawyer -d postgres -c "CREATE DATABASE elawyer_test"
+          PGPASSWORD=elawyer psql -h 127.0.0.1 -U elawyer -d elawyer -c "CREATE EXTENSION IF NOT EXISTS vector"
+          PGPASSWORD=elawyer psql -h 127.0.0.1 -U elawyer -d elawyer_test -c "CREATE EXTENSION IF NOT EXISTS vector"
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Generate Prisma client
+        run: pnpm --filter @elawyer/api exec prisma generate
+      - name: Migrate the application database
+        run: pnpm --filter @elawyer/api exec prisma migrate deploy
+      - name: Typecheck
+        run: pnpm typecheck && node scripts/ci/check-tsconfig.mjs
+      - name: Lint
+        run: pnpm lint
+      - name: Jest unit and integration tests
+        run: pnpm --filter @elawyer/api test && pnpm --filter @elawyer/mobile test
+      - name: Locale completeness
+        run: pnpm --filter @elawyer/i18n test
+      - name: Production builds
+        run: |
+          pnpm --filter @elawyer/api build
+          pnpm --filter @elawyer/web build
+          pnpm --filter @elawyer/admin build
+      - name: Source maps and obfuscation
+        run: node scripts/ci/check-builds.mjs
+      - name: Playwright end-to-end tests
+        run: pnpm exec playwright install --with-deps chromium && pnpm test:e2e
+      - name: Secret scan
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz" | tar -xz -C /tmp gitleaks
+          /tmp/gitleaks detect --source . --redact --config .gitleaks.toml --verbose
+      - name: Dependency audit
+        run: pnpm audit --audit-level high
+      - name: Tool trace scan
+        run: node scripts/ci/check-traces.mjs
+
+  deploy:
+    name: deploy images
+    needs: gates
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build release images
+        run: |
+          docker build -f docker/Dockerfile.api -t elawyer-api:ci .
+          docker build -f docker/Dockerfile.web -t elawyer-web:ci --build-arg NEXT_PUBLIC_API_URL=https://example.invalid/api .
+          docker build -f docker/Dockerfile.admin -t elawyer-admin:ci --build-arg NEXT_PUBLIC_API_URL=https://example.invalid/api .

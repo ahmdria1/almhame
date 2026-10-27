@@ -1,0 +1,24 @@
+title = "elawyer"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documented development placeholders and test fixtures"
+paths = [
+  '''(^|/)\.env\.example$''',
+  '''apps/api/test/''',
+  '''apps/api/src/config\.spec\.ts$''',
+]
+regexes = [
+  '''MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=''',
+  '''replace-with-a-long-random-string''',
+  '''replace-with-another-long-random-string''',
+  '''ci-jwt-secret-[0-9a-f]+''',
+  '''ci-otp-pepper''',
+  '''test-jwt-secret-[0-9a-f]+''',
+  '''test-otp-pepper''',
+  '''sandbox-dev-secret''',
+  '''PGKEYENCDECIVSPC''',
+  '''1234567890abcdef''',
+]

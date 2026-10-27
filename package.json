@@ -7,6 +7,31 @@
   "author": "Ahmed Alamrani",
   "packageManager": "pnpm@10.33.4",
   "pnpm": {
+    "overrides": {
+      "@nestjs/platform-express>body-parser": "1.20.9",
+      "express>body-parser": "1.20.9",
+      "@nestjs/platform-express>multer": "2.5.0",
+      "express>path-to-regexp": "0.1.13",
+      "@nestjs/cli>glob": "10.5.0",
+      "@angular-devkit/core>picomatch": "4.0.4",
+      "postcss": "8.5.18",
+      "next>sharp": "0.35.5",
+      "@expo/cli>tar": "7.5.21",
+      "cacache>tar": "7.5.21",
+      "@expo/plist>@xmldom/xmldom": "0.8.15",
+      "testcontainers>undici": "6.29.1",
+      "undici>@fastify/busboy": "3.2.1",
+      "get-uri>basic-ftp": "6.2.1",
+      "metro>image-size": "2.0.3",
+      "chromium-bidi>zod": "4.6.6",
+      "external-editor>tmp": "0.2.7"
+    },
+    "auditConfig": {
+      "ignoreCves": [
+        "CVE-2026-56876",
+        "CVE-2026-19693"
+      ]
+    },
     "onlyBuiltDependencies": [
       "@nestjs/core",
       "@prisma/client",
@@ -26,7 +51,7 @@
   "scripts": {
     "build": "turbo build",
     "dev": "turbo dev",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 0",
     "typecheck": "turbo typecheck",
     "test": "turbo test",
     "test:e2e": "playwright test",
@@ -34,7 +59,7 @@
     "db:seed": "pnpm --filter @elawyer/api seed"
   },
   "devDependencies": {
-    "@playwright/test": "1.55.0",
+    "@playwright/test": "1.55.1",
     "@types/jest": "29.5.14",
     "@types/node": "22.15.30",
     "eslint": "9.28.0",

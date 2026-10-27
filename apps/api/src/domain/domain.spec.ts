@@ -1,13 +1,13 @@
 import { validateCitations } from "./citations";
 import { composeDraft, readSlots } from "./draft";
-import { EMBED_DIM, mockEmbed } from "./embeddings";
-import { decodeMasterKey, decryptString, encryptString, generateDek, unwrapKey, wrapKey } from "./envelope";
-import { halalasToSar, splitVatInclusive, zatcaQrBase64 } from "./invoice";
+import { EMBED_DIM, mockEmbed, vectorLiteral } from "./embeddings";
+import { decodeMasterKey, decryptBytes, decryptString, encryptBytes, encryptString, generateDek, unwrapKey, wrapKey } from "./envelope";
+import { halalasToSar, nextInvoiceNumber, splitVatInclusive, zatcaQrBase64 } from "./invoice";
 import { createHash, createHmac } from "crypto";
 import { buildTrandata, decryptTrandata, encryptTrandata } from "./alrajhi";
-import { otpMatches, hashOtp, normalizePhone } from "./otp";
+import { generateOtpCode, isPhone, otpMatches, hashOtp, normalizePhone } from "./otp";
 import { sandboxSignatureOk, signSandbox } from "./payments";
-import { chatQuota, chatsCounted, memoQuota, PLAN_DEFS } from "./plans";
+import { chatQuota, chatsCounted, courtAllowed, memoQuota, PLAN_DEFS, resolvePlan, yearlyHalalas } from "./plans";
 
 const master = decodeMasterKey(Buffer.from("0123456789abcdef0123456789abcdef").toString("base64"));
 
@@ -154,5 +154,92 @@ describe("embeddings and payment crypto", () => {
     const sig = signSandbox("sandbox", "intent-1");
     expect(sandboxSignatureOk("sandbox", "intent-1", sig)).toBe(true);
     expect(sandboxSignatureOk("sandbox", "intent-1", "00")).toBe(false);
+    expect(vectorLiteral(mockEmbed("نص"))).toMatch(/^\[[0-9.,-]+\]$/);
+    expect(() => vectorLiteral([1])).toThrow(/dimension/);
+    expect(() => encryptTrandata("{}", "short")).toThrow(/16 or 32/);
+  });
+});
+
+describe("remaining domain branches", () => {
+  it("covers phone, plan, invoice, and envelope edges", () => {
+    expect(generateOtpCode()).toMatch(/^\d{6}$/);
+    expect(isPhone("+966551234567")).toBe(true);
+    expect(isPhone("055")).toBe(false);
+    expect(normalizePhone("+966551234567")).toBe("+966551234567");
+    expect(normalizePhone("00966551234567")).toBe("+966551234567");
+    expect(normalizePhone("551234567")).toBe("+966551234567");
+    expect(normalizePhone("966551234567")).toBe("+966551234567");
+    expect(normalizePhone("12345")).toBe("+12345");
+    expect(otpMatches("123456", "abcd", "pepper-value")).toBe(false);
+    expect(yearlyHalalas(9900)).toBe(118800);
+    const overridden = resolvePlan("basic", { priceHalalas: 1000, memoLimit: 2, chatLimit: 3 });
+    expect(overridden.priceHalalas).toBe(1000);
+    expect(resolvePlan("pro", null).code).toBe("pro");
+    expect(courtAllowed(PLAN_DEFS.free, "labor")).toBe(true);
+    expect(courtAllowed(PLAN_DEFS.free, "commercial")).toBe(false);
+    expect(chatQuota(PLAN_DEFS.pro, 40).ok).toBe(true);
+    expect(memoQuota(PLAN_DEFS.free, 0).ok).toBe(true);
+    expect(() => splitVatInclusive(1.5)).toThrow(/halalas/);
+    expect(nextInvoiceNumber(2026, 12)).toBe("ELW-2026-000012");
+    expect(() =>
+      zatcaQrBase64({
+        sellerName: "س".repeat(300),
+        vatNumber: "1",
+        timestamp: "t",
+        totalSar: "1.00",
+        vatSar: "0.15",
+      }),
+    ).toThrow(/too long/);
+    expect(() => decodeMasterKey(Buffer.from("short").toString("base64"))).toThrow(/32 bytes/);
+    expect(() => unwrapKey("bad", master)).toThrow(/wrapped key/);
+    expect(() => decryptString("bad", generateDek())).toThrow(/payload/);
+    const dek = generateDek();
+    const blob = encryptBytes(Buffer.from("ملف"), dek);
+    expect(decryptBytes(blob, dek).toString("utf8")).toBe("ملف");
+    expect(() => decryptBytes(Buffer.from("no"), dek)).toThrow(/bad file/);
+  });
+
+  it("rejects a mismatched article number and an unknown token", () => {
+    const known = {
+      articles: new Map([["a77", { number: "77" }]]),
+      sharia: new Set(["s1"]),
+    };
+    const mismatch = validateCitations("نص", [{ kind: "article", id: "a77", number: "1" }], known);
+    expect(mismatch.ok).toBe(false);
+    expect(mismatch.unknown).toContain("mismatch:a77");
+    const token = validateCitations("{{cite:sharia:missing}}", [], known);
+    expect(token.unknown).toContain("token:missing");
+  });
+
+  it("asks for missing facts and still drafts without a retrieved article", () => {
+    expect(readSlots(["قصير"]).ready).toBe(false);
+    const noPlaintiff = readSlots(["هذه وقائع طويلة تكفي لوصف النزاع دون ذكر الأطراف بالاسم."]);
+    expect(noPlaintiff.ready).toBe(false);
+    const noDefendant = readSlots(["المدعي: أحمد\nهذه وقائع طويلة تكفي لوصف النزاع دون ذكر الطرف الآخر."]);
+    expect(noDefendant.ready).toBe(false);
+    const slots = readSlots(["المدعي: أحمد\nالمدعى عليه: الشركة\nالطلبات: التعويض\nانتهت العلاقة بعد سنوات دون إنذار كتابي ولم تُصرف المكافأة."]);
+    const draft = composeDraft({
+      court: "general",
+      memoType: "defense",
+      slots,
+      articles: [],
+      sharia: [
+        {
+          id: "s1",
+          kind: "quran",
+          reference: "2:282",
+          textAr: "يَا أَيُّهَا الَّذِينَ آمَنُوا",
+          textEn: "quran",
+          sourceUrl: "https://tanzil.net/download/",
+          isSample: false,
+        },
+      ],
+      letterhead: "مكتب أحمد العمراني",
+    });
+    expect(draft.title).toBe("مذكرة دفاع");
+    expect(draft.body).toContain("لم يُسترجع من المدونة");
+    expect(draft.body).toContain("2:282");
+    expect(draft.body).toContain("مكتب أحمد العمراني");
+    expect(draft.citations).toEqual([{ kind: "sharia", id: "s1" }]);
   });
 });

@@ -10,7 +10,7 @@
     "dev": "nest start --watch",
     "start": "node dist/main.js",
     "start:test": "node dist/main.js",
-    "test": "jest --runInBand",
+    "test": "jest --coverage --runInBand",
     "seed": "tsx prisma/seed.ts",
     "prisma:generate": "prisma generate"
   },
@@ -35,7 +35,7 @@
     "docx": "9.5.1",
     "helmet": "8.1.0",
     "ioredis": "5.7.0",
-    "nodemailer": "7.0.5",
+    "nodemailer": "10.2.1",
     "pdf-lib": "1.17.1",
     "puppeteer-core": "24.15.0",
     "reflect-metadata": "0.2.2",
