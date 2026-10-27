@@ -261,9 +261,10 @@ export class ElawyerClient {
     return this.request(`/cases/${caseId}/hearings`, { method: "POST", body: JSON.stringify(input) });
   }
 
-  uploadDocument(caseId: string, file: Blob, filename: string) {
+  uploadDocument(caseId: string, file: Blob | { uri: string; name: string; type: string }, filename: string) {
     const body = new FormData();
-    body.append("file", file, filename);
+    if (typeof Blob !== "undefined" && file instanceof Blob) body.append("file", file, filename);
+    else body.append("file", file as Blob);
     return this.request(`/cases/${caseId}/documents`, { method: "POST", body });
   }
 

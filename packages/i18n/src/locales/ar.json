@@ -291,5 +291,12 @@
   "mobile.start": "ابدأ",
   "mobile.homeGreeting": "أهلًا بك",
   "mobile.ask": "اسأل عن قضية",
-  "common.required": "مطلوب"
+  "common.required": "مطلوب",
+  "workspace.attach": "إرفاق ملف",
+  "workspace.uploading": "جارٍ رفع الملف",
+  "upload.unsupported": "نوع الملف غير مدعوم. ارفع ملف PDF أو صورة PNG أو JPEG أو WEBP.",
+  "upload.tooLarge": "حجم الملف أكبر من الحد المسموح.",
+  "upload.infected": "رُفض الملف لأنه مصاب.",
+  "upload.scanner": "فحص الملفات غير متاح الآن.",
+  "upload.rate": "تجاوزت حد رفع الملفات. حاول بعد قليل."
 }

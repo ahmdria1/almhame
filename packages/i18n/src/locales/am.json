@@ -291,5 +291,12 @@
   "mobile.start": "ጀምር",
   "mobile.homeGreeting": "ማየትህ ደስ ይላል",
   "mobile.ask": "ስለ ጉዳይ ጠይቅ",
-  "common.required": "ያስፈልጋል"
+  "common.required": "ያስፈልጋል",
+  "workspace.attach": "ፋይል አያይዝ",
+  "workspace.uploading": "ፋይሉ እየተጫነ ነው",
+  "upload.unsupported": "ይህ የፋይል አይነት አይደገፍም። PDF ወይም PNG፣ JPEG፣ ወይም WEBP ምስል ይጫኑ።",
+  "upload.tooLarge": "ፋይሉ ከተፈቀደው መጠን ይበልጣል።",
+  "upload.infected": "ፋይሉ ተበክሏል ስለሆነ ተቀባይነት አላገኘም።",
+  "upload.scanner": "የፋይል መቃኛ አይገኝም።",
+  "upload.rate": "የመጫን ገደብ አልፏል። ትንሽ ቆይተው ይሞክሩ።"
 }

@@ -4,7 +4,9 @@ Saudi legal-drafting workspace for lawsuit, defense, reply, and appeal memos. Th
 
 Statute text is stored under `corpus/official/boe`. The fetcher tries `laws.boe.gov.sa` first. When that host does not answer, it reads the current consolidated text from the Ministry of Justice legislation gateway and keeps the Bureau URL the gateway returns. Instruments the gateway does not carry are taken from a public snapshot of the same Bureau pages (`corpus/snapshot_fallback.py`). Re-run `node corpus/fetch-official.mjs`, then `node apps/api/dist/cli.js import-corpus`.
 
-`نظام العمل` is not imported. The live Bureau site did not answer, the justice gateway does not list it, and the available page snapshot mixes amendment notes into the articles, so the wording is not reliable. Legal maxims (`القواعد الفقهية`) are not imported: no machine-readable edition of a published qawaid work was available. Quran text is the Tanzil Uthmani file (6,236 verses). Hadith text is the Arabic editions of Bukhari, Muslim, Abu Dawud, Tirmidhi, Nasai, Ibn Majah, and Malik from the open hadith-api dataset, with book, number, and grade.
+`نظام العمل` is imported from a public snapshot of its Bureau page. The live Bureau site did not answer, and the justice gateway does not list it. The same snapshot reader supplied the criminal statutes the gateway does not carry: narcotics, bribery, forgery, money laundering, terrorism and its financing, juveniles, weapons, abuse, trafficking, traffic, and the criminal-procedure regulation. `نظام الإجراءات الجزائية` was checked again against the justice gateway and still has 222 articles. `نظام المؤسسة العامة للسجون` was not imported. Legal maxims (`القواعد الفقهية`) are not imported: no machine-readable edition of a published qawaid work was available. Quran text is the Tanzil Uthmani file (6,236 verses). Hadith text is the Arabic editions of Bukhari, Muslim, Abu Dawud, Tirmidhi, Nasai, Ibn Majah, and Malik from the open hadith-api dataset, with book, number, and grade.
+
+Chat uploads are scanned with ClamAV before they are stored. Set `CLAMAV_HOST` to the daemon. Production refuses the upload when the scanner is down.
 
 ## Layout
 

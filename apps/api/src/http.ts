@@ -589,6 +589,8 @@ export class AdminController {
 
 function sendFile(res: Response, file: { filename: string; mime: string; bytes: Buffer }) {
   const ascii = file.filename.replace(/[^\w. -]+/g, "") || "download";
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; sandbox");
   res.setHeader("Content-Type", file.mime);
   res.setHeader("Content-Disposition", `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(file.filename)}`);
   res.send(file.bytes);

@@ -1,6 +1,6 @@
 # Hostinger KVM 2: 2 vCPU, 8 GB RAM.
-# postgres 2G, api 1280M, web 1G, admin 512M, redis 384M, pgbouncer 128M, nginx 128M.
-# About 1.6G remains for the operating system and page cache.
+# postgres 2G, api 1280M, web 1G, admin 512M, redis 384M, clamav 1536M, pgbouncer 128M, nginx 128M.
+# About 1.1G remains for the operating system and page cache. ClamAV keeps the signature database in memory.
 
 services:
   postgres:
@@ -71,6 +71,24 @@ services:
           cpus: "0.25"
           memory: 384M
 
+  clamav:
+    image: clamav/clamav:1.4
+    environment:
+      CLAMAV_NO_FRESHCLAM: "false"
+    ports:
+      - "3310:3310"
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 15s
+      timeout: 10s
+      retries: 40
+      start_period: 180s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 1536M
+
   api:
     build:
       context: .
@@ -86,11 +104,16 @@ services:
       API_PUBLIC_URL: ${API_PUBLIC_URL:-https://emuhami.com}
       SMTP_FROM: ${SMTP_FROM:-no-reply@emuhami.com}
       COOKIE_DOMAIN: ${COOKIE_DOMAIN:-.emuhami.com}
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: "3310"
+      CLAMAV_REQUIRED: "true"
     depends_on:
       pgbouncer:
         condition: service_started
       redis:
         condition: service_healthy
+      clamav:
+        condition: service_started
     command: sh -c "DATABASE_URL=postgresql://elawyer:elawyer@postgres:5432/elawyer ./node_modules/.bin/prisma migrate deploy --schema apps/api/prisma/schema.prisma && node apps/api/dist/main.js"
     deploy:
       resources:

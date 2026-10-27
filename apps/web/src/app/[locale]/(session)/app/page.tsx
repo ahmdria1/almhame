@@ -1,11 +1,12 @@
 "use client";
 
 import { ApiError } from "@elawyer/api-client";
+import { uploadErrorKey } from "@elawyer/i18n";
 import { COURTS, MEMO_TYPES, type CourtType, type MemoType } from "@elawyer/types";
 import { Paperclip, Scale, Send } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, Modal } from "@/components/ui";
 import { useApp } from "@/lib/providers";
 
@@ -27,6 +28,8 @@ export default function WorkspacePage() {
   const [text, setText] = useState("");
   const [quota, setQuota] = useState(false);
   const [error, setError] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
 
   async function loadList(selectId?: string) {
@@ -73,6 +76,22 @@ export default function WorkspacePage() {
     setParties({ plaintiff: detail.caseFile?.plaintiff || "", defendant: detail.caseFile?.defendant || "" });
   }
 
+  async function attach(file: File) {
+    if (!caseId) return;
+    setUploading(true);
+    setError("");
+    try {
+      await client.uploadDocument(caseId, file, file.name);
+      if (active) await openChat(active);
+    } catch (err) {
+      const key = err instanceof ApiError ? uploadErrorKey(err.code) : null;
+      setError(key ? t(key) : err instanceof ApiError ? err.message : t("common.error"));
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
   async function draft() {
     if (!active) return;
     setError("");
@@ -108,12 +127,10 @@ export default function WorkspacePage() {
             </div>
           ))}
           <label className="cursor-pointer rounded-xl border border-dashed border-ink-300 px-3 py-2 text-center text-sm text-ink-500">
-            {t("workspace.attachments")}
-            <input data-testid="file-input" className="hidden" type="file" accept="application/pdf,image/png,image/jpeg,image/webp" onChange={async (event) => {
+            {uploading ? t("workspace.uploading") : t("workspace.attachments")}
+            <input ref={fileRef} data-testid="file-input" className="hidden" type="file" accept="application/pdf,image/png,image/jpeg,image/webp" onChange={(event) => {
               const file = event.target.files?.[0];
-              if (!file || !caseId) return;
-              await client.uploadDocument(caseId, file, file.name);
-              await openChat(active);
+              if (file) void attach(file);
             }} />
           </label>
         </div>
@@ -155,9 +172,10 @@ export default function WorkspacePage() {
           </div>
           <div className="flex gap-2">
             <input data-testid="chat-input" value={text} onChange={(event) => setText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void send(); }} placeholder={t("workspace.placeholder")} className="h-12 flex-1 rounded-2xl border border-ink-200 bg-white px-4 outline-none dark:border-white/10 dark:bg-navy-800" />
-            <button aria-label={t("common.save")} className="text-ink-400" type="button"><Paperclip size={18} /></button>
+            <button aria-label={t("workspace.attach")} className="text-ink-400 disabled:opacity-40" type="button" disabled={uploading || !caseId} onClick={() => fileRef.current?.click()}><Paperclip size={18} /></button>
             <button data-testid="chat-send" className="grid h-12 w-12 place-items-center rounded-full bg-navy-700 text-white" type="button" onClick={() => void send()}><Send size={18} /></button>
           </div>
+          {uploading ? <p className="mt-2 text-xs text-ink-500">{t("workspace.uploading")}</p> : null}
         </div>
       </section>
       <aside className="border-ink-200 p-4 lg:border-s dark:border-white/10">

@@ -291,5 +291,12 @@
   "mobile.start": "Simulan",
   "mobile.homeGreeting": "Ikinagagalak kitang makita",
   "mobile.ask": "Magtanong tungkol sa isang kaso",
-  "common.required": "Kailangan"
+  "common.required": "Kailangan",
+  "workspace.attach": "Maglakip ng file",
+  "workspace.uploading": "Ina-upload ang file",
+  "upload.unsupported": "Hindi suportado ang uri ng file. Mag-upload ng PDF o larawang PNG, JPEG, o WEBP.",
+  "upload.tooLarge": "Mas malaki ang file kaysa sa pinapayagan.",
+  "upload.infected": "Tinanggihan ang file dahil ito ay infected.",
+  "upload.scanner": "Hindi available ang file scanner.",
+  "upload.rate": "Lumampas sa limitasyon ng upload. Subukan muli mamaya."
 }

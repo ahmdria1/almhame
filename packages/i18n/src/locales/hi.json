@@ -291,5 +291,12 @@
   "mobile.start": "आरंभ",
   "mobile.homeGreeting": "आपको देखकर अच्छा लगा",
   "mobile.ask": "किसी वाद के बारे में पूछें",
-  "common.required": "आवश्यक"
+  "common.required": "आवश्यक",
+  "workspace.attach": "फ़ाइल संलग्न करें",
+  "workspace.uploading": "फ़ाइल अपलोड हो रही है",
+  "upload.unsupported": "यह फ़ाइल प्रकार समर्थित नहीं है। PDF या PNG, JPEG, या WEBP छवि अपलोड करें।",
+  "upload.tooLarge": "फ़ाइल अनुमत आकार से बड़ी है।",
+  "upload.infected": "फ़ाइल संक्रमित होने के कारण अस्वीकार की गई।",
+  "upload.scanner": "फ़ाइल स्कैनर उपलब्ध नहीं है।",
+  "upload.rate": "अपलोड की सीमा पूरी हो गई। थोड़ी देर बाद कोशिश करें।"
 }

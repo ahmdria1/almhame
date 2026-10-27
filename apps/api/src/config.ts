@@ -59,6 +59,9 @@ export interface AppConfig {
   outboxDir: string;
   nodeEnv: string;
   corsOrigins: string[];
+  clamavHost: string;
+  clamavPort: number;
+  clamavRequired: boolean;
 }
 
 export const DEFAULT_SMTP_FROM = "no-reply@emuhami.com";
@@ -137,6 +140,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     emailDebug: env.EMAIL_DEBUG === "true",
     outboxDir: env.OUTBOX_DIR || "",
     nodeEnv: env.NODE_ENV || "development",
+    clamavHost: (env.CLAMAV_HOST || "").trim(),
+    clamavPort: Number(env.CLAMAV_PORT || 3310),
+    clamavRequired: env.NODE_ENV === "production" || env.CLAMAV_REQUIRED === "true",
     corsOrigins: [
       ...new Set([
         webOrigin,

@@ -291,5 +291,12 @@
   "mobile.start": "شروع",
   "mobile.homeGreeting": "تہانوں ویکھ کے چنگا لگیا",
   "mobile.ask": "کسے مقدمے بارے پُچھو",
-  "common.required": "لازمی"
+  "common.required": "لازمی",
+  "workspace.attach": "فائل نَتھی کرو",
+  "workspace.uploading": "فائل اپ لوڈ ہو رہی اے",
+  "upload.unsupported": "ایہ فائل قسم تائید نہیں۔ PDF یا PNG، JPEG، یا WEBP تصویر اپ لوڈ کرو۔",
+  "upload.tooLarge": "فائل اجازت توں وڈی اے۔",
+  "upload.infected": "فائل رد کر دتی گئی کیونکہ ایہ متاثرہ اے۔",
+  "upload.scanner": "فائل سکینر دستیاب نہیں۔",
+  "upload.rate": "اپ لوڈ دی حد مُک گئی۔ تھوڑی دیر بعد کوشش کرو۔"
 }

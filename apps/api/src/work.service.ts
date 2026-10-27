@@ -8,6 +8,7 @@ import { Injectable } from "@nestjs/common";
 import { IntegrationProvider, MemoType, Prisma, User } from "@prisma/client";
 import { jurisdictionOf, type CourtType as Court, type MemoType as MemoKind } from "@elawyer/types";
 import { CorpusService } from "./corpus.service";
+import { InfectedUpload, scanInstream } from "./domain/clamd";
 import { knownArticle, textHash, validateCitations, type CitationRef } from "./domain/citations";
 import { composeDraft, readSlots } from "./domain/draft";
 import { decryptBytes, encryptBytes, generateDek, wrapKey } from "./domain/envelope";
@@ -15,6 +16,7 @@ import { halalasToSar, nextInvoiceNumber, splitVatInclusive, zatcaQrBase64 } fro
 import { isPhone, normalizePhone } from "./domain/otp";
 import { chatQuota, chatsCounted, courtAllowed, memoQuota } from "./domain/plans";
 import { signSandbox } from "./domain/payments";
+import { inspectPdf, kindFromMime, MAX_UPLOAD_BYTES, reencodeImage, sanitizeFilename, sniffUpload, takeUploadSlot } from "./domain/uploads";
 import { fail } from "./http-error";
 import { Kernel } from "./kernel";
 import { presentUser } from "./present";
@@ -22,10 +24,11 @@ import { ReminderService } from "./reminders.service";
 import { fontFile, renderDocx, renderPdf } from "./render";
 
 const exec = promisify(execFile);
-const ALLOWED_MIME = new Set(["application/pdf", "image/png", "image/jpeg", "image/webp"]);
 
 @Injectable()
 export class WorkService {
+  private readonly uploadStamps = new Map<string, number[]>();
+
   constructor(
     private readonly kernel: Kernel,
     private readonly corpus: CorpusService,
@@ -575,29 +578,79 @@ export class WorkService {
   }
 
   async upload(userId: string, caseId: string, file: { buffer: Buffer; mimetype: string; originalname: string; size: number }) {
-    if (!ALLOWED_MIME.has(file.mimetype)) fail("VALIDATION", 400, "Upload a PDF or an image");
-    if (file.size > 15 * 1024 * 1024) fail("VALIDATION", 400, "File is larger than 15 MB");
+    const slot = takeUploadSlot(this.uploadStamps.get(userId) || [], Date.now());
+    this.uploadStamps.set(userId, slot.next);
+    if (!slot.ok) fail("RATE_LIMIT", 429, "Too many uploads");
+    if (file.size > MAX_UPLOAD_BYTES || file.buffer.length > MAX_UPLOAD_BYTES) fail("FILE_TOO_LARGE", 422, "File is larger than 15 MB");
+    await this.scanUpload(userId, file.buffer);
+    const declared = kindFromMime(file.mimetype);
+    const sniffed = sniffUpload(file.buffer);
+    if (!declared || sniffed !== declared) fail("UNSUPPORTED_TYPE", 422, "Upload a PDF or an image");
+    let bytes = file.buffer;
+    let mime = file.mimetype;
+    if (sniffed === "pdf") {
+      const pdf = inspectPdf(bytes);
+      if ("reason" in pdf) {
+        if (pdf.reason === "pages") fail("FILE_TOO_LARGE", 422, "The PDF has too many pages");
+        fail("PDF_UNSAFE", 422, "The PDF was rejected");
+      }
+    } else {
+      try {
+        bytes = await reencodeImage(bytes, sniffed);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        if (message === "dimensions") fail("FILE_TOO_LARGE", 422, "The image is too large");
+        fail("UNSUPPORTED_TYPE", 422, "Upload a PDF or an image");
+      }
+      mime = sniffed === "png" ? "image/png" : sniffed === "webp" ? "image/webp" : "image/jpeg";
+    }
+    const filename = sanitizeFilename(file.originalname);
     const user = await this.fresh(userId);
     const dek = this.kernel.dekOf(user.wrappedDataKey);
     const caseFile = await this.kernel.prisma.caseFile.findFirst({ where: { id: caseId, userId } });
     if (!caseFile) fail("NOT_FOUND", 404, "Case was not found");
-    const text = await readUploaded(file.mimetype, file.buffer);
+    const text = await readUploaded(mime, bytes);
     const doc = await this.kernel.prisma.document.create({
       data: {
         userId,
         caseId,
-        filename: path.basename(file.originalname).slice(0, 180) || "file",
-        mime: file.mimetype,
-        byteSize: file.size,
+        filename,
+        mime,
+        byteSize: bytes.length,
         storageKey: "pending",
         ocrEnc: text ? this.kernel.enc(dek, text) : null,
       },
     });
     const storageKey = path.join(userId, doc.id);
     await mkdir(path.join(this.kernel.config.storageDir, userId), { recursive: true });
-    await writeFile(path.join(this.kernel.config.storageDir, storageKey), encryptBytes(file.buffer, dek));
+    await writeFile(path.join(this.kernel.config.storageDir, storageKey), encryptBytes(bytes, dek));
     await this.kernel.prisma.document.update({ where: { id: doc.id }, data: { storageKey } });
     return { id: doc.id, filename: doc.filename, byteSize: doc.byteSize };
+  }
+
+  private async scanUpload(userId: string, bytes: Buffer) {
+    const host = this.kernel.config.clamavHost;
+    const required = this.kernel.config.clamavRequired;
+    if (!host) {
+      if (required) fail("SCANNER_UNAVAILABLE", 503, "The file scanner is unavailable");
+      return;
+    }
+    try {
+      await scanInstream(bytes, { host, port: this.kernel.config.clamavPort, timeoutMs: 20000 });
+    } catch (error) {
+      if (error instanceof InfectedUpload) {
+        await this.kernel.prisma.auditLog.create({
+          data: {
+            actorType: "user",
+            actorId: userId,
+            action: "upload.rejected FILE_INFECTED",
+            entityType: "document",
+          },
+        }).catch(() => undefined);
+        fail("FILE_INFECTED", 422, "The file was rejected");
+      }
+      if (required) fail("SCANNER_UNAVAILABLE", 503, "The file scanner is unavailable");
+    }
   }
 
   async download(userId: string, documentId: string) {
@@ -944,7 +997,7 @@ async function readUploaded(mime: string, buffer: Buffer): Promise<string> {
         return "";
       }
     } else {
-      const ext = mime === "image/png" ? "png" : "jpg";
+      const ext = mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
       await writeFile(path.join(dir, `in.${ext}`), buffer);
     }
     const { readdir } = await import("fs/promises");

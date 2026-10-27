@@ -51,11 +51,14 @@ describe("production boot guard", () => {
       ADMIN_ORIGIN: "http://127.0.0.1:4730",
     };
     const local = loadConfig({ ...base, NODE_ENV: "test" });
+    expect(local.clamavRequired).toBe(false);
+    expect(local.clamavHost).toBe("");
     expect(local.smtpFrom).toBe("no-reply@emuhami.com");
     expect(local.cookieDomain).toBe("");
     expect(local.corsOrigins).toEqual(expect.arrayContaining(["https://emuhami.com", "https://admin.emuhami.com", "http://127.0.0.1:4720"]));
     const live = loadConfig({ ...base, NODE_ENV: "production", SMTP_FROM: "desk@emuhami.com", COOKIE_DOMAIN: ".emuhami.com" });
     expect(live.smtpFrom).toBe("desk@emuhami.com");
+    expect(live.clamavRequired).toBe(true);
     expect(live.cookieDomain).toBe(".emuhami.com");
     expect(cookieSettings(live)).toEqual({ secure: true, domain: ".emuhami.com" });
     const jar: { name?: string; options?: { domain?: string; secure?: boolean } }[] = [];

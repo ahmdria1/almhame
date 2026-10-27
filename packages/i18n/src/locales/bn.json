@@ -291,5 +291,12 @@
   "mobile.start": "শুরু",
   "mobile.homeGreeting": "আপনাকে দেখে ভালো লাগল",
   "mobile.ask": "একটি মামলা সম্পর্কে জিজ্ঞাসা করুন",
-  "common.required": "আবশ্যক"
+  "common.required": "আবশ্যক",
+  "workspace.attach": "ফাইল সংযুক্ত করুন",
+  "workspace.uploading": "ফাইল আপলোড হচ্ছে",
+  "upload.unsupported": "এই ফাইলের ধরন সমর্থিত নয়। PDF বা PNG, JPEG, বা WEBP ছবি আপলোড করুন।",
+  "upload.tooLarge": "ফাইলটি অনুমোদিত আকারের চেয়ে বড়।",
+  "upload.infected": "ফাইলটি সংক্রমিত হওয়ায় প্রত্যাখ্যান করা হয়েছে।",
+  "upload.scanner": "ফাইল স্ক্যানার এখন পাওয়া যাচ্ছে না।",
+  "upload.rate": "আপলোডের সীমা পেরিয়ে গেছে। কিছুক্ষণ পর চেষ্টা করুন।"
 }

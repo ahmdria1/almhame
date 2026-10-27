@@ -291,5 +291,12 @@
   "mobile.start": "ආරම්භ කරන්න",
   "mobile.homeGreeting": "ඔබව දැකීම සතුටක්",
   "mobile.ask": "නඩුවක් ගැන අසන්න",
-  "common.required": "අවශ්‍යයි"
+  "common.required": "අවශ්‍යයි",
+  "workspace.attach": "ගොනුවක් අමුණන්න",
+  "workspace.uploading": "ගොනුව උඩුගත වෙමින් පවතී",
+  "upload.unsupported": "මෙම ගොනු වර්ගය සහාය නොදක්වයි. PDF හෝ PNG, JPEG, WEBP රූපයක් උඩුගත කරන්න.",
+  "upload.tooLarge": "ගොනුව අවසර ලත් ප්‍රමාණයට වඩා විශාලයි.",
+  "upload.infected": "ආසාදිත නිසා ගොනුව ප්‍රතික්ෂේප විය.",
+  "upload.scanner": "ගොනු ස්කෑනරය ලබා ගත නොහැක.",
+  "upload.rate": "උඩුගත කිරීම් සීමාව ඉක්මවා ඇත. මද වේලාවකින් නැවත උත්සාහ කරන්න."
 }

@@ -21,6 +21,12 @@ export class ApiExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const body = exception.getResponse();
+      const rawMessage = typeof body === "string" ? body : (body as { message?: string | string[] }).message;
+      const text = Array.isArray(rawMessage) ? rawMessage.join(", ") : rawMessage || "";
+      if (status === 413 || /file too large|LIMIT_FILE_SIZE/i.test(text)) {
+        response.status(422).json({ error: { code: "FILE_TOO_LARGE", message: "File is larger than 15 MB" } });
+        return;
+      }
       if (typeof body === "object" && body && "code" in body && !("statusCode" in (body as object))) {
         response.status(status).json({ error: body });
         return;

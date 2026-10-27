@@ -291,5 +291,12 @@
   "mobile.start": "شروع",
   "mobile.homeGreeting": "آپ کو دیکھ کر خوشی ہوئی",
   "mobile.ask": "کسی مقدمے کے بارے میں پوچھیں",
-  "common.required": "ضروری"
+  "common.required": "ضروری",
+  "workspace.attach": "فائل منسلک کریں",
+  "workspace.uploading": "فائل اپ لوڈ ہو رہی ہے",
+  "upload.unsupported": "یہ فائل کی قسم معاون نہیں۔ PDF یا PNG، JPEG، یا WEBP تصویر اپ لوڈ کریں۔",
+  "upload.tooLarge": "فائل اجازت شدہ حجم سے بڑی ہے۔",
+  "upload.infected": "فائل مسترد کر دی گئی کیونکہ یہ متاثرہ ہے۔",
+  "upload.scanner": "فائل اسکینر دستیاب نہیں۔",
+  "upload.rate": "اپ لوڈ کی حد سے تجاوز ہو گیا۔ تھوڑی دیر بعد کوشش کریں۔"
 }

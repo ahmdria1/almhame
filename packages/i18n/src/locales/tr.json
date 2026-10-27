@@ -291,5 +291,12 @@
   "mobile.start": "Başla",
   "mobile.homeGreeting": "Sizi görmek güzel",
   "mobile.ask": "Bir dava hakkında sorun",
-  "common.required": "Zorunlu"
+  "common.required": "Zorunlu",
+  "workspace.attach": "Dosya ekle",
+  "workspace.uploading": "Dosya yükleniyor",
+  "upload.unsupported": "Bu dosya türü desteklenmiyor. PDF veya PNG, JPEG ya da WEBP görseli yükleyin.",
+  "upload.tooLarge": "Dosya izin verilen boyuttan büyük.",
+  "upload.infected": "Dosya zararlı olduğu için reddedildi.",
+  "upload.scanner": "Dosya tarayıcısı kullanılamıyor.",
+  "upload.rate": "Yükleme sınırı aşıldı. Kısa süre sonra yeniden deneyin."
 }

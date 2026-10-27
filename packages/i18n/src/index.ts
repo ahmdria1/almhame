@@ -51,6 +51,15 @@ export const LANGUAGE_NAMES: Record<Locale, string> = {
   am: "አማርኛ",
 };
 
+export function uploadErrorKey(code: string): string | null {
+  if (code === "UNSUPPORTED_TYPE" || code === "PDF_UNSAFE") return "upload.unsupported";
+  if (code === "FILE_TOO_LARGE") return "upload.tooLarge";
+  if (code === "FILE_INFECTED") return "upload.infected";
+  if (code === "SCANNER_UNAVAILABLE") return "upload.scanner";
+  if (code === "RATE_LIMIT") return "upload.rate";
+  return null;
+}
+
 export function translate(
   locale: string,
   key: string,

@@ -291,5 +291,12 @@
   "mobile.start": "Start",
   "mobile.homeGreeting": "Good to see you",
   "mobile.ask": "Ask about a case",
-  "common.required": "Required"
+  "common.required": "Required",
+  "workspace.attach": "Attach a file",
+  "workspace.uploading": "Uploading the file",
+  "upload.unsupported": "This file type is not supported. Upload a PDF or a PNG, JPEG, or WEBP image.",
+  "upload.tooLarge": "The file is larger than the allowed size.",
+  "upload.infected": "The file was rejected because it is infected.",
+  "upload.scanner": "The file scanner is unavailable.",
+  "upload.rate": "Too many uploads. Try again shortly."
 }

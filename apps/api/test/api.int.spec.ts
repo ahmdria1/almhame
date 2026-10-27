@@ -1,5 +1,6 @@
 import { execFileSync } from "child_process";
 import { mkdtempSync, readFileSync, writeFileSync } from "fs";
+import { createServer, type Server } from "net";
 import { tmpdir } from "os";
 import path from "path";
 import { INestApplication } from "@nestjs/common";
@@ -8,11 +9,13 @@ import { createApp } from "../src/main";
 import { AuthService } from "../src/auth.service";
 import { CorpusService } from "../src/corpus.service";
 import { PrismaService } from "../src/prisma.service";
+import { pingScanner } from "../src/domain/clamd";
 import { signSandbox } from "../src/domain/payments";
 
 describe("api integration", () => {
   let app: INestApplication;
   let prisma: PrismaService;
+  let scanner: Server | null = null;
   let seq = Math.floor(Date.now() % 10000000);
 
   function phone() {
@@ -47,6 +50,29 @@ describe("api integration", () => {
   }
 
   beforeAll(async () => {
+    const host = process.env.CLAMAV_HOST || "127.0.0.1";
+    const port = Number(process.env.CLAMAV_PORT || 3310);
+    const live = await pingScanner({ host, port, timeoutMs: 300 });
+    if (live) {
+      process.env.CLAMAV_HOST = host;
+      process.env.CLAMAV_PORT = String(port);
+    } else {
+      scanner = createServer((socket) => {
+        const chunks: Buffer[] = [];
+        socket.on("data", (chunk) => {
+          chunks.push(chunk);
+          const body = Buffer.concat(chunks);
+          if (body.length < 14 || !body.subarray(body.length - 4).equals(Buffer.alloc(4))) return;
+          const infected = body.toString("latin1").includes("EICAR-STANDARD-ANTIVIRUS-TEST-FILE");
+          socket.end(Buffer.from(infected ? "stream: Eicar-Test-Signature FOUND\0" : "stream: OK\0"));
+        });
+      });
+      await new Promise<void>((resolve) => scanner?.listen(0, "127.0.0.1", () => resolve()));
+      const address = scanner.address();
+      process.env.CLAMAV_HOST = "127.0.0.1";
+      process.env.CLAMAV_PORT = String(address && typeof address === "object" ? address.port : 0);
+    }
+    process.env.CLAMAV_REQUIRED = "true";
     app = await createApp();
     await app.init();
     prisma = app.get(PrismaService);
@@ -80,6 +106,7 @@ describe("api integration", () => {
   });
 
   afterAll(async () => {
+    scanner?.close();
     await app.close();
   });
 
@@ -413,5 +440,94 @@ describe("api integration", () => {
       .send({ body: `${drafted.body.memo.body}\nالمادة (99999)` })
       .expect(422);
     expect(rejected.body.error.code).toBe("CITATION_REJECTED");
+  });
+
+  it("cites the narcotics and bribery statutes and rejects an unknown article", async () => {
+    const corpus = app.get(CorpusService);
+    for (const key of ["narcotics", "bribery"]) {
+      const law = JSON.parse(readFileSync(path.join(__dirname, "../../../corpus/official/boe", `${key}.json`), "utf8"));
+      law.isSample = false;
+      law.articles = law.articles.map((article: { textEn?: string }) => ({ ...article, isSample: false, textEn: article.textEn || "" }));
+      await corpus.importRecords({ laws: [law], sharia: [], confirmOfficial: true });
+    }
+    const user = await account();
+    await prisma.user.update({ where: { id: user.userId }, data: { planCode: "basic" } });
+    async function drafted(text: string) {
+      const chat = await request(app.getHttpServer())
+        .post("/api/chats")
+        .set("Authorization", `Bearer ${user.token}`)
+        .send({ court: "criminal", memoType: "defense" })
+        .expect(201);
+      await request(app.getHttpServer())
+        .post(`/api/chats/${chat.body.chat.id}/messages`)
+        .set("Authorization", `Bearer ${user.token}`)
+        .send({ text })
+        .expect(201);
+      return request(app.getHttpServer())
+        .post(`/api/chats/${chat.body.chat.id}/draft`)
+        .set("Authorization", `Bearer ${user.token}`)
+        .send({})
+        .expect(201);
+    }
+    const drug = await drafted("المدعي: النيابة العامة\nالمدعى عليه: خالد\nالطلبات: البراءة\nدفاع عن حيازة مواد مخدرة. يعاقب كل من حاز مواد مخدرة أو مؤثرات عقلية أو أحرزها أو نقلها أو سلمها أو تسلمها لغير قصد الاتجار أو الترويج أو التعاطي أو الاستعمال الشخصي.");
+    expect(drug.body.memo.body).toContain("نظام مكافحة المخدرات والمؤثرات العقلية");
+    expect(drug.body.memo.body).not.toContain("غير موجود في قاعدة النصوص الموثقة بعد");
+    const bribe = await drafted("المدعي: النيابة العامة\nالمدعى عليه: موظف عام\nالطلبات: البراءة\nقضية رشوة. يعفى الراشي أو الوسيط من العقوبة الأصلية والتبعية إذا أخبر السلطات بالجريمة قبل اكتشافها.");
+    expect(bribe.body.memo.body).toContain("نظام مكافحة الرشوة");
+    const rejected = await request(app.getHttpServer())
+      .patch(`/api/memos/${bribe.body.memo.id}`)
+      .set("Authorization", `Bearer ${user.token}`)
+      .send({ body: `${bribe.body.memo.body}\nالمادة (99999)` })
+      .expect(422);
+    expect(rejected.body.error.code).toBe("CITATION_REJECTED");
+  });
+
+  it("rejects an infected upload, a renamed executable, and a PDF with JavaScript, and accepts a clean PDF", async () => {
+    const user = await account();
+    await prisma.user.update({ where: { id: user.userId }, data: { planCode: "basic" } });
+    const chat = await request(app.getHttpServer())
+      .post("/api/chats")
+      .set("Authorization", `Bearer ${user.token}`)
+      .send({ court: "criminal", memoType: "defense" })
+      .expect(201);
+    const detail = await request(app.getHttpServer()).get(`/api/chats/${chat.body.chat.id}`).set("Authorization", `Bearer ${user.token}`).expect(200);
+    const caseId = detail.body.caseFile.id as string;
+    const eicar = Buffer.from("X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*");
+    const infected = await request(app.getHttpServer())
+      .post(`/api/cases/${caseId}/documents`)
+      .set("Authorization", `Bearer ${user.token}`)
+      .attach("file", eicar, { filename: "eicar.pdf", contentType: "application/pdf" });
+    expect(infected.status).toBe(422);
+    expect(infected.body.error.code).toBe("FILE_INFECTED");
+    const audit = await prisma.auditLog.findFirst({ where: { actorId: user.userId, action: "upload.rejected FILE_INFECTED" } });
+    expect(audit).toBeTruthy();
+    expect(JSON.stringify(audit)).not.toContain("EICAR");
+    const exe = await request(app.getHttpServer())
+      .post(`/api/cases/${caseId}/documents`)
+      .set("Authorization", `Bearer ${user.token}`)
+      .attach("file", Buffer.from("MZ\x90\x00not-an-image"), { filename: "photo.png", contentType: "image/png" });
+    expect(exe.status).toBe(422);
+    expect(exe.body.error.code).toBe("UNSUPPORTED_TYPE");
+    const script = Buffer.from("%PDF-1.4\n1 0 obj << /Type /Catalog /Pages 2 0 R /OpenAction << /S /JavaScript /JS (app.alert(1)) >> >> endobj\n2 0 obj << /Type /Pages /Count 1 /Kids [3 0 R] >> endobj\n3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n");
+    const unsafe = await request(app.getHttpServer())
+      .post(`/api/cases/${caseId}/documents`)
+      .set("Authorization", `Bearer ${user.token}`)
+      .attach("file", script, { filename: "memo.pdf", contentType: "application/pdf" });
+    expect(unsafe.status).toBe(422);
+    expect(unsafe.body.error.code).toBe("PDF_UNSAFE");
+    const clean = Buffer.from("%PDF-1.4\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n2 0 obj << /Type /Pages /Count 1 /Kids [3 0 R] >> endobj\n3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n");
+    const accepted = await request(app.getHttpServer())
+      .post(`/api/cases/${caseId}/documents`)
+      .set("Authorization", `Bearer ${user.token}`)
+      .attach("file", clean, { filename: "../../عقد.pdf", contentType: "application/pdf" })
+      .expect(201);
+    expect(accepted.body.filename).toBe("عقد.pdf");
+    const downloaded = await request(app.getHttpServer())
+      .get(`/api/documents/${accepted.body.id}/download`)
+      .set("Authorization", `Bearer ${user.token}`)
+      .expect(200);
+    expect(downloaded.headers["x-content-type-options"]).toBe("nosniff");
+    expect(String(downloaded.headers["content-disposition"])).toContain("attachment");
+    expect(String(downloaded.headers["content-security-policy"])).toContain("default-src 'none'");
   });
 });

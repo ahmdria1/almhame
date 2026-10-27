@@ -1,5 +1,5 @@
 import { LOCALES } from "@elawyer/types";
-import { dictionaries, dirFor, translate } from "../src";
+import { dictionaries, dirFor, translate, uploadErrorKey } from "../src";
 
 describe("locales", () => {
   const arKeys = Object.keys(dictionaries.ar).sort();
@@ -30,5 +30,8 @@ describe("locales", () => {
     expect(dirFor("hi")).toBe("ltr");
     expect(translate("en", "workspace.remaining", { left: 3, total: 5 })).toContain("3");
     expect(translate("ar", "app.name")).toContain("المحامي");
+    expect(uploadErrorKey("FILE_INFECTED")).toBe("upload.infected");
+    expect(uploadErrorKey("PDF_UNSAFE")).toBe("upload.unsupported");
+    expect(translate("ur", uploadErrorKey("SCANNER_UNAVAILABLE") || "")).not.toBe("upload.scanner");
   });
 });

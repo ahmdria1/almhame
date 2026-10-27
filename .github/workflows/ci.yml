@@ -40,6 +40,16 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
+      clamav:
+        image: clamav/clamav:1.4
+        ports:
+          - 3310:3310
+        options: >-
+          --health-cmd "clamdcheck.sh"
+          --health-interval 15s
+          --health-timeout 10s
+          --health-retries 40
+          --health-start-period 180s
     env:
       DATABASE_URL: postgresql://elawyer:elawyer@127.0.0.1:5432/elawyer
       TEST_DATABASE_URL: postgresql://elawyer:elawyer@127.0.0.1:5432/elawyer_test
@@ -53,6 +63,9 @@ jobs:
       LLM_PROVIDER: mock
       EMBEDDING_PROVIDER: mock
       REDIS_URL: redis://127.0.0.1:6379
+      CLAMAV_HOST: 127.0.0.1
+      CLAMAV_PORT: "3310"
+      CLAMAV_REQUIRED: "true"
       WEB_ORIGIN: http://127.0.0.1:4720
       ADMIN_ORIGIN: http://127.0.0.1:4730
       API_PUBLIC_URL: http://127.0.0.1:4710
