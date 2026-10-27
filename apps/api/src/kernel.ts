@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { PlanCode } from "@prisma/client";
-import { RELEASE_MARK, RELEASE_OWNER } from "@elawyer/types";
+import { DEFAULT_JURISDICTION, RELEASE_MARK, RELEASE_OWNER, type JurisdictionCode } from "@elawyer/types";
 import { AppConfig, loadConfig } from "./config";
 import { decodeMasterKey, decryptString, encryptString, unwrapKey } from "./domain/envelope";
 import { PlanDef, resolvePlan } from "./domain/plans";
@@ -32,8 +32,8 @@ export class Kernel {
     return decryptString(payload, dek);
   }
 
-  async plan(code: PlanCode): Promise<PlanDef> {
-    const row = await this.prisma.planSetting.findUnique({ where: { code } });
+  async plan(code: PlanCode, jurisdiction: JurisdictionCode = DEFAULT_JURISDICTION): Promise<PlanDef> {
+    const row = await this.prisma.planSetting.findUnique({ where: { jurisdiction_code: { jurisdiction, code } } });
     return resolvePlan(code, row);
   }
 }

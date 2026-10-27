@@ -5,8 +5,8 @@ import { tmpdir } from "os";
 import path from "path";
 import { promisify } from "util";
 import { Injectable } from "@nestjs/common";
-import { CourtType, IntegrationProvider, MemoType, Prisma, User } from "@prisma/client";
-import type { CourtType as Court, MemoType as MemoKind } from "@elawyer/types";
+import { IntegrationProvider, MemoType, Prisma, User } from "@prisma/client";
+import { jurisdictionOf, type CourtType as Court, type MemoType as MemoKind } from "@elawyer/types";
 import { CorpusService } from "./corpus.service";
 import { validateCitations, type CitationRef } from "./domain/citations";
 import { composeDraft, readSlots } from "./domain/draft";
@@ -34,7 +34,7 @@ export class WorkService {
 
   async account(userId: string) {
     const user = await this.fresh(userId);
-    return presentUser(user, await this.kernel.plan(user.planCode));
+    return presentUser(user, await this.kernel.plan(user.planCode, jurisdictionOf(user.jurisdiction).code));
   }
 
   async updateAccount(userId: string, input: { name?: string; locale?: string; theme?: string; notifyHearings?: boolean }) {
@@ -44,7 +44,7 @@ export class WorkService {
     if (input.theme === "light" || input.theme === "dark") data.theme = input.theme;
     if (typeof input.notifyHearings === "boolean") data.notifyHearings = input.notifyHearings;
     const user = await this.kernel.prisma.user.update({ where: { id: userId }, data });
-    return presentUser(user, await this.kernel.plan(user.planCode));
+    return presentUser(user, await this.kernel.plan(user.planCode, jurisdictionOf(user.jurisdiction).code));
   }
 
   async exportAccount(userId: string) {
@@ -57,7 +57,7 @@ export class WorkService {
     const memos = await this.kernel.prisma.memo.findMany({ where: { userId } });
     const documents = await this.kernel.prisma.document.findMany({ where: { userId } });
     return {
-      profile: presentUser(user, await this.kernel.plan(user.planCode)),
+      profile: presentUser(user, await this.kernel.plan(user.planCode, jurisdictionOf(user.jurisdiction).code)),
       chats: chats.map((chat) => ({
         id: chat.id,
         title: this.kernel.dec(dek, chat.titleEnc),
@@ -98,15 +98,17 @@ export class WorkService {
   }
 
   async createChat(userId: string, input: { court: Court; memoType: MemoKind; title?: string }) {
-    const court = input.court as CourtType;
     const memoType = input.memoType as MemoType;
     const chat = await this.kernel.prisma.$transaction(async (tx) => {
       const user = await tx.user.findUnique({ where: { id: userId } });
       if (!user) fail("NOT_FOUND", 404, "Account was not found");
-      const plan = await this.kernel.plan(user.planCode);
+      const place = jurisdictionOf(user.jurisdiction);
+      const known = await tx.court.findUnique({ where: { jurisdiction_code: { jurisdiction: place.code, code: input.court } } });
+      if (!known) fail("VALIDATION", 400, "Unknown court");
+      const plan = await this.kernel.plan(user.planCode, place.code);
       const quota = chatQuota(plan, chatsCounted(plan, user.chatCount, user.chatCountPeriod));
       if (!quota.ok) fail("QUOTA_CHATS", 402, "The free chat limit has been reached");
-      if (!courtAllowed(plan, court as Court)) fail("PLAN_COURT", 403, "This court is not included in the current plan");
+      if (!courtAllowed(plan, input.court)) fail("PLAN_COURT", 403, "This court is not included in the current plan");
       const dek = this.kernel.dekOf(user.wrappedDataKey);
       const title = input.title?.trim() || "محادثة جديدة";
       await tx.user.update({
@@ -117,10 +119,10 @@ export class WorkService {
         },
       });
       const caseFile = await tx.caseFile.create({
-        data: { userId, court, titleEnc: this.kernel.enc(dek, title), notesEnc: this.kernel.enc(dek, "{}") },
+        data: { userId, jurisdiction: place.code, court: input.court, titleEnc: this.kernel.enc(dek, title), notesEnc: this.kernel.enc(dek, "{}") },
       });
       return tx.chat.create({
-        data: { userId, caseId: caseFile.id, court, memoType, titleEnc: this.kernel.enc(dek, title) },
+        data: { userId, caseId: caseFile.id, jurisdiction: place.code, court: input.court, memoType, titleEnc: this.kernel.enc(dek, title) },
       });
     });
     const user = await this.fresh(userId);
@@ -130,15 +132,18 @@ export class WorkService {
   async updateChat(userId: string, chatId: string, input: { court?: Court; memoType?: MemoKind }) {
     const user = await this.fresh(userId);
     const chat = await this.ownedChat(userId, chatId);
-    const court = (input.court || chat.court) as Court;
+    const place = jurisdictionOf(user.jurisdiction);
+    const court = input.court || chat.court;
     const memoType = (input.memoType || chat.memoType) as MemoKind;
-    if (!courtAllowed(await this.kernel.plan(user.planCode), court)) fail("PLAN_COURT", 403, "This court is not included in the current plan");
+    const known = await this.kernel.prisma.court.findUnique({ where: { jurisdiction_code: { jurisdiction: place.code, code: court } } });
+    if (!known) fail("VALIDATION", 400, "Unknown court");
+    if (!courtAllowed(await this.kernel.plan(user.planCode, place.code), court)) fail("PLAN_COURT", 403, "This court is not included in the current plan");
     const updated = await this.kernel.prisma.chat.update({
       where: { id: chat.id },
-      data: { court: court as CourtType, memoType: memoType as MemoType },
+      data: { court, memoType: memoType as MemoType },
     });
     if (chat.caseId) {
-      await this.kernel.prisma.caseFile.update({ where: { id: chat.caseId }, data: { court: court as CourtType } });
+      await this.kernel.prisma.caseFile.update({ where: { id: chat.caseId }, data: { court } });
     }
     return this.presentChat(updated, this.kernel.dekOf(user.wrappedDataKey));
   }
@@ -230,18 +235,27 @@ export class WorkService {
       facts: texts.join("\n"),
       requests: slots.requests || "الحكم وفق الوقائع، مع تحميل الرسوم على المدّعى عليه.",
     };
-    const retrieved = await this.corpus.retrieve(chat.court, filled.facts);
+    const place = jurisdictionOf(chat.jurisdiction);
+    const template = await this.kernel.prisma.documentTemplate.findUnique({
+      where: { jurisdiction_memoType: { jurisdiction: place.code, memoType: chat.memoType } },
+    });
+    const headings = (template?.courtHeadings || null) as Record<string, string> | null;
+    const courtHeading = headings?.[chat.court];
+    if (!template || !courtHeading) fail("VALIDATION", 400, "No document template for this court");
+    const retrieved = await this.corpus.retrieve(chat.court, filled.facts, place.code);
     const allowed = retrieved.articles.map((article) => article.number);
     filled.facts = await this.maybeRewriteFacts(filled.facts, allowed);
     const org = user.orgId ? await this.kernel.prisma.organization.findUnique({ where: { id: user.orgId } }) : null;
-    const letterhead = (await this.kernel.plan(user.planCode)).letterhead ? org?.letterheadName || "" : "";
+    const letterhead = (await this.kernel.plan(user.planCode, place.code)).letterhead ? org?.letterheadName || "" : "";
     const draftBody = composeDraft({
-      court: chat.court as Court,
+      court: chat.court,
       memoType: chat.memoType as MemoKind,
       slots: filled,
       articles: retrieved.articles,
       sharia: retrieved.sharia,
       letterhead,
+      title: template.titleAr,
+      courtHeading,
     });
     const known = await this.knownSet(draftBody.citations);
     const grounds = draftBody.body.includes("ثانيًا:") ? draftBody.body.slice(draftBody.body.indexOf("ثانيًا:")) : draftBody.body;
@@ -250,7 +264,7 @@ export class WorkService {
     const memo = await this.kernel.prisma.$transaction(async (tx) => {
       const current = await tx.user.findUnique({ where: { id: userId } });
       if (!current) fail("NOT_FOUND", 404, "Account was not found");
-      const quota = memoQuota(await this.kernel.plan(current.planCode), current.memoCountPeriod);
+      const quota = memoQuota(await this.kernel.plan(current.planCode, jurisdictionOf(current.jurisdiction).code), current.memoCountPeriod);
       if (!quota.ok) {
         if (!payPerMemo) fail("QUOTA_MEMOS", 402, "The memo quota has been reached");
         const price = this.kernel.config.payPerMemoHalalas;
@@ -277,6 +291,7 @@ export class WorkService {
           userId,
           caseId: chat.caseId,
           chatId: chat.id,
+          jurisdiction: place.code,
           court: chat.court,
           memoType: chat.memoType,
           titleEnc: this.kernel.enc(dek, draftBody.title),
@@ -386,7 +401,7 @@ export class WorkService {
 
   async exportMemo(userId: string, memoId: string, format: "pdf" | "docx") {
     const user = await this.fresh(userId);
-    const plan = await this.kernel.plan(user.planCode);
+    const plan = await this.kernel.plan(user.planCode, jurisdictionOf(user.jurisdiction).code);
     if (format === "docx" && !plan.word) {
       fail("FEATURE_WORD", 402, "Word export is not included in the current plan");
     }
@@ -590,7 +605,7 @@ export class WorkService {
 
   async addHearing(userId: string, caseId: string, input: { kind: "hearing" | "objection_deadline"; occursAt: string; title: string }) {
     const user = await this.fresh(userId);
-    if (!(await this.kernel.plan(user.planCode)).caseManagement) fail("FEATURE_CASES", 402, "Case dates are not included in the current plan");
+    if (!(await this.kernel.plan(user.planCode, jurisdictionOf(user.jurisdiction).code)).caseManagement) fail("FEATURE_CASES", 402, "Case dates are not included in the current plan");
     const dek = this.kernel.dekOf(user.wrappedDataKey);
     const caseFile = await this.kernel.prisma.caseFile.findFirst({ where: { id: caseId, userId } });
     if (!caseFile) fail("NOT_FOUND", 404, "Case was not found");
@@ -744,7 +759,7 @@ export class WorkService {
   async updateOrg(userId: string, input: { name?: string; letterheadName?: string }) {
     const user = await this.fresh(userId);
     if (user.orgRole !== "owner" || !user.orgId) fail("FORBIDDEN", 403, "Only the chamber owner can edit this");
-    if (!(await this.kernel.plan(user.planCode)).letterhead && input.letterheadName) fail("FEATURE_CASES", 402, "Letterhead is part of the chambers plan");
+    if (!(await this.kernel.plan(user.planCode, jurisdictionOf(user.jurisdiction).code)).letterhead && input.letterheadName) fail("FEATURE_CASES", 402, "Letterhead is part of the chambers plan");
     const org = await this.kernel.prisma.organization.update({
       where: { id: user.orgId },
       data: {
@@ -777,8 +792,9 @@ export class WorkService {
         planCode: "office",
         orgId: org.id,
         orgRole: "member",
+        jurisdiction: owner.jurisdiction,
         planRenewsAt: owner.planRenewsAt,
-        wallet: { create: { balanceHalalas: 0 } },
+        wallet: { create: { balanceHalalas: 0, currency: jurisdictionOf(owner.jurisdiction).currency } },
       },
     });
     return { id: member.id };
@@ -802,7 +818,7 @@ export class WorkService {
     return chat;
   }
 
-  private presentChat(chat: { id: string; titleEnc: string; court: CourtType; memoType: MemoType; caseId: string | null; updatedAt: Date }, dek: Buffer) {
+  private presentChat(chat: { id: string; titleEnc: string; court: string; memoType: MemoType; caseId: string | null; updatedAt: Date }, dek: Buffer) {
     return {
       id: chat.id,
       title: this.kernel.dec(dek, chat.titleEnc),
@@ -864,7 +880,8 @@ export class WorkService {
   }
 
   private async writeInvoice(tx: Prisma.TransactionClient, user: User, total: number, description: string) {
-    const split = splitVatInclusive(total);
+    const place = jurisdictionOf(user.jurisdiction);
+    const split = splitVatInclusive(total, place.vatRateBps);
     const seq = await tx.invoiceSequence.upsert({
       where: { id: 1 },
       create: { id: 1, value: 1 },
@@ -883,6 +900,9 @@ export class WorkService {
         sellerVat: this.kernel.config.sellerVat,
         sellerAddress: this.kernel.config.sellerAddress,
         buyerName: user.name,
+        jurisdiction: place.code,
+        currency: place.currency,
+        vatRateBps: place.vatRateBps,
         lineDescription: description,
         qrTlvBase64: zatcaQrBase64({
           sellerName: this.kernel.config.sellerName,

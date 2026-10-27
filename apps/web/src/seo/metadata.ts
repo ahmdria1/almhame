@@ -6,7 +6,7 @@ import { PRIVATE_ROBOTS } from "./robots-policy";
 import { absoluteUrl } from "./site";
 
 const OG_LOCALE: Record<Locale, string> = {
-  ar: "ar_SA",
+  ar: "ar",
   en: "en_US",
   ur: "ur_PK",
   hi: "hi_IN",

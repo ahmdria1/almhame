@@ -1,7 +1,9 @@
 import { PlanCode, User } from "@prisma/client";
+import { jurisdictionOf } from "@elawyer/types";
 import { chatsCounted, PLAN_DEFS, PlanDef } from "./domain/plans";
 
 export function presentUser(user: User, plan: PlanDef = PLAN_DEFS[user.planCode as PlanCode]) {
+  const place = jurisdictionOf(user.jurisdiction);
   return {
     id: user.id,
     name: user.name,
@@ -10,6 +12,8 @@ export function presentUser(user: User, plan: PlanDef = PLAN_DEFS[user.planCode 
     locale: user.locale,
     theme: user.theme,
     planCode: user.planCode,
+    jurisdiction: place.code,
+    currency: place.currency,
     chatCount: chatsCounted(plan, user.chatCount, user.chatCountPeriod),
     chatLimit: plan.chatLimit,
     memoCountPeriod: user.memoCountPeriod,

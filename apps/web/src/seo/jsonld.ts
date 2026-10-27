@@ -1,5 +1,5 @@
 import { translate } from "@elawyer/i18n";
-import { PLAN_CODES, PUBLISHED_PLANS, type Locale } from "@elawyer/types";
+import { JURISDICTION_CATALOG, PLAN_CODES, PUBLISHED_PLANS, type Locale } from "@elawyer/types";
 import { type PageRef, pagePath } from "./catalog";
 import { brandName, pageCopy } from "./copy";
 import { absoluteUrl } from "./site";
@@ -14,7 +14,7 @@ const PLAN_NAME: Record<(typeof PLAN_CODES)[number], string> = {
 };
 
 function price(halalas: number): string {
-  return (halalas / 100).toFixed(2);
+  return (halalas / JURISDICTION_CATALOG.SA.minorPerUnit).toFixed(2);
 }
 
 export interface JsonLd {
@@ -49,7 +49,7 @@ function offers(locale: Locale): Array<Record<string, unknown>> {
     "@type": "Offer",
     name: translate(locale, PLAN_NAME[code]),
     price: price(PUBLISHED_PLANS[code].priceHalalas),
-    priceCurrency: "SAR",
+    priceCurrency: JURISDICTION_CATALOG.SA.currency,
     availability: "https://schema.org/InStock",
     url: pricing,
   }));

@@ -21,6 +21,19 @@ export type MemoType = (typeof MEMO_TYPES)[number];
 export const PLAN_CODES = ["free", "basic", "pro", "office"] as const;
 export type PlanCode = (typeof PLAN_CODES)[number];
 
+export const DEFAULT_JURISDICTION = "SA" as const;
+
+export const JURISDICTION_CATALOG = {
+  SA: { code: "SA", currency: "SAR", minorPerUnit: 100, vatRateBps: 1500, numericCurrency: "682" },
+} as const;
+
+export type JurisdictionCode = keyof typeof JURISDICTION_CATALOG;
+
+export function jurisdictionOf(code: string | null | undefined) {
+  if (code && code in JURISDICTION_CATALOG) return JURISDICTION_CATALOG[code as JurisdictionCode];
+  return JURISDICTION_CATALOG[DEFAULT_JURISDICTION];
+}
+
 export const PAY_PER_MEMO_HALALAS = 2900;
 
 export const PUBLISHED_PLANS: Record<
@@ -56,6 +69,8 @@ export interface SessionUser {
   locale: string;
   theme: string;
   planCode: PlanCode;
+  jurisdiction: JurisdictionCode;
+  currency: string;
   chatCount: number;
   chatLimit: number | null;
   memoCountPeriod: number;
@@ -76,6 +91,8 @@ export interface SessionUser {
 
 export interface PlanOffer {
   code: PlanCode;
+  jurisdiction: JurisdictionCode;
+  currency: string;
   priceHalalas: number;
   yearlyHalalas: number;
   memoLimit: number;

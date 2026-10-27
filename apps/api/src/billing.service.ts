@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { createHash, randomUUID } from "crypto";
+import { JURISDICTION_CATALOG, jurisdictionOf } from "@elawyer/types";
 import { PlanCode } from "@prisma/client";
 import { buildTrandata, decryptTrandata, encryptTrandata } from "./domain/alrajhi";
 import { PLAN_DEFS, yearlyHalalas } from "./domain/plans";
@@ -19,6 +20,8 @@ export class BillingService {
         const plan = await this.kernel.plan(code);
         return {
           code,
+          jurisdiction: plan.jurisdiction,
+          currency: plan.currency,
           priceHalalas: plan.priceHalalas,
           yearlyHalalas: yearlyHalalas(plan.priceHalalas),
           memoLimit: plan.memoLimit,
@@ -42,6 +45,9 @@ export class BillingService {
     cycle?: "monthly" | "yearly";
     idempotencyKey?: string;
   }) {
+    const account = await this.kernel.prisma.user.findUnique({ where: { id: userId } });
+    if (!account) fail("NOT_FOUND", 404, "Account was not found");
+    const place = jurisdictionOf(account.jurisdiction);
     const key = input.idempotencyKey || randomUUID();
     const existing = await this.kernel.prisma.paymentIntent.findUnique({ where: { idempotencyKey: key } });
     if (existing) return this.redirectFor(existing.id, existing.amountHalalas);
@@ -50,7 +56,7 @@ export class BillingService {
     const cycle = input.cycle || "monthly";
     if (input.purpose === "subscription") {
       if (!input.planCode || input.planCode === "free") fail("VALIDATION", 400, "Choose a paid plan");
-      const plan = await this.kernel.plan(input.planCode);
+      const plan = await this.kernel.plan(input.planCode, place.code);
       amount = cycle === "yearly" ? yearlyHalalas(plan.priceHalalas) : plan.priceHalalas;
       planCode = input.planCode;
     }
@@ -62,6 +68,8 @@ export class BillingService {
         planCode: planCode ?? undefined,
         cycle,
         amountHalalas: amount,
+        jurisdiction: place.code,
+        currency: place.currency,
         idempotencyKey: key,
         gateway: this.kernel.config.paymentGateway,
       },
@@ -109,11 +117,16 @@ export class BillingService {
     }
     return this.kernel.prisma.paymentIntent.findUnique({ where: { id: intentId } }).then((intent) => {
       if (!intent) fail("NOT_FOUND", 404, "Payment was not found");
+      const place = jurisdictionOf(intent.jurisdiction);
+      if (intent.currency !== place.currency || place.currency !== JURISDICTION_CATALOG.SA.currency) {
+        fail("PAYMENT_NOT_CONFIGURED", 503, "This currency is not routed to Al Rajhi");
+      }
       const trandata = encryptTrandata(
         buildTrandata({
           tranportalId: cfg.alrajhiTranportalId,
           password: cfg.alrajhiTranportalPassword,
           amountSar: halalasToSar(intent.amountHalalas),
+          currencyCode: place.numericCurrency,
           trackId: intent.id,
           responseUrl: cfg.alrajhiResponseUrl,
           errorUrl: cfg.alrajhiErrorUrl,
@@ -145,7 +158,8 @@ export class BillingService {
     if (intent.status === "paid") return { status: "paid", duplicate: true };
     const user = await this.kernel.prisma.user.findUnique({ where: { id: intent.userId } });
     if (!user) fail("NOT_FOUND", 404, "Account was not found");
-    const split = splitVatInclusive(intent.amountHalalas);
+    const place = jurisdictionOf(intent.jurisdiction);
+    const split = splitVatInclusive(intent.amountHalalas, place.vatRateBps);
     const hash = createHash("sha256").update(eventKey).digest("hex");
     try {
       await this.kernel.prisma.$transaction(async (tx) => {
@@ -176,6 +190,8 @@ export class BillingService {
             sellerVat: this.kernel.config.sellerVat,
             sellerAddress: this.kernel.config.sellerAddress,
             buyerName: user.name,
+            jurisdiction: intent.jurisdiction,
+            currency: intent.currency,
             qrTlvBase64: zatcaQrBase64({
               sellerName: this.kernel.config.sellerName,
               vatNumber: this.kernel.config.sellerVat,

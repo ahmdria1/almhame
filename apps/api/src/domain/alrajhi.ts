@@ -1,3 +1,4 @@
+import { JURISDICTION_CATALOG } from "@elawyer/types";
 import { createCipheriv, createDecipheriv } from "crypto";
 
 // Al Rajhi's hosted gateway kit fixes the AES-CBC IV to this value (PGKEYENCDECIVSPC).
@@ -25,6 +26,7 @@ export function buildTrandata(input: {
   tranportalId: string;
   password: string;
   amountSar: string;
+  currencyCode?: string;
   trackId: string;
   responseUrl: string;
   errorUrl: string;
@@ -35,7 +37,7 @@ export function buildTrandata(input: {
       id: input.tranportalId,
       password: input.password,
       action: "1",
-      currencyCode: "682",
+      currencyCode: input.currencyCode ?? JURISDICTION_CATALOG.SA.numericCurrency,
       amt: input.amountSar,
       trackId: input.trackId,
       responseURL: input.responseUrl,

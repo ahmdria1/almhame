@@ -1,3 +1,6 @@
+import { readFileSync } from "fs";
+import { join } from "path";
+import { DEFAULT_JURISDICTION, JURISDICTION_CATALOG } from "@elawyer/types";
 import { validateCitations } from "./citations";
 import { composeDraft, readSlots } from "./draft";
 import { EMBED_DIM, mockEmbed, vectorLiteral } from "./embeddings";
@@ -150,6 +153,7 @@ describe("embeddings and payment crypto", () => {
       responseUrl: "https://example.sa/ok",
       errorUrl: "https://example.sa/err",
     });
+    expect(JSON.parse(json)[0].currencyCode).toBe(JURISDICTION_CATALOG.SA.numericCurrency);
     expect(decryptTrandata(encryptTrandata(json, key), key)).toBe(json);
     const sig = signSandbox("sandbox", "intent-1");
     expect(sandboxSignatureOk("sandbox", "intent-1", sig)).toBe(true);
@@ -175,6 +179,8 @@ describe("remaining domain branches", () => {
     const overridden = resolvePlan("basic", { priceHalalas: 1000, memoLimit: 2, chatLimit: 3 });
     expect(overridden.priceHalalas).toBe(1000);
     expect(resolvePlan("pro", null).code).toBe("pro");
+    expect(overridden.jurisdiction).toBe(DEFAULT_JURISDICTION);
+    expect(overridden.currency).toBe(JURISDICTION_CATALOG.SA.currency);
     expect(courtAllowed(PLAN_DEFS.free, "labor")).toBe(true);
     expect(courtAllowed(PLAN_DEFS.free, "commercial")).toBe(false);
     expect(chatQuota(PLAN_DEFS.pro, 40).ok).toBe(true);
@@ -241,5 +247,22 @@ describe("remaining domain branches", () => {
     expect(draft.body).toContain("2:282");
     expect(draft.body).toContain("مكتب أحمد العمراني");
     expect(draft.citations).toEqual([{ kind: "sharia", id: "s1" }]);
+  });
+});
+
+describe("jurisdiction catalog", () => {
+  it("keeps countries as data and Arabic SEO on the generic locale", () => {
+    const schema = readFileSync(join(__dirname, "../../prisma/schema.prisma"), "utf8");
+    const metadata = readFileSync(join(__dirname, "../../../web/src/seo/metadata.ts"), "utf8");
+    expect(schema).toContain("model Jurisdiction");
+    expect(schema).toContain("model Court");
+    expect(schema).toContain("model DocumentTemplate");
+    expect(schema).not.toMatch(/enum\s+CourtType/);
+    expect(schema).not.toMatch(/enum\s+Jurisdiction/);
+    expect(schema).toContain("@@id([jurisdiction, code])");
+    expect(schema).toContain("@@id([jurisdiction, memoType])");
+    expect(Object.keys(JURISDICTION_CATALOG)).toEqual([DEFAULT_JURISDICTION]);
+    expect(metadata).toContain('ar: "ar"');
+    expect(metadata).not.toContain("ar_SA");
   });
 });

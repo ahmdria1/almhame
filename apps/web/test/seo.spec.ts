@@ -84,7 +84,9 @@ describe("public SEO", () => {
         expect(og.images?.[0].width).toBe(1200);
         expect(og.images?.[0].height).toBe(630);
         expect(og.images?.[0].alt).toBe(title);
-        expect(og.locale).toBeTruthy();
+        if (locale === "ar") expect(og.locale).toBe("ar");
+        else expect(og.locale && og.locale.length).toBeGreaterThan(0);
+        expect(og.locale).not.toMatch(/ar[-_]SA/);
         const twitter = meta.twitter as { card?: string; images?: string[] };
         expect(twitter.card).toBe("summary_large_image");
         expect(twitter.images?.[0]).toBe(image);

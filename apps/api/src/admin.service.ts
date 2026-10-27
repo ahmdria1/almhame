@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
+import { DEFAULT_JURISDICTION, PLAN_CODES } from "@elawyer/types";
 import { PlanCode } from "@prisma/client";
-import { PLAN_CODES } from "@elawyer/types";
 import { CorpusService } from "./corpus.service";
 import { fail } from "./http-error";
 import { Kernel } from "./kernel";
@@ -80,7 +80,7 @@ export class AdminService {
     const chatLimit = input.chatLimit == null || input.chatLimit === ("" as unknown) ? null : Number(input.chatLimit);
     if (chatLimit != null && (!Number.isInteger(chatLimit) || chatLimit < 0)) fail("VALIDATION", 400, "Chat quota is invalid");
     return this.kernel.prisma.planSetting.update({
-      where: { code: code as PlanCode },
+      where: { jurisdiction_code: { jurisdiction: DEFAULT_JURISDICTION, code: code as PlanCode } },
       data: { priceHalalas, memoLimit, chatLimit },
     });
   }

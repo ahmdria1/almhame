@@ -7,18 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum CourtType {
-  general
-  criminal
-  personal_status
-  labor
-  commercial
-  enforcement
-  administrative
-  appeal
-  supreme
-}
-
 enum MemoType {
   lawsuit
   defense
@@ -76,6 +64,7 @@ model User {
   consentAt       DateTime
   consentVersion  String
   locale          String    @default("ar")
+  jurisdiction    String    @default("SA")
   theme           String    @default("light")
   planCode        PlanCode  @default(free)
   planRenewsAt    DateTime?
@@ -90,6 +79,7 @@ model User {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
+  country      Jurisdiction         @relation(fields: [jurisdiction], references: [code])
   organization Organization?        @relation("OrgMembers", fields: [orgId], references: [id])
   ownedOrg     Organization?        @relation("OrgOwner")
   sessions     Session[]
@@ -161,13 +151,15 @@ model AdminAccount {
 model CaseFile {
   id        String    @id @default(cuid())
   userId    String
-  titleEnc  String
-  court     CourtType
+  titleEnc     String
+  jurisdiction String    @default("SA")
+  court        String
   status    String    @default("open")
   notesEnc  String?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  country   Jurisdiction @relation(fields: [jurisdiction], references: [code])
   documents Document[]
   chats     Chat[]
   memos     Memo[]
@@ -196,12 +188,14 @@ model Chat {
   id        String   @id @default(cuid())
   userId    String
   caseId    String?
-  titleEnc  String
-  court     CourtType
+  titleEnc     String
+  jurisdiction String   @default("SA")
+  court        String
   memoType  MemoType @default(lawsuit)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  country   Jurisdiction @relation(fields: [jurisdiction], references: [code])
   caseFile  CaseFile? @relation(fields: [caseId], references: [id])
   messages  Message[]
   memos     Memo[]
@@ -226,8 +220,9 @@ model Memo {
   userId     String
   caseId     String?
   chatId     String?
-  titleEnc   String
-  court      CourtType
+  titleEnc     String
+  jurisdiction String    @default("SA")
+  court        String
   memoType   MemoType
   bodyEnc    String
   status     String    @default("draft")
@@ -235,6 +230,7 @@ model Memo {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  country    Jurisdiction @relation(fields: [jurisdiction], references: [code])
   caseFile   CaseFile? @relation(fields: [caseId], references: [id])
   chat       Chat?     @relation(fields: [chatId], references: [id])
   citations  MemoCitation[]
@@ -269,7 +265,7 @@ model SavedItem {
 
 model Law {
   id            String     @id @default(cuid())
-  key           String     @unique
+  key           String
   nameAr        String
   nameEn        String
   sourceUrl     String
@@ -279,9 +275,13 @@ model Law {
   publishedHijri String     @default("")
   statusLabel    String     @default("")
   isSample       Boolean    @default(false)
-  courts        CourtType[]
+  jurisdiction   String     @default("SA")
+  courts         String[]
   createdAt     DateTime   @default(now())
+  country       Jurisdiction @relation(fields: [jurisdiction], references: [code])
   articles      Article[]
+
+  @@unique([jurisdiction, key])
 }
 
 model Article {
@@ -301,15 +301,19 @@ model Article {
 
 model ShariaSource {
   id        String      @id @default(cuid())
-  key       String      @unique
+  key       String
   kind      ShariaKind
   reference String
   textAr    String
   textEn    String
   sourceUrl String
-  isSample  Boolean     @default(false)
-  courts    CourtType[]
+  isSample     Boolean     @default(false)
+  jurisdiction String      @default("SA")
+  courts       String[]
+  country      Jurisdiction @relation(fields: [jurisdiction], references: [code])
   citations MemoCitation[]
+
+  @@unique([jurisdiction, key])
 }
 
 model CorpusEmbedding {
@@ -322,6 +326,7 @@ model CorpusEmbedding {
 model Wallet {
   userId         String @id
   balanceHalalas Int    @default(0)
+  currency       String @default("SAR")
   user           User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
@@ -352,11 +357,13 @@ model Invoice {
   sellerVat       String
   sellerAddress   String
   buyerName       String
+  jurisdiction    String   @default("SA")
   currency        String   @default("SAR")
   qrTlvBase64     String
   lineDescription String
   issuedAt        DateTime @default(now())
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  country         Jurisdiction @relation(fields: [jurisdiction], references: [code])
 }
 
 model InvoiceSequence {
@@ -371,6 +378,8 @@ model PaymentIntent {
   planCode       PlanCode?
   cycle          String?
   amountHalalas  Int
+  jurisdiction   String        @default("SA")
+  currency       String        @default("SAR")
   status         PaymentStatus @default(pending)
   idempotencyKey String        @unique
   gateway        String
@@ -378,6 +387,7 @@ model PaymentIntent {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  country        Jurisdiction  @relation(fields: [jurisdiction], references: [code])
   events         PaymentEvent[]
 }
 
@@ -456,12 +466,54 @@ model AuditLog {
   @@index([createdAt])
 }
 
+model Jurisdiction {
+  code         String @id
+  currency     String
+  minorPerUnit Int
+  vatRateBps   Int
+  users        User[]
+  cases        CaseFile[]
+  chats        Chat[]
+  memos        Memo[]
+  laws         Law[]
+  sharia       ShariaSource[]
+  courts       Court[]
+  templates    DocumentTemplate[]
+  plans        PlanSetting[]
+  invoices     Invoice[]
+  payments     PaymentIntent[]
+}
+
+model Court {
+  jurisdiction String
+  code         String
+  country      Jurisdiction @relation(fields: [jurisdiction], references: [code])
+
+  @@id([jurisdiction, code])
+}
+
+model DocumentTemplate {
+  jurisdiction  String
+  memoType      MemoType
+  titleAr       String
+  courtHeadings Json
+  country       Jurisdiction @relation(fields: [jurisdiction], references: [code])
+
+  @@id([jurisdiction, memoType])
+}
+
 model PlanSetting {
-  code          PlanCode @id
+  jurisdiction  String   @default("SA")
+  code          PlanCode
   priceHalalas  Int
+  currency      String   @default("SAR")
   memoLimit     Int
   chatLimit     Int?
+  courts        String[] @default([])
   updatedAt     DateTime @updatedAt
+  country       Jurisdiction @relation(fields: [jurisdiction], references: [code])
+
+  @@id([jurisdiction, code])
 }
 
 model IngestionRun {

@@ -97,15 +97,18 @@ export function readSlots(userTexts: string[]): DraftSlots & { ready: boolean; q
 }
 
 export function composeDraft(input: {
-  court: CourtType;
+  court: string;
   memoType: MemoType;
   slots: DraftSlots;
   articles: RetrievedArticle[];
   sharia: RetrievedSharia[];
   letterhead?: string | null;
+  title?: string;
+  courtHeading?: string;
 }): { title: string; body: string; citations: CitationRef[] } {
-  const title = MEMO_TITLE[input.memoType];
-  const lines: string[] = ["بسم الله الرحمن الرحيم", "", title, "", COURT_HEADING[input.court]];
+  const title = input.title || MEMO_TITLE[input.memoType];
+  const heading = input.courtHeading || COURT_HEADING[input.court as CourtType];
+  const lines: string[] = ["بسم الله الرحمن الرحيم", "", title, "", heading];
   if (input.letterhead) lines.push(input.letterhead);
   lines.push("", `المدّعي: ${input.slots.plaintiff}`, `المدّعى عليه: ${input.slots.defendant}`, "", "أولًا: الوقائع", input.slots.facts, "", "ثانيًا: الأسانيد النظامية");
   if (input.articles.length === 0) {

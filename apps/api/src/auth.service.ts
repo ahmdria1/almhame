@@ -1,3 +1,4 @@
+import { DEFAULT_JURISDICTION, JURISDICTION_CATALOG, jurisdictionOf } from "@elawyer/types";
 import { createHash, randomBytes } from "crypto";
 import { Injectable } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
@@ -34,8 +35,9 @@ export class AuthService {
         passwordHash: await bcrypt.hash(input.password, 10),
         consentAt: new Date(),
         consentVersion: this.kernel.config.consentVersion,
+        jurisdiction: DEFAULT_JURISDICTION,
         wrappedDataKey: wrapKey(dek, this.kernel.master),
-        wallet: { create: { balanceHalalas: 0 } },
+        wallet: { create: { balanceHalalas: 0, currency: JURISDICTION_CATALOG[DEFAULT_JURISDICTION].currency } },
       },
     });
     const challenge = await this.issueEmail(user.id, null, email, "email_verify");
@@ -155,7 +157,7 @@ export class AuthService {
   private async tokensFor(userId: string) {
     const user = await this.kernel.prisma.user.findUnique({ where: { id: userId } });
     if (!user) fail("NOT_FOUND", 404, "Account was not found");
-    const plan = await this.kernel.plan(user.planCode);
+    const plan = await this.kernel.plan(user.planCode, jurisdictionOf(user.jurisdiction).code);
     const refreshToken = randomBytes(32).toString("hex");
     await this.kernel.prisma.session.create({
       data: {

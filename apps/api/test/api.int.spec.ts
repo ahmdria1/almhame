@@ -50,8 +50,9 @@ describe("api integration", () => {
     await app.init();
     prisma = app.get(PrismaService);
     const law = await prisma.law.upsert({
-      where: { key: "test-fixture-labor" },
+      where: { jurisdiction_key: { jurisdiction: "SA", key: "test-fixture-labor" } },
       create: {
+        jurisdiction: "SA",
         key: "test-fixture-labor",
         nameAr: "قيد اختبار",
         nameEn: "test fixture",
@@ -325,7 +326,7 @@ describe("api integration", () => {
     expect(upgraded?.planCode).toBe("basic");
     expect(upgraded?.chatCount).toBe(6);
     expect(upgraded?.chatCountPeriod).toBe(1);
-    await prisma.planSetting.update({ where: { code: "basic" }, data: { chatLimit: 1 } });
+    await prisma.planSetting.update({ where: { jurisdiction_code: { jurisdiction: "SA", code: "basic" } }, data: { chatLimit: 1 } });
     try {
       const capped = await request(app.getHttpServer())
         .post("/api/chats")
@@ -349,7 +350,7 @@ describe("api integration", () => {
       expect(renewed?.chatCountPeriod).toBe(1);
       expect(renewed?.chatCount).toBe(7);
     } finally {
-      await prisma.planSetting.update({ where: { code: "basic" }, data: { chatLimit: null } });
+      await prisma.planSetting.update({ where: { jurisdiction_code: { jurisdiction: "SA", code: "basic" } }, data: { chatLimit: null } });
     }
   });
 });
