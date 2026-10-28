@@ -2,6 +2,7 @@ import { ApiError } from "@elawyer/api-client";
 import { translate, uploadErrorKey } from "@elawyer/i18n";
 import { colors } from "@elawyer/tokens";
 import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -25,6 +26,19 @@ export default function ChatScreen() {
     }).catch(() => undefined);
   }, [id]);
 
+  async function sendFile(uri: string, name: string, type: string) {
+    setUploading(true);
+    setError("");
+    try {
+      await client().uploadDocument(caseId, { uri, name, type }, name);
+    } catch (err) {
+      const key = err instanceof ApiError ? uploadErrorKey(err.code) : null;
+      setError(key ? t(key) : t("common.error"));
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function attach() {
     if (!caseId || uploading) return;
     const picked = await DocumentPicker.getDocumentAsync({
@@ -34,20 +48,24 @@ export default function ChatScreen() {
     });
     if (picked.canceled || !picked.assets?.[0]) return;
     const asset = picked.assets[0];
-    setUploading(true);
-    setError("");
-    try {
-      await client().uploadDocument(caseId, {
-        uri: asset.uri,
-        name: asset.name,
-        type: asset.mimeType || "application/pdf",
-      }, asset.name);
-    } catch (err) {
-      const key = err instanceof ApiError ? uploadErrorKey(err.code) : null;
-      setError(key ? t(key) : t("common.error"));
-    } finally {
-      setUploading(false);
+    await sendFile(asset.uri, asset.name, asset.mimeType || "application/pdf");
+  }
+
+  async function pickImage(source: "camera" | "library") {
+    if (!caseId || uploading) return;
+    const permission = source === "camera"
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      setError(t("upload.unsupported"));
+      return;
     }
+    const picked = source === "camera"
+      ? await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 })
+      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
+    if (picked.canceled || !picked.assets?.[0]) return;
+    const asset = picked.assets[0];
+    await sendFile(asset.uri, asset.fileName || (source === "camera" ? "camera.jpg" : "photo.jpg"), asset.mimeType || "image/jpeg");
   }
 
   return (
@@ -62,6 +80,12 @@ export default function ChatScreen() {
       <View style={styles.bar}>
         <Pressable accessibilityLabel={t("workspace.attach")} disabled={uploading || !caseId} onPress={() => void attach()}>
           <Text style={styles.clip}>📎</Text>
+        </Pressable>
+        <Pressable accessibilityLabel="الكاميرا" disabled={uploading || !caseId} onPress={() => void pickImage("camera")}>
+          <Text style={styles.clip}>📷</Text>
+        </Pressable>
+        <Pressable accessibilityLabel="مكتبة الصور" disabled={uploading || !caseId} onPress={() => void pickImage("library")}>
+          <Text style={styles.clip}>🖼</Text>
         </Pressable>
         <TextInput style={styles.input} value={text} onChangeText={setText} placeholder="اكتب رسالتك" />
         <Pressable onPress={async () => {

@@ -89,7 +89,15 @@ export class WorkService {
 
   async deleteAccount(userId: string) {
     await rm(path.join(this.kernel.config.storageDir, userId), { recursive: true, force: true });
-    await this.kernel.prisma.user.delete({ where: { id: userId } });
+    await this.kernel.prisma.$transaction(async (tx) => {
+      const owned = await tx.organization.findUnique({ where: { ownerId: userId } });
+      if (owned) {
+        await tx.user.updateMany({ where: { orgId: owned.id }, data: { orgId: null, orgRole: null } });
+        await tx.organization.delete({ where: { id: owned.id } });
+      }
+      await tx.user.update({ where: { id: userId }, data: { orgId: null, orgRole: null } });
+      await tx.user.delete({ where: { id: userId } });
+    });
     return { deleted: true };
   }
 

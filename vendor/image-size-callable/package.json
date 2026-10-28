@@ -1,0 +1,9 @@
+{
+  "name": "image-size-callable",
+  "version": "2.0.3",
+  "private": true,
+  "main": "index.js",
+  "dependencies": {
+    "image-size": "2.0.3"
+  }
+}

@@ -530,4 +530,22 @@ describe("api integration", () => {
     expect(String(downloaded.headers["content-disposition"])).toContain("attachment");
     expect(String(downloaded.headers["content-security-policy"])).toContain("default-src 'none'");
   });
+
+  it("deletes the account and the data that belongs to it", async () => {
+    const user = await account();
+    const chat = await request(app.getHttpServer())
+      .post("/api/chats")
+      .set("Authorization", `Bearer ${user.token}`)
+      .send({ court: "labor", memoType: "lawsuit" })
+      .expect(201);
+    const removed = await request(app.getHttpServer())
+      .delete("/api/me")
+      .set("Authorization", `Bearer ${user.token}`)
+      .send({ confirm: true })
+      .expect(200);
+    expect(removed.body.deleted).toBe(true);
+    expect(await prisma.user.findUnique({ where: { id: user.userId } })).toBeNull();
+    expect(await prisma.chat.count({ where: { id: chat.body.chat.id } })).toBe(0);
+    await request(app.getHttpServer()).get("/api/me").set("Authorization", `Bearer ${user.token}`).expect(404);
+  });
 });

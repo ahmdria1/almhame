@@ -2,9 +2,11 @@
 
 import { LOCALES } from "@elawyer/types";
 import { LANGUAGE_NAMES } from "@elawyer/i18n";
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { Button, Input } from "@/components/ui";
 import { useApp } from "@/lib/providers";
+import { pagePath } from "@/seo/catalog";
 
 export default function SettingsPage() {
   const { t, user, client, setTheme, theme, setLocale, locale, logout } = useApp();
@@ -49,6 +51,11 @@ export default function SettingsPage() {
       <section className="paper rounded-3xl border border-danger/30 p-5">
         <h2 className="font-semibold">{t("settings.privacy")}</h2>
         <p className="mt-2 text-sm leading-7 text-ink-500">{t("settings.deleteWarn")}</p>
+        <p className="mt-2 text-sm">
+          <Link className="font-semibold text-teal-700" href={pagePath(locale, { kind: "top", id: "privacy" })}>{t("footer.privacy")}</Link>
+          {" · "}
+          <Link className="font-semibold text-teal-700" href={pagePath(locale, { kind: "top", id: "terms" })}>{t("footer.terms")}</Link>
+        </p>
         <div className="mt-3 flex gap-2">
           <Button variant="secondary" type="button" onClick={async () => {
             const data = await client.exportMe();
@@ -60,6 +67,7 @@ export default function SettingsPage() {
             anchor.click();
           }}>{t("settings.export")}</Button>
           <Button variant="danger" type="button" onClick={async () => {
+            if (!window.confirm(t("settings.deleteWarn"))) return;
             await client.deleteMe();
             await logout();
             window.location.href = "/";

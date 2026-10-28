@@ -7,9 +7,10 @@ import { FormEvent, useState } from "react";
 import { AuthShell } from "@/components/auth-shell";
 import { Button, Input } from "@/components/ui";
 import { useApp } from "@/lib/providers";
+import { pagePath } from "@/seo/catalog";
 
 export default function SignupPage() {
-  const { t, client } = useApp();
+  const { t, client, locale } = useApp();
   const router = useRouter();
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -47,7 +48,10 @@ export default function SignupPage() {
         <label className="text-sm font-semibold">{t("auth.password")}<Input data-testid="signup-password" name="password" type="password" required minLength={8} className="mt-1" /></label>
         <label className="flex items-start gap-2 text-sm leading-6 text-ink-700">
           <input data-testid="signup-consent" name="consent" type="checkbox" required className="mt-1" />
-          {t("auth.consent")}
+          {t("auth.consent")}{" "}
+          <Link className="font-semibold text-teal-700" href={pagePath(locale, { kind: "top", id: "privacy" })}>{t("footer.privacy")}</Link>
+          {" · "}
+          <Link className="font-semibold text-teal-700" href={pagePath(locale, { kind: "top", id: "terms" })}>{t("footer.terms")}</Link>
         </label>
         {error ? <p className="text-sm text-danger">{error}</p> : null}
         <Button data-testid="signup-submit" type="submit" disabled={pending}>{pending ? t("common.loading") : t("auth.submitSignup")}</Button>

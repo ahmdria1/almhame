@@ -1,7 +1,7 @@
 import { colors } from "@elawyer/tokens";
 import { Link, useRouter } from "expo-router";
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Linking, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { client } from "../src/api";
 
 export default function Signup() {
@@ -21,6 +21,10 @@ export default function Signup() {
       <TextInput style={styles.input} placeholder="البريد" value={email} onChangeText={setEmail} autoCapitalize="none" />
       <TextInput style={styles.input} placeholder="كلمة المرور" value={password} onChangeText={setPassword} secureTextEntry />
       <Pressable onPress={() => setConsent((value) => !value)}><Text style={styles.consent}>{consent ? "☑" : "☐"} أوافق على معالجة بياناتي</Text></Pressable>
+      <View style={styles.legalRow}>
+        <Pressable onPress={() => void Linking.openURL("https://emuhami.com/الخصوصية")}><Text style={styles.link}>الخصوصية</Text></Pressable>
+        <Pressable onPress={() => void Linking.openURL("https://emuhami.com/الشروط")}><Text style={styles.link}>الشروط</Text></Pressable>
+      </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Pressable style={styles.button} onPress={async () => {
         try {
@@ -45,5 +49,6 @@ const styles = StyleSheet.create({
   error: { color: colors.danger },
   button: { backgroundColor: colors.navy700, borderRadius: 14, padding: 14, alignItems: "center", marginTop: 8 },
   buttonText: { color: "white", fontWeight: "700" },
+  legalRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
   link: { marginTop: 16, color: colors.teal600, textAlign: "center" },
 });

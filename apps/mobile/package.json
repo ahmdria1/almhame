@@ -9,7 +9,9 @@
     "dev": "expo start --port 4740",
     "build": "expo export --platform web --output-dir web-build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "jest --runInBand --config jest.config.cjs"
+    "test": "jest --runInBand --config jest.config.cjs",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   },
   "dependencies": {
     "@elawyer/api-client": "workspace:*",
@@ -21,6 +23,7 @@
     "expo": "~52.0.47",
     "expo-constants": "~17.0.8",
     "expo-document-picker": "~13.0.3",
+    "expo-image-picker": "~16.0.6",
     "expo-linking": "~7.0.5",
     "expo-router": "~4.0.21",
     "expo-secure-store": "~14.0.1",

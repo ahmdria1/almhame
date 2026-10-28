@@ -10,6 +10,7 @@ export default tseslint.config(
       "**/coverage/**",
       "**/playwright-report/**",
       "**/test-results/**",
+      "vendor/**",
       "**/.turbo/**",
       "apps/mobile/.expo/**",
       "**/next-env.d.ts",
