@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -39,6 +39,25 @@ export const LAWS = [
   { key: "trafficking", nameAr: "نظام مكافحة جرائم الاتجار بالأشخاص", courts: ["criminal"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/4e09c59d-f173-4971-8a38-a9a700f27025/1" },
   { key: "traffic", nameAr: "نظام المرور", courts: ["criminal"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/85364e57-c01e-41ba-8def-a9a700f183e9/1" },
   { key: "criminal-procedure-regulation", nameAr: "اللائحة التنفيذية لنظام الإجراءات الجزائية", courts: ["criminal", "appeal", "supreme"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/9a0249b7-f835-48fa-8d1e-a9a700f1981a/1" },
+  { key: "arbitration", nameAr: "نظام التحكيم", courts: ["general", "commercial", "appeal"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/5535039e-13da-43f6-8f53-a9a700f26485/1" },
+  { key: "bog", nameAr: "نظام ديوان المظالم", courts: ["administrative", "appeal", "supreme"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/5d3379bd-3547-494e-9fbd-a9a700f26e24/1" },
+  { key: "bog-enforcement", nameAr: "نظام التنفيذ أمام ديوان المظالم", courts: ["administrative", "enforcement"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/ae1d79bf-3716-4bc5-a85e-ada100c8a870/1" },
+  { key: "court-costs", nameAr: "نظام التكاليف القضائية", courts: ["general", "commercial", "personal_status", "labor", "administrative", "criminal"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/3e368087-7b31-46e7-8005-ada100b8f703/1" },
+  { key: "competition", nameAr: "نظام المنافسة", courts: ["commercial", "administrative"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/e3605c0d-ef87-4cff-b5da-aa3f0102bbb4/1" },
+  { key: "personal-data", nameAr: "نظام حماية البيانات الشخصية", courts: ["general", "commercial", "administrative"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/b7cfae89-828e-4994-b167-adaa00e37188/1" },
+  { key: "capital-market", nameAr: "نظام السوق المالية", courts: ["commercial"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/50924f95-f74e-430e-820c-a9a700f1abfa/1" },
+  { key: "electronic-transactions", nameAr: "نظام التعاملات الإلكترونية", courts: ["commercial", "general"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/6f509360-2c39-4358-ae2a-a9a700f2ed16/1" },
+  { key: "ecommerce", nameAr: "نظام التجارة الإلكترونية", courts: ["commercial"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/360de590-0286-4fa5-a243-aa9100c31979/1" },
+  { key: "commercial-register", nameAr: "نظام السجل التجاري", courts: ["commercial"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/98ee4b51-d398-4323-ae69-b2b8009f3156/1" },
+  { key: "trademarks", nameAr: "نظام العلامات التجارية", courts: ["commercial"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/3ec4414f-2ec5-48b1-bcb4-a9a700f1aa2b/1" },
+  { key: "commercial-agencies", nameAr: "نظام الوكالات التجارية", courts: ["commercial"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/b19a8aa6-7b50-43f0-ab8c-a9a700f1a446/1" },
+  { key: "civil-service", nameAr: "نظام الخدمة المدنية", courts: ["administrative"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/32f651e6-2976-439c-b418-a9a700f23fb2/1" },
+  { key: "procurement", nameAr: "نظام المنافسات والمشتريات الحكومية", courts: ["administrative", "commercial"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/24c563f9-7292-49c8-b0fb-aa9800b999f1/1" },
+  { key: "social-insurance", nameAr: "نظام التأمينات الاجتماعية", courts: ["labor", "general"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/eaee8a20-3a54-4aaf-b0d9-b1ad00998962/1" },
+  { key: "real-estate-registration", nameAr: "نظام التسجيل العيني للعقار", courts: ["general"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/c9756bfb-ff81-4226-a820-ae8200dc074c/1" },
+  { key: "expropriation", nameAr: "نظام نزع ملكية العقارات للمنفعة العامة ووضع اليد المؤقت على العقار", courts: ["administrative", "general"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/25450917-e26c-4532-a75f-a9a700f21996/1" },
+  { key: "discipline", nameAr: "نظام الانضباط الوظيفي", courts: ["administrative"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/896f4986-334b-4c76-b938-ada500eae2eb/1" },
+  { key: "notary", nameAr: "نظام التوثيق", courts: ["general", "personal_status"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/40754577-f250-47f6-8a5a-abf600af7d72/1" },
   { key: "sharia-procedure-regulation", nameAr: "اللوائح التنفيذية لنظام المرافعات الشرعية", courts: ["general", "appeal", "supreme"], url: "" },
   { key: "commercial-courts-regulation", nameAr: "اللائحة التنفيذية لنظام المحاكم التجارية", courts: ["commercial", "appeal"], url: "" },
 ];
@@ -350,7 +369,7 @@ async function main() {
       let via = "boe";
       try {
         const loaded = await fetchHtml(law.url);
-        const pageKeys = new Set(["labor", "narcotics", "bribery", "forgery", "money-laundering", "terrorism", "juveniles", "weapons", "abuse", "trafficking", "traffic", "criminal-procedure-regulation"]);
+        const pageKeys = new Set(["labor", "narcotics", "bribery", "forgery", "money-laundering", "terrorism", "juveniles", "weapons", "abuse", "trafficking", "traffic", "criminal-procedure-regulation", "arbitration", "bog", "bog-enforcement", "court-costs", "competition", "personal-data", "capital-market", "electronic-transactions", "ecommerce", "commercial-register", "trademarks", "commercial-agencies", "civil-service", "procurement", "social-insurance", "real-estate-registration", "expropriation", "discipline", "notary"]);
         if (pageKeys.has(law.key)) {
           const { parseLaborPage } = await import("./labor-page.mjs");
           parsed = parseLaborPage(loaded.html, law);
@@ -386,8 +405,15 @@ async function main() {
     }
   }
   await writeFile(path.join(outDir, "boe", "manifest-report.json"), JSON.stringify(report, null, 2));
-  const blocked = report.filter((row) => row.error).map((row) => ({ key: row.key, nameAr: row.nameAr, reason: row.error, sourceUrl: row.sourceUrl }));
-  await writeFile(path.join(outDir, "boe", "blocked.json"), JSON.stringify(blocked, null, 2));
+  const blockedPath = path.join(outDir, "boe", "blocked.json");
+  const previous = JSON.parse(await readFile(blockedPath, "utf8").catch(() => "[]"));
+  const seen = new Set(report.map((row) => row.key));
+  const kept = Array.isArray(previous) ? previous.filter((row) => row && row.key && !seen.has(row.key)) : [];
+  const blocked = [
+    ...report.filter((row) => row.error).map((row) => ({ key: row.key, nameAr: row.nameAr, reason: row.error, sourceUrl: row.sourceUrl })),
+    ...kept,
+  ];
+  await writeFile(blockedPath, JSON.stringify(blocked, null, 2) + "\n");
   if (!only.length || selected.length) {
     await execFileAsync("python3", [path.join(root, "corpus", "snapshot_fallback.py")], { cwd: root }).catch((error) => {
       console.log("snapshot fallback", error instanceof Error ? error.message : error);

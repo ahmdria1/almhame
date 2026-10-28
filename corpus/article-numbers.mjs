@@ -96,6 +96,7 @@ function wordsOf(value) {
     .replace(/[()«»":：،,.\-–—]/g, " ")
     .replace(/المادية/g, " ")
     .replace(/المادة/g, " ")
+    .replace(/مادة/g, " ")
     .split(/\s+/)
     .map((token) => token.replace(/^و/, ""))
     .filter((token) => token && token !== "و");
@@ -151,7 +152,7 @@ function parseCore(withoutBis, bis, duplicate, original = withoutBis) {
       ordinal: original,
     });
   }
-  const bare = withoutBis.match(/^(?:المادية\s*|المادة\s*)?\(?\s*(\d+)\s*\)?$/);
+  const bare = withoutBis.match(/^(?:المادية\s*|المادة\s*|مادة\s*)?\(?\s*(\d+)\s*\)?$/);
   if (bare) {
     return parsed("statute", Number(bare[1]), {
       clause: null,

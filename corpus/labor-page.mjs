@@ -249,9 +249,19 @@ function dropFollowingArticles(heading, text) {
   return tidy(kept.join("\n"));
 }
 
+function articleHeading(heading) {
+  if (parseHeading(heading).ok) return heading;
+  const clause = heading.match(/(?:المادة|مادة)\s+[^:：]+/);
+  if (clause && parseHeading(clause[0]).ok) return clause[0].trim();
+  const match = heading.match(/(?:المادة|مادة)[\s\S]*$/);
+  if (match && parseHeading(match[0]).ok) return match[0].trim();
+  return heading;
+}
+
 function headingOf(item) {
   const headings = [...item.matchAll(/<h3 class="center">([\s\S]*?)<\/h3>/gi)].map((match) => htmlToText(match[1]).replace(/\s+/g, " ").trim());
-  return headings.find((heading) => /المادة|مكرر|حالياً/.test(heading)) || "";
+  const heading = headings.find((value) => /المادة|مادة|مكرر|حالياً/.test(value)) || "";
+  return heading ? articleHeading(heading) : "";
 }
 
 function labelValue(html, label) {

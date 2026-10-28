@@ -31,6 +31,28 @@ export const CRIMINAL_TOPICS: { key: string; nameAr: string; pattern: RegExp }[]
 
 const CRIMINAL_KEYS = CRIMINAL_TOPICS.map((topic) => topic.key);
 
+const EXTRA_TOPICS: { key: string; nameAr: string; pattern: RegExp; courts: string[] }[] = [
+  { key: "arbitration", nameAr: "نظام التحكيم", pattern: /تحكيم|هيئة التحكيم|شرط التحكيم/, courts: ["general", "commercial", "appeal"] },
+  { key: "bog", nameAr: "نظام ديوان المظالم", pattern: /ديوان المظالم|المحكمة الإدارية العليا/, courts: ["administrative", "appeal", "supreme"] },
+  { key: "bog-enforcement", nameAr: "نظام التنفيذ أمام ديوان المظالم", pattern: /محكمة التنفيذ الإدارية|تنفيذ أمام ديوان|سند تنفيذي/, courts: ["administrative", "enforcement"] },
+  { key: "court-costs", nameAr: "نظام التكاليف القضائية", pattern: /تكاليف قضائية/, courts: ["general", "commercial", "personal_status", "labor", "administrative", "criminal"] },
+  { key: "competition", nameAr: "نظام المنافسة", pattern: /وضع مهيمن|تركز اقتصادي|ممارسات احتكارية|الهيئة العامة للمنافسة/, courts: ["commercial", "administrative"] },
+  { key: "personal-data", nameAr: "نظام حماية البيانات الشخصية", pattern: /بيانات شخصية|صاحب البيانات/, courts: ["general", "commercial", "administrative"] },
+  { key: "capital-market", nameAr: "نظام السوق المالية", pattern: /سوق مالية|أوراق مالية|هيئة السوق/, courts: ["commercial"] },
+  { key: "electronic-transactions", nameAr: "نظام التعاملات الإلكترونية", pattern: /تعامل إلكتروني|توقيع إلكتروني|تصديق رقمي/, courts: ["commercial", "general"] },
+  { key: "ecommerce", nameAr: "نظام التجارة الإلكترونية", pattern: /تجارة إلكترونية|موفر الخدمة/, courts: ["commercial"] },
+  { key: "commercial-register", nameAr: "نظام السجل التجاري", pattern: /سجل تجاري/, courts: ["commercial"] },
+  { key: "trademarks", nameAr: "نظام العلامات التجارية", pattern: /علامة تجارية|علامات تجارية/, courts: ["commercial"] },
+  { key: "commercial-agencies", nameAr: "نظام الوكالات التجارية", pattern: /وكالة تجارية|وكيل تجاري/, courts: ["commercial"] },
+  { key: "civil-service", nameAr: "نظام الخدمة المدنية", pattern: /خدمة مدنية|وظيفة عامة/, courts: ["administrative"] },
+  { key: "procurement", nameAr: "نظام المنافسات والمشتريات الحكومية", pattern: /مشتريات حكومية|منافسة حكومية|ضمان ابتدائي/, courts: ["administrative", "commercial"] },
+  { key: "social-insurance", nameAr: "نظام التأمينات الاجتماعية", pattern: /تأمينات اجتماعية|اشتراك تأميني/, courts: ["labor", "general"] },
+  { key: "real-estate-registration", nameAr: "نظام التسجيل العيني للعقار", pattern: /تسجيل عيني|سجل عقاري/, courts: ["general"] },
+  { key: "expropriation", nameAr: "نظام نزع ملكية العقارات للمنفعة العامة ووضع اليد المؤقت على العقار", pattern: /نزع ملكية|منفعة عامة/, courts: ["administrative", "general"] },
+  { key: "discipline", nameAr: "نظام الانضباط الوظيفي", pattern: /انضباط وظيفي|مخالفة تأديبية|كف اليد/, courts: ["administrative"] },
+  { key: "notary", nameAr: "نظام التوثيق", pattern: /كاتب عدل|كاتب العدل|موثق/, courts: ["general", "personal_status"] },
+];
+
 const SUBJECTS: Record<CourtType, { keys: string[]; nameAr: string }> = {
   labor: { keys: ["labor"], nameAr: "نظام العمل" },
   commercial: {
@@ -154,7 +176,8 @@ export function selectGrounds(input: {
   presentLawKeys: string[];
 }): GroundDecision {
   const subject = courtSubject(input.court);
-  const topics = input.court === "criminal" ? CRIMINAL_TOPICS.filter((topic) => topic.pattern.test(input.facts)) : [];
+  const catalog = input.court === "criminal" ? CRIMINAL_TOPICS : EXTRA_TOPICS.filter((topic) => topic.courts.includes(input.court));
+  const topics = catalog.filter((topic) => topic.pattern.test(input.facts));
   const defined = topics.length ? topics.map((topic) => topic.key) : subject?.keys || [];
   const noticeName = topics.length ? topics.map((topic) => topic.nameAr).join("، ") : subject?.nameAr || "";
   const present = defined.some((key) => input.presentLawKeys.includes(key));

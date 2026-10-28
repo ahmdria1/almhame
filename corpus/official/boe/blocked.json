@@ -1,1 +1,20 @@
-[]
+[
+  {
+    "key": "labor-regulation",
+    "nameAr": "اللائحة التنفيذية لنظام العمل",
+    "reason": "The ministry file is a PDF whose extracted text breaks the lam-alef ligature, so it is not a reliable verbatim copy.",
+    "sourceUrl": "https://www.hrsd.gov.sa/sites/default/files/2025-04/%D8%A7%D9%84%D9%84%D8%A7%D8%A6%D8%AD%D8%A9%20%D8%A7%D9%84%D8%AA%D9%86%D9%81%D9%8A%D8%B0%D9%8A%D8%A9%20%D9%84%D9%86%D8%B8%D8%A7%D9%85%20%D8%A7%D9%84%D8%B9%D9%85%D9%84%20%D9%88%D9%85%D9%84%D8%AD%D9%82%D8%A7%D8%AA%D9%87%D8%A7.pdf"
+  },
+  {
+    "key": "civil-service-hr",
+    "nameAr": "نظام الموارد البشرية في الخدمة المدنية",
+    "reason": "No statute under this title is published on the Bureau. The current civil-service statute there is نظام الخدمة المدنية. The human-resources text published by the ministry is an executive regulation, not this statute.",
+    "sourceUrl": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/32f651e6-2976-439c-b418-a9a700f23fb2/1"
+  },
+  {
+    "key": "disciplinary-trials",
+    "nameAr": "نظام المحاكمات التأديبية",
+    "reason": "No statute under this title is published on the Bureau. The current disciplinary statute is نظام الانضباط الوظيفي.",
+    "sourceUrl": "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/896f4986-334b-4c76-b938-ada500eae2eb/1"
+  }
+]

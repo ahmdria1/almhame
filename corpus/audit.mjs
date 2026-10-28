@@ -126,6 +126,25 @@ const BOE_PAGE_KEYS = new Set([
   "trafficking",
   "traffic",
   "criminal-procedure-regulation",
+  "arbitration",
+  "bog",
+  "bog-enforcement",
+  "court-costs",
+  "competition",
+  "personal-data",
+  "capital-market",
+  "electronic-transactions",
+  "ecommerce",
+  "commercial-register",
+  "trademarks",
+  "commercial-agencies",
+  "civil-service",
+  "procurement",
+  "social-insurance",
+  "real-estate-registration",
+  "expropriation",
+  "discipline",
+  "notary",
 ]);
 
 async function officialLabor(law) {
@@ -518,7 +537,7 @@ async function main() {
   const laws = [];
   for (const name of names) laws.push(JSON.parse(await readFile(path.join(boeDir, name), "utf8")));
   const byKey = new Map(laws.map((law) => [law.key, law]));
-  if (laws.length !== 31) fixtureDefects.push(`expected 31 statutes, found ${laws.length}`);
+  if (laws.length !== 50) fixtureDefects.push(`expected 50 statutes, found ${laws.length}`);
   const labor = byKey.get("labor");
   if (!labor) fixtureDefects.push("labor statute missing");
   else {

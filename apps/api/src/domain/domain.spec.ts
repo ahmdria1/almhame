@@ -369,6 +369,41 @@ describe("citation relevance and slot labels", () => {
     expect(validateCitations(`${bribeDraft.body}\nالمادة (99999)`, bribeDraft.citations, known).ok).toBe(false);
   });
 
+  it("cites the trademarks law for a trademark dispute and rejects an unknown number", () => {
+    const trademarks = JSON.parse(readFileSync(join(__dirname, "../../../../corpus/official/boe/trademarks.json"), "utf8")) as {
+      nameAr: string;
+      articles: { number: string; textAr: string }[];
+    };
+    const articles = trademarks.articles.map((article, index) => ground(`mark-${index}`, "trademarks", trademarks.nameAr, article.textAr, article.number));
+    const facts = "نزاع على علامة تجارية. يجوز لوزير التجارة الترخيص بتسجيل علامة تجارية جماعية للأشخاص الطبيعيين أو المعنويين الذين يتولون مراقبة منتجات أو خدمات معينة أو فحصها فيما يختص بمصدرها أو عناصر تركيبها أو طريقة صنعها.";
+    const decision = selectGrounds({
+      court: "commercial",
+      memoType: "lawsuit",
+      facts,
+      articles,
+      sharia: [],
+      presentLawKeys: ["trademarks", "companies"],
+    });
+    expect(decision.notice).toBeNull();
+    expect(decision.substantive.length).toBeGreaterThan(0);
+    expect(decision.substantive.every((article) => article.lawKey === "trademarks")).toBe(true);
+    const draft = composeDraft({
+      court: "commercial",
+      memoType: "lawsuit",
+      slots: readSlots([`${facts}\nالمدعي: شركة أفق\nالمدعى عليه: مؤسسة نور\nالطلبات: منع استعمال العلامة`]),
+      articles: decision.substantive,
+      procedural: [],
+      sharia: [],
+      notice: null,
+    });
+    expect(draft.body).toContain("نظام العلامات التجارية");
+    const known = {
+      articles: new Map(decision.substantive.map((article) => [article.id, knownArticle(article.number, article.lawNameAr, article.textAr)])),
+      sharia: new Map(),
+    };
+    expect(validateCitations(`${draft.body}\nالمادة (99999)`, draft.citations, known).ok).toBe(false);
+  });
+
   it("keeps procedural articles in the procedural section only when they match", () => {
     const facts = `${wage} ويطلب إثبات عدم الصرف بالبينة.`;
     const decision = selectGrounds({
