@@ -103,7 +103,7 @@ ${paragraphs}
     document.setAuthor(RELEASE_OWNER);
     document.setCreator(RELEASE_MARK);
     document.setProducer(RELEASE_MARK);
-    await stampLogicalText(document, memoPath || input.fontPath, input.title, `${input.letterhead ? `${input.letterhead}\n` : ""}${input.body}`);
+    await stampLogicalText(document, input.fontPath, input.title, `${input.letterhead ? `${input.letterhead}\n` : ""}${input.body}`);
     return Buffer.from(await document.save());
   } finally {
     await browser.close();
