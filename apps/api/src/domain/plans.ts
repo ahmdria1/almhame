@@ -57,19 +57,6 @@ export const PLAN_DEFS: Record<PlanCode, PlanDef> = {
     letterhead: false,
     seats: PUBLISHED_PLANS.pro.seats,
   },
-  office: {
-    code: "office",
-    jurisdiction: DEFAULT_JURISDICTION,
-    currency: SA.currency,
-    priceHalalas: PUBLISHED_PLANS.office.priceHalalas,
-    memoLimit: PUBLISHED_PLANS.office.memoLimit,
-    chatLimit: PUBLISHED_PLANS.office.chatLimit,
-    courts: [...COURTS],
-    word: true,
-    caseManagement: true,
-    letterhead: true,
-    seats: PUBLISHED_PLANS.office.seats,
-  },
 };
 
 export function yearlyHalalas(monthly: number): number {
