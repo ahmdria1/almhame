@@ -8,8 +8,8 @@ import { siteUrl } from "@/seo/site";
 import "../globals.css";
 
 const cairo = Cairo({
-  subsets: ["arabic", "latin", "latin-ext"],
-  weight: ["400", "600", "700"],
+  subsets: ["arabic", "latin"],
+  weight: ["400", "700"],
   display: "swap",
   variable: "--font-cairo",
   adjustFontFallback: true,
