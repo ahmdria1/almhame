@@ -9,7 +9,6 @@ import "../globals.css";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
-  weight: ["400", "700"],
   display: "swap",
   variable: "--font-cairo",
   adjustFontFallback: true,
