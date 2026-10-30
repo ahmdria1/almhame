@@ -1,6 +1,7 @@
 "use client";
 
 import type { MemoView } from "@elawyer/types";
+import "@/app/memo-font.css";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
