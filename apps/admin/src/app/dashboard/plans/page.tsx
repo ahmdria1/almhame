@@ -5,7 +5,7 @@ import { adminFetch } from "../../../lib/api";
 
 type Plan = { code: string; priceHalalas: number; memoLimit: number; chatLimit: number | null };
 
-const NAMES: Record<string, string> = { free: "مجانية", basic: "أساسية", pro: "احترافية", office: "مكتب" };
+const NAMES: Record<string, string> = { free: "مجانية", basic: "أساسية", pro: "احترافية" };
 
 export default function PlansPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
