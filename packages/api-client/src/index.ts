@@ -1,4 +1,5 @@
 import type {
+  AssessmentView,
   ChatMessage,
   ChatSummary,
   CourtType,
@@ -69,7 +70,7 @@ export class ElawyerClient {
     return data;
   }
 
-  signup(input: { name: string; phone: string; email: string; password: string; consent: boolean }) {
+  signup(input: { name: string; phone: string; email: string; password: string; consent: boolean; notPracticingLawyer: boolean; nationalId?: string }) {
     return this.request("/auth/signup", { method: "POST", body: JSON.stringify(input) }) as Promise<{
       challengeId: string;
       debugCode?: string;
@@ -164,6 +165,17 @@ export class ElawyerClient {
     }) as Promise<{ user: ChatMessage; counsel: ChatMessage; readyToDraft: boolean }>;
   }
 
+  sendVoice(id: string, file: Blob | { uri: string; name: string; type: string }, filename: string) {
+    const body = new FormData();
+    if (typeof Blob !== "undefined" && file instanceof Blob) body.append("file", file, filename);
+    else body.append("file", file as Blob);
+    return this.request(`/chats/${id}/voice`, { method: "POST", body }) as Promise<{
+      user: ChatMessage;
+      counsel: ChatMessage;
+      readyToDraft: boolean;
+    }>;
+  }
+
   draft(id: string, payPerMemo = false) {
     return this.request(`/chats/${id}/draft`, {
       method: "POST",
@@ -191,7 +203,7 @@ export class ElawyerClient {
     }>;
   }
 
-  checkout(input: { purpose: "topup" | "subscription"; amountHalalas?: number; planCode?: PlanCode; cycle?: "monthly" | "yearly" }) {
+  checkout(input: { purpose: "topup" | "subscription"; amountHalalas?: number; planCode?: PlanCode; cycle?: "once" | "monthly" }) {
     return this.request("/billing/checkout", { method: "POST", body: JSON.stringify(input) }) as Promise<{
       intentId: string;
       redirectUrl: string;
@@ -233,8 +245,16 @@ export class ElawyerClient {
 
   notifications() {
     return this.request("/me/notifications") as Promise<{
-      items: { id: string; hearingId: string | null; title: string; readAt: string | null; createdAt: string }[];
+      items: { id: string; hearingId: string | null; kind?: string; priority?: "normal" | "urgent"; sound?: string; title: string; readAt: string | null; createdAt: string }[];
     }>;
+  }
+
+  assess(input: { facts: string; court?: string }) {
+    return this.request("/assessments", { method: "POST", body: JSON.stringify(input) }) as Promise<{ assessment: AssessmentView }>;
+  }
+
+  assessment(id: string) {
+    return this.request(`/assessments/${id}`) as Promise<{ assessment: AssessmentView }>;
   }
 
   cases() {
@@ -257,7 +277,7 @@ export class ElawyerClient {
     }>;
   }
 
-  addHearing(caseId: string, input: { kind: "hearing" | "objection_deadline"; occursAt: string; title: string }) {
+  addHearing(caseId: string, input: { kind: "hearing" | "objection_deadline" | "appeal_deadline"; occursAt: string; title: string }) {
     return this.request(`/cases/${caseId}/hearings`, { method: "POST", body: JSON.stringify(input) });
   }
 

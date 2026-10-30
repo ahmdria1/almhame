@@ -47,6 +47,15 @@ export default function SettingsPage() {
           <input type="checkbox" defaultChecked={user?.notifyHearings} onChange={(event) => void client.updateMe({ notifyHearings: event.target.checked })} />
           {t("settings.hearingsToggle")}
         </label>
+        <fieldset className="mt-4 grid gap-2 text-sm">
+          <legend className="font-semibold">{t("settings.sound")}</legend>
+          {(["all", "urgent", "off"] as const).map((mode) => (
+            <label key={mode} className="flex items-center gap-2">
+              <input type="radio" name="sound" checked={user?.soundMode === mode} onChange={() => void client.updateMe({ soundMode: mode })} />
+              {t(mode === "all" ? "settings.soundAll" : mode === "urgent" ? "settings.soundUrgent" : "settings.soundOff")}
+            </label>
+          ))}
+        </fieldset>
       </section>
       <section className="paper rounded-3xl border border-danger/30 p-5">
         <h2 className="font-semibold">{t("settings.privacy")}</h2>

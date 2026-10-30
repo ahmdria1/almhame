@@ -16,7 +16,7 @@ import {
 import { FileInterceptor } from "@nestjs/platform-express";
 import { JwtService } from "@nestjs/jwt";
 import { Throttle } from "@nestjs/throttler";
-import { Equals, IsEmail, IsIn, IsOptional, IsString, Length } from "class-validator";
+import { Equals, IsEmail, IsIn, IsOptional, IsString, Length, Matches } from "class-validator";
 import type { Request, Response } from "express";
 import { PlanCode } from "@prisma/client";
 import { COURTS, MEMO_TYPES, PLAN_CODES } from "@elawyer/types";
@@ -47,6 +47,14 @@ export class SignupDto {
 
   @Equals(true)
   consent!: boolean;
+
+  @Equals(true)
+  notPracticingLawyer!: boolean;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^[12]\d{9}$/)
+  nationalId?: string;
 }
 
 export class LoginDto {
@@ -243,7 +251,7 @@ export class ProductController {
   }
 
   @Patch("me")
-  async updateMe(@Req() req: Request, @Body() body: { name?: string; locale?: string; theme?: string; notifyHearings?: boolean }) {
+  async updateMe(@Req() req: Request, @Body() body: { name?: string; locale?: string; theme?: string; notifyHearings?: boolean; soundMode?: "all" | "urgent" | "off" }) {
     return { user: await this.work.updateAccount(await userIdFrom(this.jwt, req), body) };
   }
 
@@ -308,9 +316,29 @@ export class ProductController {
     return this.work.getChat(await userIdFrom(this.jwt, req), id);
   }
 
+  @Post("assessments")
+  @Throttle({ default: { limit: 8, ttl: 60000 } })
+  async assess(@Req() req: Request, @Body() body: { facts?: string; court?: string }) {
+    if (!body.facts) fail("VALIDATION", 400, "Describe the facts");
+    return this.work.assess(await userIdFrom(this.jwt, req), { facts: body.facts, court: body.court });
+  }
+
+  @Get("assessments/:id")
+  async assessment(@Req() req: Request, @Param("id") id: string) {
+    return this.work.getAssessment(await userIdFrom(this.jwt, req), id);
+  }
+
   @Post("chats/:id/messages")
   async message(@Req() req: Request, @Param("id") id: string, @Body() body: MessageDto) {
     return this.work.sendMessage(await userIdFrom(this.jwt, req), id, body.text);
+  }
+
+  @Post("chats/:id/voice")
+  @Throttle({ default: { limit: 8, ttl: 60000 } })
+  @UseInterceptors(FileInterceptor("file", { limits: { fileSize: 8 * 1024 * 1024 } }))
+  async voice(@Req() req: Request, @Param("id") id: string, @UploadedFile() file?: Express.Multer.File) {
+    if (!file) fail("VALIDATION", 400, "Choose a recording");
+    return this.work.voiceNote(await userIdFrom(this.jwt, req), id, file);
   }
 
   @Post("chats/:id/draft")
@@ -403,9 +431,9 @@ export class ProductController {
   async hearing(
     @Req() req: Request,
     @Param("id") id: string,
-    @Body() body: { kind?: "hearing" | "objection_deadline"; occursAt?: string; title?: string },
+    @Body() body: { kind?: "hearing" | "objection_deadline" | "appeal_deadline"; occursAt?: string; title?: string },
   ) {
-    if (!body.occursAt || (body.kind !== "hearing" && body.kind !== "objection_deadline")) {
+    if (!body.occursAt || (body.kind !== "hearing" && body.kind !== "objection_deadline" && body.kind !== "appeal_deadline")) {
       fail("VALIDATION", 400, "Hearing kind and date are required");
     }
     return this.work.addHearing(await userIdFrom(this.jwt, req), id, { kind: body.kind, occursAt: body.occursAt, title: body.title || "" });

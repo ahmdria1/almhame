@@ -1,4 +1,4 @@
-import { COURTS, DEFAULT_JURISDICTION, JURISDICTION_CATALOG, PUBLISHED_PLANS, type CourtType, type JurisdictionCode, type PlanCode } from "@elawyer/types";
+import { COURTS, DEFAULT_JURISDICTION, FAIR_USE_CHAT_TURNS, FAIR_USE_UPLOAD_PAGES, JURISDICTION_CATALOG, PUBLISHED_PLANS, type CourtType, type JurisdictionCode, type PlanCode } from "@elawyer/types";
 
 export interface PlanDef {
   code: PlanCode;
@@ -7,78 +7,46 @@ export interface PlanDef {
   priceHalalas: number;
   memoLimit: number;
   chatLimit: number | null;
+  validityDays: number;
+  chatTurnsPerMemo: number;
+  uploadPagesPerMemo: number;
   courts: string[];
   word: boolean;
   caseManagement: boolean;
   letterhead: boolean;
-  seats: number;
 }
 
 const BASIC_COURTS: CourtType[] = ["general", "labor", "personal_status", "criminal"];
 const SA = JURISDICTION_CATALOG[DEFAULT_JURISDICTION];
 
-export const PLAN_DEFS: Record<PlanCode, PlanDef> = {
-  free: {
-    code: "free",
+function published(code: PlanCode, courts: string[], word: boolean, caseManagement: boolean): PlanDef {
+  const row = PUBLISHED_PLANS[code];
+  return {
+    code,
     jurisdiction: DEFAULT_JURISDICTION,
     currency: SA.currency,
-    priceHalalas: PUBLISHED_PLANS.free.priceHalalas,
-    memoLimit: PUBLISHED_PLANS.free.memoLimit,
-    chatLimit: PUBLISHED_PLANS.free.chatLimit,
-    courts: ["general", "labor"],
-    word: false,
-    caseManagement: false,
+    priceHalalas: row.priceHalalas,
+    memoLimit: row.memoLimit,
+    chatLimit: row.chatLimit,
+    validityDays: row.validityDays,
+    chatTurnsPerMemo: FAIR_USE_CHAT_TURNS,
+    uploadPagesPerMemo: FAIR_USE_UPLOAD_PAGES,
+    courts,
+    word,
+    caseManagement,
     letterhead: false,
-    seats: PUBLISHED_PLANS.free.seats,
-  },
-  basic: {
-    code: "basic",
-    jurisdiction: DEFAULT_JURISDICTION,
-    currency: SA.currency,
-    priceHalalas: PUBLISHED_PLANS.basic.priceHalalas,
-    memoLimit: PUBLISHED_PLANS.basic.memoLimit,
-    chatLimit: PUBLISHED_PLANS.basic.chatLimit,
-    courts: BASIC_COURTS,
-    word: false,
-    caseManagement: false,
-    letterhead: false,
-    seats: PUBLISHED_PLANS.basic.seats,
-  },
-  pro: {
-    code: "pro",
-    jurisdiction: DEFAULT_JURISDICTION,
-    currency: SA.currency,
-    priceHalalas: PUBLISHED_PLANS.pro.priceHalalas,
-    memoLimit: PUBLISHED_PLANS.pro.memoLimit,
-    chatLimit: PUBLISHED_PLANS.pro.chatLimit,
-    courts: [...COURTS],
-    word: true,
-    caseManagement: true,
-    letterhead: false,
-    seats: PUBLISHED_PLANS.pro.seats,
-  },
-  office: {
-    code: "office",
-    jurisdiction: DEFAULT_JURISDICTION,
-    currency: SA.currency,
-    priceHalalas: PUBLISHED_PLANS.office.priceHalalas,
-    memoLimit: PUBLISHED_PLANS.office.memoLimit,
-    chatLimit: PUBLISHED_PLANS.office.chatLimit,
-    courts: [...COURTS],
-    word: true,
-    caseManagement: true,
-    letterhead: true,
-    seats: PUBLISHED_PLANS.office.seats,
-  },
-};
-
-export function yearlyHalalas(monthly: number): number {
-  return monthly * 12;
+  };
 }
+
+export const PLAN_DEFS: Record<PlanCode, PlanDef> = {
+  free: published("free", ["general", "labor"], false, true),
+  basic: published("basic", BASIC_COURTS, false, true),
+  pro: published("pro", [...COURTS], true, true),
+};
 
 export function resolvePlan(
   code: PlanCode,
-  override?: { priceHalalas: number; memoLimit: number; chatLimit: number | null; currency?: string; courts?: string[] } | null,
+  override?: { priceHalalas: number; memoLimit: number; chatLimit: number | null; currency?: string; courts?: string[]; validityDays?: number } | null,
 ): PlanDef {
   const base = PLAN_DEFS[code];
   if (!override) return base;
@@ -89,6 +57,7 @@ export function resolvePlan(
     chatLimit: override.chatLimit,
     currency: override.currency || base.currency,
     courts: override.courts && override.courts.length > 0 ? override.courts : base.courts,
+    validityDays: override.validityDays ?? base.validityDays,
   };
 }
 

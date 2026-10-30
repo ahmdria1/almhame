@@ -1,4 +1,4 @@
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { RELEASE_MARK, RELEASE_OWNER } from "@elawyer/types";
 import { AlignmentType, Document, Packer, Paragraph, TextRun } from "docx";
 import fontkit from "@pdf-lib/fontkit";
@@ -9,6 +9,11 @@ import path from "path";
 export function fontFile(configured: string): string {
   if (configured) return configured;
   return path.resolve(__dirname, "../../../assets/fonts/Cairo-Variable.ttf");
+}
+
+export function memoFontFile(): string {
+  const candidate = path.resolve(__dirname, "../../../assets/fonts/NotoSansArabic-Memo.ttf");
+  return existsSync(candidate) ? candidate : "";
 }
 
 function escapeHtml(value: string): string {
@@ -52,6 +57,8 @@ export async function renderPdf(input: {
   letterhead?: string;
 }): Promise<Buffer> {
   const font = readFileSync(input.fontPath).toString("base64");
+  const memoPath = memoFontFile();
+  const memoFont = memoPath ? readFileSync(memoPath).toString("base64") : font;
   const paragraphs = `${input.letterhead ? `${input.letterhead}\n` : ""}${input.body}`
     .split("\n")
     .map((line) => `<p>${escapeHtml(line) || "&nbsp;"}</p>`)
@@ -62,10 +69,11 @@ export async function renderPdf(input: {
 <meta charset="utf-8" />
 <style>
 @font-face { font-family: Cairo; src: url("data:font/ttf;base64,${font}") format("truetype"); font-weight: 200 900; }
+@font-face { font-family: Memo; src: url("data:font/ttf;base64,${memoFont}") format("truetype"); font-weight: 400; }
 html, body { margin: 0; padding: 0; }
-body { font-family: Cairo, sans-serif; color: #0f1f3d; font-size: 16px; line-height: 1.85; font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0, "rlig" 0, "rclt" 0; }
+body { font-family: Memo, Cairo, sans-serif; color: #0f1f3d; font-size: 16px; line-height: 1.85; font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0, "rlig" 0, "rclt" 0; }
 main { padding: 8mm 4mm; }
-h1 { font-size: 28px; margin: 0 0 12px; }
+h1 { font-family: Cairo, sans-serif; font-size: 28px; margin: 0 0 12px; }
 p { margin: 0 0 6px; }
 </style>
 </head>
@@ -95,7 +103,7 @@ ${paragraphs}
     document.setAuthor(RELEASE_OWNER);
     document.setCreator(RELEASE_MARK);
     document.setProducer(RELEASE_MARK);
-    await stampLogicalText(document, input.fontPath, input.title, `${input.letterhead ? `${input.letterhead}\n` : ""}${input.body}`);
+    await stampLogicalText(document, memoPath || input.fontPath, input.title, `${input.letterhead ? `${input.letterhead}\n` : ""}${input.body}`);
     return Buffer.from(await document.save());
   } finally {
     await browser.close();
@@ -115,7 +123,7 @@ export async function renderDocx(input: { title: string; body: string; letterhea
         new Paragraph({
           bidirectional: true,
           alignment: AlignmentType.RIGHT,
-          children: [new TextRun({ text: line || " ", font: "Cairo", size: 24, rightToLeft: true })],
+          children: [new TextRun({ text: line || " ", font: "Noto Sans Arabic", size: 24, rightToLeft: true })],
         }),
     ),
   ];

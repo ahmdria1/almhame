@@ -10,7 +10,7 @@ const colors = {
   teal100: "#E1F2F5",
   slate900: "#1E293B",
   slate700: "#334155",
-  slate500: "#64748B",
+  slate500: "#475569",
   slate400: "#94A3B8",
   slate300: "#CBD5E1",
   slate200: "#E2E8F0",
@@ -19,8 +19,8 @@ const colors = {
   white: "#FFFFFF",
   success: "#1E7B50",
   successSoft: "#E4F4EB",
-  warning: "#9A6700",
-  warningSoft: "#FFF8EB",
+  warning: "#334155",
+  warningSoft: "#F1F5F9",
   danger: "#B42318",
   dangerSoft: "#FDEAE7",
   info: "#1D5FA8",
@@ -36,7 +36,17 @@ const fontSize = {
   bodyL: ["18px", { lineHeight: "32px", fontWeight: "400" }],
   body: ["16px", { lineHeight: "29px", fontWeight: "400" }],
   label: ["14px", { lineHeight: "22px", fontWeight: "600" }],
-  caption: ["13px", { lineHeight: "21px", fontWeight: "400" }],
+  caption: ["14px", { lineHeight: "22px", fontWeight: "400" }],
 };
 
-module.exports = { colors, fontSize };
+const fonts = {
+  ui: "Cairo",
+  memo: "Noto Sans Arabic",
+};
+
+const rangeMeter = {
+  from: "#17345F",
+  to: "#1F7A8C",
+};
+
+module.exports = { colors, fontSize, fonts, rangeMeter };

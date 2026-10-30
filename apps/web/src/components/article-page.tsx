@@ -12,8 +12,8 @@ function sar(halalas: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }
 
-const PLAN_KEY = { free: "plans.freeName", basic: "plans.basicName", pro: "plans.proName", office: "plans.officeName" } as const;
-const PLAN_DESC = { free: "plans.freeDesc", basic: "plans.basicDesc", pro: "plans.proDesc", office: "plans.officeDesc" } as const;
+const PLAN_KEY = { free: "plans.freeName", basic: "plans.basicName", pro: "plans.proName" } as const;
+const PLAN_DESC = { free: "plans.freeDesc", basic: "plans.basicDesc", pro: "plans.proDesc" } as const;
 
 export function ArticlePage({ locale, page }: { locale: Locale; page: Exclude<PageRef, { kind: "home" }> }) {
   const copy = pageCopy(locale, page);
@@ -104,7 +104,6 @@ function PlanList({ locale }: { locale: Locale }) {
             <p className="mt-2 text-sm leading-7 text-ink-700">{t(PLAN_DESC[code])}</p>
             <p className="mt-2 text-sm text-ink-700">{t("plans.memos", { count: plan.memoLimit })}</p>
             <p className="text-sm text-ink-700">{plan.chatLimit == null ? COPY.unlimited[locale] : t("plans.chats", { count: plan.chatLimit })}</p>
-            {plan.seats > 1 ? <p className="text-sm text-ink-700">{COPY.seats[locale].replaceAll("{count}", String(plan.seats))}</p> : null}
           </section>
         );
       })}

@@ -10,7 +10,6 @@ const PLAN_NAME: Record<(typeof PLAN_CODES)[number], string> = {
   free: "plans.freeName",
   basic: "plans.basicName",
   pro: "plans.proName",
-  office: "plans.officeName",
 };
 
 function price(halalas: number): string {

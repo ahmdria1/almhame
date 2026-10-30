@@ -28,6 +28,8 @@ export default function SignupPage() {
         email,
         password: String(form.get("password") || ""),
         consent: form.get("consent") === "on",
+        notPracticingLawyer: form.get("notLawyer") === "on",
+        ...(String(form.get("nationalId") || "").trim() ? { nationalId: String(form.get("nationalId") || "").trim() } : {}),
       });
       router.push(`/otp?challenge=${result.challengeId}&email=${encodeURIComponent(email)}`);
     } catch (err) {
@@ -46,6 +48,11 @@ export default function SignupPage() {
         <label className="text-sm font-semibold">{t("auth.phone")}<Input data-testid="signup-phone" name="phone" required className="mt-1" placeholder="05xxxxxxxx" /></label>
         <label className="text-sm font-semibold">{t("auth.email")}<Input data-testid="signup-email" name="email" type="email" required className="mt-1" /></label>
         <label className="text-sm font-semibold">{t("auth.password")}<Input data-testid="signup-password" name="password" type="password" required minLength={8} className="mt-1" /></label>
+        <label className="flex items-start gap-2 text-sm leading-6 text-ink-700">
+          <input data-testid="signup-not-lawyer" name="notLawyer" type="checkbox" required className="mt-1" />
+          {t("auth.notLawyer")}
+        </label>
+        <label className="text-sm font-semibold">{t("auth.nationalId")}<Input name="nationalId" className="mt-1" inputMode="numeric" /></label>
         <label className="flex items-start gap-2 text-sm leading-6 text-ink-700">
           <input data-testid="signup-consent" name="consent" type="checkbox" required className="mt-1" />
           {t("auth.consent")}{" "}

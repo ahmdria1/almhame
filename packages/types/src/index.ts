@@ -1,3 +1,17 @@
+export { composerBox, composerKeyAction } from "./composer";
+
+export {
+  NOTICE_CUES,
+  noticeChannelId,
+  noticeCue,
+  shouldPlayNotice,
+  soundTier,
+  type NoticeCue,
+  type NoticePriority,
+  type NoticeSoundMode,
+  type SoundTier,
+} from "./notices";
+
 export const RELEASE_OWNER = "Ahmed Alamrani";
 export const RELEASE_MARK = "AALMR-ELW-7F3C";
 
@@ -18,8 +32,18 @@ export type CourtType = (typeof COURTS)[number];
 export const MEMO_TYPES = ["lawsuit", "defense", "reply", "appeal"] as const;
 export type MemoType = (typeof MEMO_TYPES)[number];
 
-export const PLAN_CODES = ["free", "basic", "pro", "office"] as const;
+export const PLAN_CODES = ["free", "basic", "pro"] as const;
 export type PlanCode = (typeof PLAN_CODES)[number];
+
+export const SOUND_MODES = ["all", "urgent", "off"] as const;
+export type SoundMode = (typeof SOUND_MODES)[number];
+
+export const HEARING_KINDS = ["hearing", "objection_deadline", "appeal_deadline"] as const;
+export type HearingKind = (typeof HEARING_KINDS)[number];
+
+export const FAIR_USE_CHAT_TURNS = 10;
+export const FAIR_USE_UPLOAD_PAGES = 30;
+export const PLAN_VALIDITY_DAYS = 30;
 
 export const DEFAULT_JURISDICTION = "SA" as const;
 
@@ -34,16 +58,15 @@ export function jurisdictionOf(code: string | null | undefined) {
   return JURISDICTION_CATALOG[DEFAULT_JURISDICTION];
 }
 
-export const PAY_PER_MEMO_HALALAS = 2900;
+export const PAY_PER_MEMO_HALALAS = 900;
 
 export const PUBLISHED_PLANS: Record<
   PlanCode,
-  { priceHalalas: number; memoLimit: number; chatLimit: number | null; seats: number }
+  { priceHalalas: number; memoLimit: number; chatLimit: number | null; validityDays: number }
 > = {
-  free: { priceHalalas: 0, memoLimit: 5, chatLimit: 5, seats: 1 },
-  basic: { priceHalalas: 9900, memoLimit: 30, chatLimit: null, seats: 1 },
-  pro: { priceHalalas: 24900, memoLimit: 100, chatLimit: null, seats: 1 },
-  office: { priceHalalas: 59900, memoLimit: 100, chatLimit: null, seats: 5 },
+  free: { priceHalalas: 0, memoLimit: 1, chatLimit: null, validityDays: 0 },
+  basic: { priceHalalas: 3900, memoLimit: 15, chatLimit: null, validityDays: PLAN_VALIDITY_DAYS },
+  pro: { priceHalalas: 11900, memoLimit: 50, chatLimit: null, validityDays: PLAN_VALIDITY_DAYS },
 };
 
 export const LOCALES = [
@@ -76,8 +99,9 @@ export interface SessionUser {
   memoCountPeriod: number;
   memoLimit: number;
   memoRemaining: number;
-  planRenewsAt: string | null;
+  planExpiresAt: string | null;
   notifyHearings: boolean;
+  soundMode: SoundMode;
   orgId: string | null;
   orgRole: string | null;
   features: {
@@ -85,7 +109,7 @@ export interface SessionUser {
     caseManagement: boolean;
     letterhead: boolean;
     courts: CourtType[];
-    seats: number;
+    deadlines: boolean;
   };
 }
 
@@ -94,15 +118,18 @@ export interface PlanOffer {
   jurisdiction: JurisdictionCode;
   currency: string;
   priceHalalas: number;
-  yearlyHalalas: number;
   memoLimit: number;
   chatLimit: number | null;
+  chatTurnsPerMemo: number;
+  uploadPagesPerMemo: number;
+  validityDays: number;
   courts: CourtType[];
   word: boolean;
   caseManagement: boolean;
   letterhead: boolean;
-  seats: number;
   payPerMemoHalalas: number;
+  oneTime: true;
+  autoRenew: false;
 }
 
 export interface CitationView {
@@ -118,18 +145,56 @@ export interface CitationView {
   lawName?: string;
 }
 
+export interface HearingPrepItem {
+  questionAr: string;
+  questionClient: string;
+  answerAr: string;
+  answerClient: string;
+}
+
+export interface HearingPrepView {
+  items: HearingPrepItem[];
+  interpreterTipAr: string;
+  interpreterTipClient: string;
+  disclaimer: string;
+}
+
+export interface MemoSummaryView {
+  locale: string;
+  text: string;
+  notice: string;
+}
+
 export interface MemoView {
   id: string;
   title: string;
   court: CourtType;
   memoType: MemoType;
   body: string;
+  summary: MemoSummaryView | null;
+  hearingPrep: HearingPrepView | null;
   status: string;
   flagged: boolean;
   caseId: string | null;
   chatId: string | null;
   updatedAt: string;
   citations: CitationView[];
+}
+
+export interface AssessmentView {
+  id: string;
+  court: string;
+  locale: string;
+  caseType: string;
+  strengths: string[];
+  weaknesses: string[];
+  missingDocuments: string[];
+  recommendedPath: string;
+  successLow: number;
+  successHigh: number;
+  reasons: string[];
+  disclaimer: string;
+  createdAt: string;
 }
 
 export interface ChatSummary {

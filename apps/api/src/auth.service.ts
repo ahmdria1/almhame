@@ -1,9 +1,10 @@
 import { DEFAULT_JURISDICTION, JURISDICTION_CATALOG, jurisdictionOf } from "@elawyer/types";
 import { createHash, randomBytes } from "crypto";
-import { Injectable } from "@nestjs/common";
+import { HttpException, Injectable } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
-import { generateDek, wrapKey } from "./domain/envelope";
+import { encryptString, generateDek, wrapKey } from "./domain/envelope";
+import { lawyerCheckerFrom, nationalIdShape, normalizeNationalId } from "./domain/lawyer-check";
 import { generateOtpCode, hashOtp, isPhone, normalizePhone, otpMatches } from "./domain/otp";
 import { debugCodeResponseEnabled } from "./config";
 import { fail } from "./http-error";
@@ -18,12 +19,16 @@ export class AuthService {
     private readonly jwt: JwtService,
   ) {}
 
-  async signup(input: { name: string; phone: string; email: string; password: string; consent: boolean }) {
+  async signup(input: { name: string; phone: string; email: string; password: string; consent: boolean; notPracticingLawyer: boolean; nationalId?: string }) {
     if (input.consent !== true) fail("CONSENT_REQUIRED", 400, "Consent is required");
+    if (input.notPracticingLawyer !== true) fail("LAWYER_DECLARATION", 400, "Confirm you are not a practicing lawyer");
     const phone = normalizePhone(input.phone);
     const email = input.email.trim().toLowerCase();
     this.assertPassword(input.password);
     if (!isPhone(phone)) fail("VALIDATION", 400, "Enter a valid mobile number");
+    const nationalId = normalizeNationalId(input.nationalId);
+    if (input.nationalId && !nationalIdShape(nationalId)) fail("VALIDATION", 400, "National ID must be 10 digits");
+    await screenLayperson(this.kernel.config, { name: input.name, phone, email, nationalId });
     const existing = await this.kernel.prisma.user.findFirst({ where: { OR: [{ phone }, { email }] } });
     if (existing) fail("ACCOUNT_EXISTS", 409, "An account already uses this mobile or email");
     const dek = generateDek();
@@ -35,6 +40,8 @@ export class AuthService {
         passwordHash: await bcrypt.hash(input.password, 10),
         consentAt: new Date(),
         consentVersion: this.kernel.config.consentVersion,
+        notLawyerDeclaredAt: new Date(),
+        nationalIdEnc: nationalId ? encryptString(nationalId, dek) : null,
         jurisdiction: DEFAULT_JURISDICTION,
         wrappedDataKey: wrapKey(dek, this.kernel.master),
         wallet: { create: { balanceHalalas: 0, currency: JURISDICTION_CATALOG[DEFAULT_JURISDICTION].currency } },
@@ -212,6 +219,31 @@ export class AuthService {
     }
     await this.kernel.prisma.otpChallenge.update({ where: { id: challenge.id }, data: { consumedAt: new Date() } });
     return challenge;
+  }
+}
+
+export async function screenLayperson(
+  config: { najizBaseUrl: string; najizClientId: string; najizClientSecret: string; najizTokenPath: string; najizLicensePath: string; najizMockBlockIds: string[] },
+  input: { name: string; phone: string; email: string; nationalId?: string },
+) {
+  const checker = lawyerCheckerFrom({
+    baseUrl: config.najizBaseUrl,
+    clientId: config.najizClientId,
+    clientSecret: config.najizClientSecret,
+    tokenPath: config.najizTokenPath,
+    licensePath: config.najizLicensePath,
+    mockBlockIds: config.najizMockBlockIds,
+  });
+  const nationalId = normalizeNationalId(input.nationalId);
+  if (checker.mode === "najiz" && !nationalIdShape(nationalId)) {
+    fail("NATIONAL_ID_REQUIRED", 400, "A national ID is required for the license check");
+  }
+  try {
+    const result = await checker.check({ ...input, nationalId });
+    if (result.practicingLawyer) fail("LAWYER_BLOCKED", 403, "Practicing lawyers cannot use this service");
+  } catch (error) {
+    if (error instanceof HttpException) throw error;
+    fail("LAWYER_CHECK_UNAVAILABLE", 503, "The license check is unavailable");
   }
 }
 

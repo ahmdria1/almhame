@@ -127,7 +127,6 @@ describe("public SEO", () => {
         (PUBLISHED_PLANS.free.priceHalalas / 100).toFixed(2),
         (PUBLISHED_PLANS.basic.priceHalalas / 100).toFixed(2),
         (PUBLISHED_PLANS.pro.priceHalalas / 100).toFixed(2),
-        (PUBLISHED_PLANS.office.priceHalalas / 100).toFixed(2),
       ]);
       const pricing = jsonLdFor(locale, { kind: "top", id: "pricing" });
       const priced = pricing["@graph"].find((node) => node["@type"] === "SoftwareApplication");

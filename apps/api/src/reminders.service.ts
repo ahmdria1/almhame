@@ -1,6 +1,9 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { Queue, Worker } from "bullmq";
+import { asLocale } from "./domain/client-lang";
+import { clientCopy } from "./domain/client-copy";
 import { Kernel } from "./kernel";
+import { sendNoticeMail } from "./mail";
 
 @Injectable()
 export class ReminderService implements OnModuleInit, OnModuleDestroy {
@@ -49,8 +52,18 @@ export class ReminderService implements OnModuleInit, OnModuleDestroy {
       where: { id: hearingId, remindedAt: null },
       data: { remindedAt: new Date() },
     });
-    if (updated.count === 0) return;
-    await this.kernel.prisma.notification.create({ data: { userId: hearing.userId, hearingId } });
+    if (updated.count === 0 || !user) return;
+    const soon = hearing.occursAt.getTime() - Date.now() <= 48 * 3600 * 1000;
+    const priority = hearing.kind === "hearing" && !soon ? "normal" : "urgent";
+    const copy = clientCopy(asLocale(user.locale));
+    const title = hearing.kind === "hearing" ? copy.hearingSoon : copy.deadlineSoon;
+    const dek = this.kernel.dekOf(user.wrappedDataKey);
+    await this.kernel.prisma.notification.create({
+      data: { userId: hearing.userId, hearingId, kind: "hearing", priority, titleEnc: this.kernel.enc(dek, title) },
+    });
+    if (user.email) {
+      await sendNoticeMail(this.kernel.config, { to: user.email, subject: title.slice(0, 80), text: title, purpose: `deadline_${hearing.kind}` });
+    }
   }
 
   async sweep() {

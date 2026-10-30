@@ -10,7 +10,7 @@ export const colors = {
   teal100: "#E1F2F5",
   slate900: "#1E293B",
   slate700: "#334155",
-  slate500: "#64748B",
+  slate500: "#475569",
   slate400: "#94A3B8",
   slate300: "#CBD5E1",
   slate200: "#E2E8F0",
@@ -19,8 +19,8 @@ export const colors = {
   white: "#FFFFFF",
   success: "#1E7B50",
   successSoft: "#E4F4EB",
-  warning: "#9A6700",
-  warningSoft: "#FFF8EB",
+  warning: "#334155",
+  warningSoft: "#F1F5F9",
   danger: "#B42318",
   dangerSoft: "#FDEAE7",
   info: "#1D5FA8",
@@ -36,5 +36,15 @@ export const typeScale = {
   bodyL: { size: 18, line: 32, weight: 400 },
   body: { size: 16, line: 29, weight: 400 },
   label: { size: 14, line: 22, weight: 600 },
-  caption: { size: 13, line: 21, weight: 400 },
+  caption: { size: 14, line: 22, weight: 400 },
+} as const;
+
+export const fonts = {
+  ui: "Cairo",
+  memo: "Noto Sans Arabic",
+} as const;
+
+export const rangeMeter = {
+  from: "#17345F",
+  to: "#1F7A8C",
 } as const;

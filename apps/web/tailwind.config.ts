@@ -17,7 +17,16 @@ const config: Config = {
         danger: { DEFAULT: tokens.colors.danger, soft: tokens.colors.dangerSoft },
         info: { DEFAULT: tokens.colors.info, soft: tokens.colors.infoSoft },
       },
-      fontFamily: { cairo: ["Cairo", "sans-serif"] },
+      fontFamily: {
+        cairo: [tokens.fonts.ui, "sans-serif"],
+        memo: [tokens.fonts.memo, tokens.fonts.ui, "sans-serif"],
+      },
+      fontSize: {
+        xs: tokens.fontSize.caption,
+        sm: tokens.fontSize.caption,
+        base: tokens.fontSize.body,
+        lg: tokens.fontSize.bodyL,
+      },
       boxShadow: { card: "0 12px 40px rgba(15, 31, 61, 0.06)" },
     },
   },

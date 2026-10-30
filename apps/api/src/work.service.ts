@@ -6,19 +6,27 @@ import path from "path";
 import { promisify } from "util";
 import { Injectable } from "@nestjs/common";
 import { IntegrationProvider, MemoType, Prisma, User } from "@prisma/client";
-import { jurisdictionOf, type CourtType as Court, type MemoType as MemoKind } from "@elawyer/types";
+import { jurisdictionOf, noticeCue, soundTier, type CourtType as Court, type MemoType as MemoKind, type NoticePriority, type SoundMode } from "@elawyer/types";
 import { CorpusService } from "./corpus.service";
 import { InfectedUpload, scanInstream } from "./domain/clamd";
 import { knownArticle, textHash, validateCitations, type CitationRef } from "./domain/citations";
 import { composeDraft, readSlots } from "./domain/draft";
-import { decryptBytes, encryptBytes, generateDek, wrapKey } from "./domain/envelope";
+import { decryptBytes, encryptBytes } from "./domain/envelope";
 import { halalasToSar, nextInvoiceNumber, splitVatInclusive, zatcaQrBase64 } from "./domain/invoice";
-import { isPhone, normalizePhone } from "./domain/otp";
+import { buildAssessment } from "./domain/assessment";
+import { asLocale, detectClientLanguage } from "./domain/client-lang";
+import { clientCopy } from "./domain/client-copy";
+import { pagesAllowed, turnsAllowed, withinDailyCap } from "./domain/fair-use";
+import { arabicFacts, MEMO_DISCLAIMER, preservedTokens } from "./domain/facts";
+import { buildHearingPrep, plainSummary } from "./domain/hearing-prep";
 import { chatQuota, chatsCounted, courtAllowed, memoQuota } from "./domain/plans";
+import { draftingSystemPrompt } from "./domain/prompts";
 import { signSandbox } from "./domain/payments";
 import { inspectPdf, kindFromMime, MAX_UPLOAD_BYTES, reencodeImage, sanitizeFilename, sniffUpload, takeUploadSlot } from "./domain/uploads";
+import { MAX_VOICE_BYTES, mockTranscript, sniffAudio, transcribeRemote } from "./domain/voice";
 import { fail } from "./http-error";
 import { Kernel } from "./kernel";
+import { sendNoticeMail } from "./mail";
 import { presentUser } from "./present";
 import { ReminderService } from "./reminders.service";
 import { fontFile, renderDocx, renderPdf } from "./render";
@@ -40,12 +48,13 @@ export class WorkService {
     return presentUser(user, await this.kernel.plan(user.planCode, jurisdictionOf(user.jurisdiction).code));
   }
 
-  async updateAccount(userId: string, input: { name?: string; locale?: string; theme?: string; notifyHearings?: boolean }) {
+  async updateAccount(userId: string, input: { name?: string; locale?: string; theme?: string; notifyHearings?: boolean; soundMode?: SoundMode }) {
     const data: Prisma.UserUpdateInput = {};
     if (input.name) data.name = input.name.trim().slice(0, 80);
     if (input.locale) data.locale = input.locale.slice(0, 8);
     if (input.theme === "light" || input.theme === "dark") data.theme = input.theme;
     if (typeof input.notifyHearings === "boolean") data.notifyHearings = input.notifyHearings;
+    if (input.soundMode === "all" || input.soundMode === "urgent" || input.soundMode === "off") data.soundMode = input.soundMode;
     const user = await this.kernel.prisma.user.update({ where: { id: userId }, data });
     return presentUser(user, await this.kernel.plan(user.planCode, jurisdictionOf(user.jurisdiction).code));
   }
@@ -198,6 +207,11 @@ export class WorkService {
     const user = await this.fresh(userId);
     const dek = this.kernel.dekOf(user.wrappedDataKey);
     const chat = await this.ownedChat(userId, chatId);
+    const priorTurns = await this.kernel.prisma.message.count({ where: { chatId, role: "user" } });
+    if (!turnsAllowed(priorTurns, this.kernel.config.fairUseChatTurns)) {
+      fail("QUOTA_TURNS", 402, "This memo has used its chat turns");
+    }
+    const locale = detectClientLanguage(clean, user.locale);
     const userMessage = await this.kernel.prisma.message.create({
       data: { chatId, userId, role: "user", contentEnc: this.kernel.enc(dek, clean) },
     });
@@ -207,10 +221,18 @@ export class WorkService {
     });
     const texts = history.map((message) => this.kernel.dec(dek, message.contentEnc));
     const slots = readSlots(texts);
-    if (slots.ready) {
-      const gap = await this.corpus.governingGap(chat.court, jurisdictionOf(chat.jurisdiction).code);
-      if (gap) slots.question = `${slots.question}\n${gap}`;
+    const copy = clientCopy(locale);
+    let ready = slots.ready;
+    if (locale !== "ar") {
+      const joined = texts.join("\n").trim();
+      ready = joined.length >= 30;
+      slots.question = ready ? copy.ready : joined.length < 30 ? copy.askFacts : copy.askParty;
     }
+    if (ready) {
+      const gap = await this.corpus.governingGap(chat.court, jurisdictionOf(chat.jurisdiction).code);
+      if (gap) slots.question = locale === "ar" ? `${slots.question}\n${gap}` : `${slots.question}\n${copy.gap}`;
+    }
+    await this.kernel.prisma.chat.update({ where: { id: chatId }, data: { clientLocale: locale } });
     if (chat.caseId) {
       await this.kernel.prisma.caseFile.update({
         where: { id: chat.caseId },
@@ -230,10 +252,40 @@ export class WorkService {
       data: { chatId, userId, role: "counsel", contentEnc: this.kernel.enc(dek, slots.question) },
     });
     return {
-      readyToDraft: slots.ready,
+      readyToDraft: ready,
       user: { id: userMessage.id, role: "user", content: clean, createdAt: userMessage.createdAt.toISOString() },
       counsel: { id: counsel.id, role: "counsel", content: slots.question, createdAt: counsel.createdAt.toISOString() },
     };
+  }
+
+  async voiceNote(userId: string, chatId: string, file: { buffer: Buffer; mimetype: string; originalname: string; size: number }) {
+    await this.ownedChat(userId, chatId);
+    if (!file?.buffer?.length || file.size > MAX_VOICE_BYTES || file.buffer.length > MAX_VOICE_BYTES) {
+      fail("FILE_TOO_LARGE", 422, "The recording is too large");
+    }
+    if (!sniffAudio(file.buffer)) fail("UNSUPPORTED_TYPE", 422, "Upload a voice recording");
+    await this.scanUpload(userId, file.buffer);
+    const transcript = await this.transcriptOf(file);
+    return this.sendMessage(userId, chatId, transcript);
+  }
+
+  private async transcriptOf(file: { buffer: Buffer; mimetype: string; originalname: string }) {
+    if (this.kernel.config.llmProvider !== "remote") return mockTranscript(file.buffer);
+    if (!this.kernel.config.modelBaseUrl || !this.kernel.config.modelApiKey) {
+      fail("MODEL_NOT_CONFIGURED", 503, "Transcription endpoint is not configured");
+    }
+    try {
+      return await transcribeRemote({
+        baseUrl: this.kernel.config.modelBaseUrl,
+        apiKey: this.kernel.config.modelApiKey,
+        model: this.kernel.config.modelName,
+        bytes: file.buffer,
+        filename: file.originalname || "note.webm",
+        mime: file.mimetype || "application/octet-stream",
+      });
+    } catch {
+      fail("MODEL_FAILED", 502, "The recording could not be transcribed");
+    }
   }
 
   async draft(userId: string, chatId: string, payPerMemo: boolean) {
@@ -244,10 +296,12 @@ export class WorkService {
     const texts = history.map((message) => this.kernel.dec(dek, message.contentEnc));
     const slots = readSlots(texts);
     if (texts.join("\n").trim().length < 30) fail("NEED_FACTS", 400, slots.question);
+    const locale = asLocale(chat.clientLocale || detectClientLanguage(texts.join("\n"), user.locale));
+    const rawFacts = texts.join("\n");
     const filled = {
       plaintiff: slots.plaintiff || "المذكور في الوقائع",
       defendant: slots.defendant || "المذكور في الوقائع",
-      facts: slots.facts.length >= 30 ? slots.facts : texts.join("\n"),
+      facts: locale === "ar" ? (slots.facts.length >= 30 ? slots.facts : rawFacts) : arabicFacts(rawFacts),
       requests: slots.requests || "الحكم وفق الوقائع، مع تحميل الرسوم على المدّعى عليه.",
     };
     const place = jurisdictionOf(chat.jurisdiction);
@@ -278,11 +332,15 @@ export class WorkService {
     const grounds = draftBody.body.includes("ثانيًا:") ? draftBody.body.slice(draftBody.body.indexOf("ثانيًا:")) : draftBody.body;
     const verdict = validateCitations(grounds, draftBody.citations, known);
     if (!verdict.ok) fail("CITATION_REJECTED", 422, verdict.unknown.join(","));
+    const body = `${draftBody.body}\n\n${MEMO_DISCLAIMER}`;
+    const summary = plainSummary(locale, preservedTokens(rawFacts));
+    const prep = buildHearingPrep(chat.memoType as MemoKind, locale);
     const memo = await this.kernel.prisma.$transaction(async (tx) => {
       const current = await tx.user.findUnique({ where: { id: userId } });
       if (!current) fail("NOT_FOUND", 404, "Account was not found");
       const quota = memoQuota(await this.kernel.plan(current.planCode, jurisdictionOf(current.jurisdiction).code), current.memoCountPeriod);
       if (!quota.ok) {
+        await this.remindPlan(current, "quota");
         if (!payPerMemo) fail("QUOTA_MEMOS", 402, "The memo quota has been reached");
         const price = this.kernel.config.payPerMemoHalalas;
         const wallet = await tx.wallet.update({
@@ -312,7 +370,8 @@ export class WorkService {
           court: chat.court,
           memoType: chat.memoType,
           titleEnc: this.kernel.enc(dek, draftBody.title),
-          bodyEnc: this.kernel.enc(dek, draftBody.body),
+          bodyEnc: this.kernel.enc(dek, body),
+          summaryEnc: this.kernel.enc(dek, JSON.stringify(summary)),
           citations: {
             create: draftBody.citations.map((citation) =>
               citation.kind === "article" ? { articleId: citation.id } : { shariaId: citation.id },
@@ -320,6 +379,7 @@ export class WorkService {
           },
         },
       });
+      await tx.hearingPrep.create({ data: { memoId: created.id, bodyEnc: this.kernel.enc(dek, JSON.stringify(prep)) } });
       return created;
     });
     return this.getMemo(userId, memo.id);
@@ -335,6 +395,8 @@ export class WorkService {
       court: memo.court,
       memoType: memo.memoType,
       body: "",
+      summary: null,
+      hearingPrep: null,
       status: memo.status,
       flagged: memo.flagged,
       caseId: memo.caseId,
@@ -352,12 +414,32 @@ export class WorkService {
       include: { citations: { include: { article: { include: { law: true } }, sharia: true } } },
     });
     if (!memo) fail("NOT_FOUND", 404, "Memo was not found");
+    const prepRow = await this.kernel.prisma.hearingPrep.findUnique({ where: { memoId: memo.id } });
+    const summaryRaw = memo.summaryEnc ? this.kernel.dec(dek, memo.summaryEnc) : "";
+    let summary = null;
+    if (summaryRaw) {
+      try {
+        summary = JSON.parse(summaryRaw) as { locale: string; text: string; notice: string };
+      } catch {
+        summary = null;
+      }
+    }
+    let hearingPrep = null;
+    if (prepRow) {
+      try {
+        hearingPrep = JSON.parse(this.kernel.dec(dek, prepRow.bodyEnc));
+      } catch {
+        hearingPrep = null;
+      }
+    }
     return {
       id: memo.id,
       title: this.kernel.dec(dek, memo.titleEnc),
       court: memo.court,
       memoType: memo.memoType,
       body: this.kernel.dec(dek, memo.bodyEnc),
+      summary,
+      hearingPrep,
       status: memo.status,
       flagged: memo.flagged,
       caseId: memo.caseId,
@@ -525,14 +607,25 @@ export class WorkService {
     const user = await this.fresh(userId);
     const dek = this.kernel.dekOf(user.wrappedDataKey);
     const rows = await this.kernel.prisma.notification.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, take: 30 });
+    const tier = soundTier(user.planCode, user.planExpiresAt);
     const items = [];
     for (const row of rows) {
-      let title = "تذكير بموعد محفوظ";
+      const priority: NoticePriority = row.priority === "urgent" ? "urgent" : "normal";
+      let title = row.titleEnc ? this.kernel.dec(dek, row.titleEnc) : "تذكير بموعد محفوظ";
       if (row.hearingId) {
         const hearing = await this.kernel.prisma.hearing.findFirst({ where: { id: row.hearingId, userId } });
         if (hearing) title = this.kernel.dec(dek, hearing.titleEnc);
       }
-      items.push({ id: row.id, hearingId: row.hearingId, title, readAt: row.readAt?.toISOString() || null, createdAt: row.createdAt.toISOString() });
+      items.push({
+        id: row.id,
+        hearingId: row.hearingId,
+        kind: row.kind,
+        priority,
+        sound: noticeCue(tier, priority),
+        title,
+        readAt: row.readAt?.toISOString() || null,
+        createdAt: row.createdAt.toISOString(),
+      });
     }
     return items;
   }
@@ -596,12 +689,14 @@ export class WorkService {
     if (!declared || sniffed !== declared) fail("UNSUPPORTED_TYPE", 422, "Upload a PDF or an image");
     let bytes = file.buffer;
     let mime = file.mimetype;
+    let pageCount = 1;
     if (sniffed === "pdf") {
       const pdf = inspectPdf(bytes);
       if ("reason" in pdf) {
         if (pdf.reason === "pages") fail("FILE_TOO_LARGE", 422, "The PDF has too many pages");
         fail("PDF_UNSAFE", 422, "The PDF was rejected");
       }
+      pageCount = pdf.pages;
     } else {
       try {
         bytes = await reencodeImage(bytes, sniffed);
@@ -617,6 +712,10 @@ export class WorkService {
     const dek = this.kernel.dekOf(user.wrappedDataKey);
     const caseFile = await this.kernel.prisma.caseFile.findFirst({ where: { id: caseId, userId } });
     if (!caseFile) fail("NOT_FOUND", 404, "Case was not found");
+    const usedPages = await this.kernel.prisma.document.aggregate({ where: { caseId }, _sum: { pageCount: true } });
+    if (!pagesAllowed(usedPages._sum.pageCount || 0, pageCount, this.kernel.config.fairUseUploadPages)) {
+      fail("QUOTA_PAGES", 422, "This memo has used its page allowance");
+    }
     const text = await readUploaded(mime, bytes);
     const doc = await this.kernel.prisma.document.create({
       data: {
@@ -625,6 +724,7 @@ export class WorkService {
         filename,
         mime,
         byteSize: bytes.length,
+        pageCount,
         storageKey: "pending",
         ocrEnc: text ? this.kernel.enc(dek, text) : null,
       },
@@ -670,15 +770,15 @@ export class WorkService {
     return { filename: doc.filename, mime: doc.mime, bytes };
   }
 
-  async addHearing(userId: string, caseId: string, input: { kind: "hearing" | "objection_deadline"; occursAt: string; title: string }) {
+  async addHearing(userId: string, caseId: string, input: { kind: "hearing" | "objection_deadline" | "appeal_deadline"; occursAt: string; title: string }) {
     const user = await this.fresh(userId);
-    if (!(await this.kernel.plan(user.planCode, jurisdictionOf(user.jurisdiction).code)).caseManagement) fail("FEATURE_CASES", 402, "Case dates are not included in the current plan");
     const dek = this.kernel.dekOf(user.wrappedDataKey);
     const caseFile = await this.kernel.prisma.caseFile.findFirst({ where: { id: caseId, userId } });
     if (!caseFile) fail("NOT_FOUND", 404, "Case was not found");
     const occursAt = new Date(input.occursAt);
     if (Number.isNaN(occursAt.getTime())) fail("VALIDATION", 400, "Date is invalid");
-    const reminderAt = new Date(occursAt.getTime() - 24 * 3600 * 1000);
+    const leadHours = input.kind === "hearing" ? 24 : 72;
+    const reminderAt = new Date(occursAt.getTime() - leadHours * 3600 * 1000);
     const hearing = await this.kernel.prisma.hearing.create({
       data: {
         userId,
@@ -838,45 +938,66 @@ export class WorkService {
   }
 
   async addMember(userId: string, input: { name: string; phone: string; email: string; consent: boolean }) {
-    if (input.consent !== true) fail("CONSENT_REQUIRED", 400, "The member's consent is required");
-    const owner = await this.fresh(userId);
-    if (owner.planCode !== "office" || !owner.orgId) fail("FEATURE_CASES", 402, "Seats are part of the chambers plan");
-    const used = await this.kernel.prisma.user.count({ where: { orgId: owner.orgId } });
-    const org = await this.kernel.prisma.organization.findUnique({ where: { id: owner.orgId } });
-    if (!org || used >= org.seatLimit) fail("SEATS_FULL", 402, "No seats are left");
-    const phone = normalizePhone(input.phone);
-    if (!isPhone(phone)) fail("VALIDATION", 400, "Enter a valid mobile number");
-    const email = input.email.trim().toLowerCase();
-    const dek = generateDek();
-    const member = await this.kernel.prisma.user.create({
-      data: {
-        name: input.name.trim(),
-        phone,
-        email,
-        consentAt: new Date(),
-        consentVersion: this.kernel.config.consentVersion,
-        wrappedDataKey: wrapKey(dek, this.kernel.master),
-        planCode: "office",
-        orgId: org.id,
-        orgRole: "member",
-        jurisdiction: owner.jurisdiction,
-        planRenewsAt: owner.planRenewsAt,
-        wallet: { create: { balanceHalalas: 0, currency: jurisdictionOf(owner.jurisdiction).currency } },
-      },
-    });
-    return { id: member.id };
+    if (!userId || input.consent !== true) fail("CONSENT_REQUIRED", 400, "The member's consent is required");
+    fail("FEATURE_REMOVED", 410, "Chamber seats are no longer offered");
   }
 
   private async fresh(userId: string) {
     const user = await this.kernel.prisma.user.findUnique({ where: { id: userId } });
     if (!user) fail("NOT_FOUND", 404, "Account was not found");
-    if (user.planCode !== "free" && user.planRenewsAt && user.planRenewsAt.getTime() < Date.now()) {
+    if (user.planCode !== "free" && user.planExpiresAt && user.planExpiresAt.getTime() < Date.now()) {
+      await this.remindPlan(user, "expiry");
       return this.kernel.prisma.user.update({
         where: { id: userId },
-        data: { planCode: "free", memoCountPeriod: 0, chatCountPeriod: 0, planRenewsAt: null },
+        data: { planCode: "free", memoCountPeriod: 0, chatCountPeriod: 0, planExpiresAt: null },
       });
     }
     return user;
+  }
+
+  private async remindPlan(user: { id: string; email: string; locale: string; planCode: string; periodStartedAt: Date; planExpiresAt: Date | null; planReminderKey: string | null; wrappedDataKey: string }, reason: "expiry" | "quota") {
+    const key = `${user.planCode}:${user.periodStartedAt.toISOString()}:${reason}`;
+    if (user.planReminderKey === key) return;
+    const text = clientCopy(asLocale(user.locale))[reason === "expiry" ? "planExpiry" : "planQuota"];
+    const dek = this.kernel.dekOf(user.wrappedDataKey);
+    await this.kernel.prisma.notification.create({
+      data: { userId: user.id, kind: "plan_reminder", priority: "normal", titleEnc: this.kernel.enc(dek, text) },
+    });
+    await sendNoticeMail(this.kernel.config, { to: user.email, subject: text.slice(0, 80), text, purpose: `plan_${reason}` });
+    await this.kernel.prisma.user.update({ where: { id: user.id }, data: { planReminderKey: key } });
+  }
+
+  async assess(userId: string, input: { facts: string; court?: string }) {
+    const facts = input.facts.trim();
+    if (facts.length < 20 || facts.length > 8000) fail("VALIDATION", 400, "Describe the facts in a short account");
+    const user = await this.fresh(userId);
+    const since = new Date();
+    since.setUTCHours(0, 0, 0, 0);
+    const used = await this.kernel.prisma.caseAssessment.count({ where: { userId, createdAt: { gte: since } } });
+    if (!withinDailyCap(used, this.kernel.config.assessmentDailyLimit)) {
+      fail("RATE_LIMIT", 429, "The daily assessment limit has been reached");
+    }
+    const locale = detectClientLanguage(facts, user.locale);
+    const result = buildAssessment(facts, locale);
+    const dek = this.kernel.dekOf(user.wrappedDataKey);
+    const row = await this.kernel.prisma.caseAssessment.create({
+      data: {
+        userId,
+        court: (input.court || "general").slice(0, 40),
+        factsEnc: this.kernel.enc(dek, facts),
+        resultEnc: this.kernel.enc(dek, JSON.stringify(result)),
+      },
+    });
+    return { assessment: { id: row.id, ...result, createdAt: row.createdAt.toISOString() } };
+  }
+
+  async getAssessment(userId: string, id: string) {
+    const user = await this.fresh(userId);
+    const row = await this.kernel.prisma.caseAssessment.findFirst({ where: { id, userId } });
+    if (!row) fail("NOT_FOUND", 404, "Assessment was not found");
+    const dek = this.kernel.dekOf(user.wrappedDataKey);
+    const result = JSON.parse(this.kernel.dec(dek, row.resultEnc)) as ReturnType<typeof buildAssessment>;
+    return { assessment: { id: row.id, ...result, createdAt: row.createdAt.toISOString() } };
   }
 
   private async ownedChat(userId: string, chatId: string) {
@@ -927,7 +1048,7 @@ export class WorkService {
         messages: [
           {
             role: "system",
-            content: `Rewrite the facts in formal Arabic. Do not introduce article numbers. Numbers already present may stay only if they are in this list: ${allowedNumbers.join(",") || "none"}. Return JSON {"facts":"..."}.`,
+            content: draftingSystemPrompt("ar", allowedNumbers),
           },
           { role: "user", content: facts },
         ],

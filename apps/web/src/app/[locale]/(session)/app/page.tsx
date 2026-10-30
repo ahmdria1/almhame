@@ -2,8 +2,8 @@
 
 import { ApiError } from "@elawyer/api-client";
 import { uploadErrorKey } from "@elawyer/i18n";
-import { COURTS, MEMO_TYPES, type CourtType, type MemoType } from "@elawyer/types";
-import { Paperclip, Scale, Send } from "lucide-react";
+import { composerBox, composerKeyAction, COURTS, MEMO_TYPES, type CourtType, type MemoType } from "@elawyer/types";
+import { Mic, Paperclip, Scale, Send, Square } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -29,7 +29,12 @@ export default function WorkspacePage() {
   const [quota, setQuota] = useState(false);
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [voicePhase, setVoicePhase] = useState<"idle" | "recording" | "sending">("idle");
   const fileRef = useRef<HTMLInputElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
   const [query, setQuery] = useState("");
 
   async function loadList(selectId?: string) {
@@ -66,14 +71,88 @@ export default function WorkspacePage() {
     }
   }
 
-  async function send() {
-    if (!active || !text.trim()) return;
-    const value = text;
+  function resizeComposer(node?: HTMLTextAreaElement | null) {
+    const el = node || composerRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const box = composerBox(el.scrollHeight, 3, 6, 24, 16);
+    el.style.height = `${box.height}px`;
+    el.style.overflowY = box.scroll ? "auto" : "hidden";
+  }
+
+  async function send(value = text) {
+    if (!active || !value.trim() || voicePhase === "sending") return;
     setText("");
+    resizeComposer();
     const result = await client.sendMessage(active, value);
     setMessages((current) => [...current, result.user, result.counsel]);
     const detail = await client.chat(active);
     setParties({ plaintiff: detail.caseFile?.plaintiff || "", defendant: detail.caseFile?.defendant || "" });
+  }
+
+  function stopMic() {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    recorderRef.current = null;
+    chunksRef.current = [];
+  }
+
+  async function startVoice() {
+    if (!active || voicePhase !== "idle") return;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError(t("workspace.voiceDenied"));
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const rec = new MediaRecorder(stream);
+      chunksRef.current = [];
+      rec.ondataavailable = (event) => {
+        if (event.data.size) chunksRef.current.push(event.data);
+      };
+      rec.start();
+      recorderRef.current = rec;
+      setVoicePhase("recording");
+      setError("");
+    } catch {
+      stopMic();
+      setError(t("workspace.voiceDenied"));
+    }
+  }
+
+  function cancelVoice() {
+    const rec = recorderRef.current;
+    if (rec && rec.state !== "inactive") rec.stop();
+    stopMic();
+    setVoicePhase("idle");
+  }
+
+  async function sendVoice() {
+    const rec = recorderRef.current;
+    if (!active || !rec) return;
+    setVoicePhase("sending");
+    setError("");
+    try {
+      const blob = await new Promise<Blob>((resolve) => {
+        rec.onstop = () => resolve(new Blob(chunksRef.current, { type: rec.mimeType || "audio/webm" }));
+        if (rec.state !== "inactive") rec.stop();
+        else resolve(new Blob(chunksRef.current, { type: rec.mimeType || "audio/webm" }));
+      });
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      recorderRef.current = null;
+      chunksRef.current = [];
+      const filename = blob.type.includes("mp4") ? "note.mp4" : "note.webm";
+      const file = new File([blob], filename, { type: blob.type || "audio/webm" });
+      const result = await client.sendVoice(active, file, filename);
+      setMessages((current) => [...current, result.user, result.counsel]);
+    } catch (err) {
+      const key = err instanceof ApiError ? uploadErrorKey(err.code) : null;
+      setError(key ? t(key) : t("workspace.voiceFailed"));
+    } finally {
+      setVoicePhase("idle");
+    }
   }
 
   async function attach(file: File) {
@@ -148,7 +227,8 @@ export default function WorkspacePage() {
             </div>
           ) : messages.map((message) => (
             <div key={message.id} className={message.role === "user" ? "ms-auto max-w-[80%] rounded-2xl bg-navy-700 px-4 py-3 text-sm leading-7 text-white" : "me-auto flex max-w-[80%] gap-2"}>
-              {message.role === "counsel" ? <span className="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-teal-100 text-teal-700"><Scale size={16} /></span> : null}
+              {message.role === "counsel" ? <span className="chip mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-full"><Scale size={16} /></span> : null}
+              {message.role === "counsel" ? <span className="sr-only">{t("common.assistant")}</span> : null}
               <p className={message.role === "counsel" ? "rounded-2xl border border-ink-200 bg-white px-4 py-3 text-sm leading-7 dark:border-white/10 dark:bg-navy-800" : ""}>{message.content}</p>
             </div>
           ))}
@@ -170,12 +250,47 @@ export default function WorkspacePage() {
               {COURTS.map((item) => <option key={item} value={item}>{t(`courts.${item}`)}</option>)}
             </select>
           </div>
-          <div className="flex gap-2">
-            <input data-testid="chat-input" value={text} onChange={(event) => setText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void send(); }} placeholder={t("workspace.placeholder")} className="h-12 flex-1 rounded-2xl border border-ink-200 bg-white px-4 outline-none dark:border-white/10 dark:bg-navy-800" />
-            <button aria-label={t("workspace.attach")} className="text-ink-400 disabled:opacity-40" type="button" disabled={uploading || !caseId} onClick={() => fileRef.current?.click()}><Paperclip size={18} /></button>
-            <button data-testid="chat-send" className="grid h-12 w-12 place-items-center rounded-full bg-navy-700 text-white" type="button" onClick={() => void send()}><Send size={18} /></button>
+          <div className="flex w-full flex-col gap-2">
+            {voicePhase === "recording" || voicePhase === "sending" ? (
+              <div className="flex min-h-[88px] w-full items-center rounded-2xl border border-ink-200 bg-white px-4 text-base text-ink-500 dark:border-white/10 dark:bg-navy-800" data-testid="voice-status">
+                {voicePhase === "sending" ? t("workspace.voiceSending") : t("workspace.voiceRecording")}
+              </div>
+            ) : (
+              <textarea
+                ref={composerRef}
+                data-testid="chat-input"
+                rows={3}
+                value={text}
+                placeholder={t("workspace.placeholder")}
+                onChange={(event) => {
+                  setText(event.target.value);
+                  resizeComposer(event.currentTarget);
+                }}
+                onKeyDown={(event) => {
+                  const action = composerKeyAction(event.key, event.shiftKey, event.nativeEvent.isComposing);
+                  if (action !== "send") return;
+                  event.preventDefault();
+                  void send();
+                }}
+                className="max-h-40 min-h-[88px] w-full resize-none rounded-2xl border border-ink-200 bg-white px-4 py-3 text-base leading-6 text-ink-900 outline-none dark:border-white/10 dark:bg-navy-800 dark:text-white"
+              />
+            )}
+            <div className="flex items-center gap-1">
+              <button aria-label={t("workspace.attach")} className="grid h-10 w-10 place-items-center rounded-full text-ink-400 disabled:opacity-40" type="button" disabled={uploading || !caseId || voicePhase !== "idle"} onClick={() => fileRef.current?.click()}><Paperclip size={18} /></button>
+              {voicePhase === "recording" ? (
+                <button data-testid="voice-cancel" aria-label={t("workspace.voiceCancel")} className="grid h-10 w-10 place-items-center rounded-full text-danger" type="button" onClick={cancelVoice}><Square size={16} /></button>
+              ) : (
+                <button data-testid="voice-start" aria-label={t("workspace.voice")} className="grid h-10 w-10 place-items-center rounded-full text-ink-500 disabled:opacity-40" type="button" disabled={!active || voicePhase === "sending"} onClick={() => void startVoice()}><Mic size={18} /></button>
+              )}
+              <span className="flex-1" />
+              {voicePhase === "recording" ? (
+                <button data-testid="voice-send" aria-label={t("workspace.voiceSend")} className="grid h-10 w-10 place-items-center rounded-full bg-navy-700 text-white" type="button" onClick={() => void sendVoice()}><Send size={18} /></button>
+              ) : (
+                <button data-testid="chat-send" aria-label={t("workspace.send")} className="grid h-10 w-10 place-items-center rounded-full bg-navy-700 text-white disabled:opacity-40" type="button" disabled={!text.trim() || voicePhase === "sending"} onClick={() => void send()}><Send size={18} /></button>
+              )}
+            </div>
           </div>
-          {uploading ? <p className="mt-2 text-xs text-ink-500">{t("workspace.uploading")}</p> : null}
+          {uploading ? <p className="mt-2 text-sm text-ink-500">{t("workspace.uploading")}</p> : null}
         </div>
       </section>
       <aside className="border-ink-200 p-4 lg:border-s dark:border-white/10">

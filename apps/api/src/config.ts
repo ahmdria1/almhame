@@ -1,4 +1,4 @@
-import { PAY_PER_MEMO_HALALAS } from "@elawyer/types";
+import { FAIR_USE_CHAT_TURNS, FAIR_USE_UPLOAD_PAGES, PAY_PER_MEMO_HALALAS } from "@elawyer/types";
 
 export interface AppConfig {
   databaseUrl: string;
@@ -62,6 +62,15 @@ export interface AppConfig {
   clamavHost: string;
   clamavPort: number;
   clamavRequired: boolean;
+  fairUseChatTurns: number;
+  fairUseUploadPages: number;
+  assessmentDailyLimit: number;
+  najizBaseUrl: string;
+  najizClientId: string;
+  najizClientSecret: string;
+  najizTokenPath: string;
+  najizLicensePath: string;
+  najizMockBlockIds: string[];
 }
 
 export const DEFAULT_SMTP_FROM = "no-reply@emuhami.com";
@@ -143,6 +152,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     clamavHost: (env.CLAMAV_HOST || "").trim(),
     clamavPort: Number(env.CLAMAV_PORT || 3310),
     clamavRequired: env.NODE_ENV === "production" || env.CLAMAV_REQUIRED === "true",
+    fairUseChatTurns: Number(env.FAIR_USE_CHAT_TURNS || FAIR_USE_CHAT_TURNS),
+    fairUseUploadPages: Number(env.FAIR_USE_UPLOAD_PAGES || FAIR_USE_UPLOAD_PAGES),
+    assessmentDailyLimit: Number(env.ASSESSMENT_DAILY_LIMIT || 24),
+    najizBaseUrl: env.NAJIZ_BASE_URL || "",
+    najizClientId: env.NAJIZ_CLIENT_ID || "",
+    najizClientSecret: env.NAJIZ_CLIENT_SECRET || "",
+    najizTokenPath: env.NAJIZ_TOKEN_PATH || "/oauth/v1/token",
+    najizLicensePath: env.NAJIZ_LICENSE_PATH || "/lawyers/v1/licenses",
+    najizMockBlockIds: (env.NAJIZ_MOCK_BLOCK_IDS || "").split(",").map((item) => item.trim()).filter(Boolean),
     corsOrigins: [
       ...new Set([
         webOrigin,

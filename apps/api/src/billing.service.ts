@@ -3,11 +3,13 @@ import { createHash, randomUUID } from "crypto";
 import { JURISDICTION_CATALOG, jurisdictionOf } from "@elawyer/types";
 import { PlanCode } from "@prisma/client";
 import { buildTrandata, decryptTrandata, encryptTrandata } from "./domain/alrajhi";
-import { PLAN_DEFS, yearlyHalalas } from "./domain/plans";
+import { PLAN_DEFS } from "./domain/plans";
 import { halalasToSar, nextInvoiceNumber, splitVatInclusive, zatcaQrBase64 } from "./domain/invoice";
 import { sandboxSignatureOk, signSandbox } from "./domain/payments";
 import { fail } from "./http-error";
+import { decryptString } from "./domain/envelope";
 import { Kernel } from "./kernel";
+import { screenLayperson } from "./auth.service";
 
 @Injectable()
 export class BillingService {
@@ -23,15 +25,18 @@ export class BillingService {
           jurisdiction: plan.jurisdiction,
           currency: plan.currency,
           priceHalalas: plan.priceHalalas,
-          yearlyHalalas: yearlyHalalas(plan.priceHalalas),
           memoLimit: plan.memoLimit,
           chatLimit: plan.chatLimit,
+          chatTurnsPerMemo: plan.chatTurnsPerMemo,
+          uploadPagesPerMemo: plan.uploadPagesPerMemo,
+          validityDays: plan.validityDays,
           courts: plan.courts,
           word: plan.word,
           caseManagement: plan.caseManagement,
           letterhead: plan.letterhead,
-          seats: plan.seats,
           payPerMemoHalalas: pay,
+          oneTime: true as const,
+          autoRenew: false as const,
         };
       }),
     );
@@ -55,9 +60,12 @@ export class BillingService {
     let planCode: PlanCode | null = null;
     const cycle = input.cycle || "monthly";
     if (input.purpose === "subscription") {
+      const nationalId = account.nationalIdEnc ? decryptString(account.nationalIdEnc, this.kernel.dekOf(account.wrappedDataKey)) : "";
+      await screenLayperson(this.kernel.config, { name: account.name, phone: account.phone, email: account.email, nationalId });
+      if (input.cycle === "yearly") fail("RECURRING_DISABLED", 400, "Plans are a one-time payment and do not renew");
       if (!input.planCode || input.planCode === "free") fail("VALIDATION", 400, "Choose a paid plan");
       const plan = await this.kernel.plan(input.planCode, place.code);
-      amount = cycle === "yearly" ? yearlyHalalas(plan.priceHalalas) : plan.priceHalalas;
+      amount = plan.priceHalalas;
       planCode = input.planCode;
     }
     if (!Number.isInteger(amount) || amount < 100) fail("VALIDATION", 400, "Amount is too small");
@@ -66,7 +74,7 @@ export class BillingService {
         userId,
         purpose: input.purpose,
         planCode: planCode ?? undefined,
-        cycle,
+        cycle: input.purpose === "subscription" ? "once" : cycle,
         amountHalalas: amount,
         jurisdiction: place.code,
         currency: place.currency,
@@ -218,11 +226,19 @@ export class BillingService {
             },
           });
         } else if (intent.planCode) {
-          const renews = new Date(issued);
-          renews.setUTCDate(renews.getUTCDate() + (intent.cycle === "yearly" ? 365 : 30));
+          const days = PLAN_DEFS[intent.planCode].validityDays || 30;
+          const expires = new Date(issued);
+          expires.setUTCDate(expires.getUTCDate() + days);
           await tx.user.update({
             where: { id: user.id },
-            data: { planCode: intent.planCode, planRenewsAt: renews, memoCountPeriod: 0, chatCountPeriod: 0, periodStartedAt: issued },
+            data: {
+              planCode: intent.planCode,
+              planExpiresAt: expires,
+              memoCountPeriod: 0,
+              chatCountPeriod: 0,
+              periodStartedAt: issued,
+              planReminderKey: null,
+            },
           });
           await tx.walletTransaction.create({
             data: {
@@ -230,21 +246,9 @@ export class BillingService {
               type: "subscription",
               amountHalalas: intent.amountHalalas,
               idempotencyKey: eventKey,
-              description: `Plan ${intent.planCode}`,
+              description: `One-time plan ${intent.planCode}`,
             },
           });
-          if (intent.planCode === "office") {
-            const seats = PLAN_DEFS.office.seats;
-            const org = await tx.organization.findUnique({ where: { ownerId: user.id } });
-            if (!org) {
-              const created = await tx.organization.create({
-                data: { name: user.name, ownerId: user.id, seatLimit: seats, letterheadName: "" },
-              });
-              await tx.user.update({ where: { id: user.id }, data: { orgId: created.id, orgRole: "owner" } });
-            } else {
-              await tx.organization.update({ where: { id: org.id }, data: { seatLimit: seats } });
-            }
-          }
         }
       });
     } catch (error) {
