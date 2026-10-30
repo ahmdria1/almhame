@@ -18,7 +18,7 @@ export type CourtType = (typeof COURTS)[number];
 export const MEMO_TYPES = ["lawsuit", "defense", "reply", "appeal"] as const;
 export type MemoType = (typeof MEMO_TYPES)[number];
 
-export const PLAN_CODES = ["free", "basic", "pro", "office"] as const;
+export const PLAN_CODES = ["free", "basic", "pro"] as const;
 export type PlanCode = (typeof PLAN_CODES)[number];
 
 export const DEFAULT_JURISDICTION = "SA" as const;
@@ -43,7 +43,6 @@ export const PUBLISHED_PLANS: Record<
   free: { priceHalalas: 0, memoLimit: 5, chatLimit: 5, seats: 1 },
   basic: { priceHalalas: 9900, memoLimit: 30, chatLimit: null, seats: 1 },
   pro: { priceHalalas: 24900, memoLimit: 100, chatLimit: null, seats: 1 },
-  office: { priceHalalas: 59900, memoLimit: 100, chatLimit: null, seats: 5 },
 };
 
 export const LOCALES = [
