@@ -18,7 +18,6 @@ enum PlanCode {
   free
   basic
   pro
-  office
 }
 
 enum PaymentStatus {
