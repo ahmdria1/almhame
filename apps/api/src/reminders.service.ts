@@ -3,6 +3,8 @@ import { Queue, Worker } from "bullmq";
 import { asLocale } from "./domain/client-lang";
 import { clientCopy } from "./domain/client-copy";
 import { Kernel } from "./kernel";
+import { sendExpoPush } from "./domain/push";
+import { noticeChannelId, soundTier } from "@elawyer/types";
 import { sendNoticeMail } from "./mail";
 
 @Injectable()
@@ -63,6 +65,15 @@ export class ReminderService implements OnModuleInit, OnModuleDestroy {
     });
     if (user.email) {
       await sendNoticeMail(this.kernel.config, { to: user.email, subject: title.slice(0, 80), text: title, purpose: `deadline_${hearing.kind}` });
+    }
+    if (user.expoPushToken && this.kernel.config.expoAccessToken) {
+      const tier = soundTier(user.planCode, user.planExpiresAt);
+      await sendExpoPush({ accessToken: this.kernel.config.expoAccessToken, nodeEnv: this.kernel.config.nodeEnv }, {
+        to: user.expoPushToken,
+        title,
+        body: title,
+        channelId: noticeChannelId(tier, priority),
+      });
     }
   }
 

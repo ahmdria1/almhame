@@ -330,5 +330,9 @@
   "settings.soundUrgent": "Urgent only",
   "settings.soundOff": "Silent",
   "plans.oneTime": "One payment, no automatic renewal",
-  "plans.noRenew": "When the period or the quota ends, we remind you to buy again yourself."
+  "plans.noRenew": "When the period or the quota ends, we remind you to buy again yourself.",
+  "settings.nafath": "Verify with Nafath",
+  "settings.nafathBody": "We send a request to Nafath for the national ID saved on this account. Confirm the number in the Nafath app.",
+  "settings.nafathStart": "Start verification",
+  "settings.nafathRandom": "Number in the Nafath app: {random}"
 }

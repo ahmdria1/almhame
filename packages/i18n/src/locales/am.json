@@ -330,5 +330,9 @@
   "settings.soundUrgent": "አስቸኳይ ብቻ",
   "settings.soundOff": "ድምፅ የለም",
   "plans.oneTime": "አንድ ክፍያ፣ በራሱ አይታደስም",
-  "plans.noRenew": "ጊዜው ወይም ገደቡ ሲያልቅ እራስህ እንድታድስ እናስታውስሃለን።"
+  "plans.noRenew": "ጊዜው ወይም ገደቡ ሲያልቅ እራስህ እንድታድስ እናስታውስሃለን።",
+  "settings.nafath": "በነፋዝ አረጋግጥ",
+  "settings.nafathBody": "በተቀመጠው ብሔራዊ መታወቂያ ወደ ነፋዝ ጥያቄ እንልካለን። በነፋዝ መተግበሪያ ውስጥ ያለውን ቁጥር አረጋግጥ።",
+  "settings.nafathStart": "ማረጋገጫ ጀምር",
+  "settings.nafathRandom": "በነፋዝ መተግበሪያ ያለው ቁጥር፦ {random}"
 }

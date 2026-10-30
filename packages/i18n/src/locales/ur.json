@@ -330,5 +330,9 @@
   "settings.soundUrgent": "صرف فوری",
   "settings.soundOff": "بغیر آواز",
   "plans.oneTime": "ایک بار ادائیگی، خودکار تجدید نہیں",
-  "plans.noRenew": "مدت یا حد ختم ہونے پر ہم یاد دلاتے ہیں کہ خود تجدید کریں۔"
+  "plans.noRenew": "مدت یا حد ختم ہونے پر ہم یاد دلاتے ہیں کہ خود تجدید کریں۔",
+  "settings.nafath": "نفاذ سے تصدیق",
+  "settings.nafathBody": "ہم محفوظ شناختی نمبر پر نفاذ کو درخواست بھیجتے ہیں۔ نفاذ ایپ میں نمبر کی تصدیق کریں۔",
+  "settings.nafathStart": "تصدیق شروع کریں",
+  "settings.nafathRandom": "نفاذ ایپ میں نمبر: {random}"
 }

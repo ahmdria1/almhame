@@ -242,6 +242,7 @@ export class ProductController {
   constructor(
     private readonly work: WorkService,
     private readonly billing: BillingService,
+    private readonly auth: AuthService,
     private readonly jwt: JwtService,
   ) {}
 
@@ -251,8 +252,19 @@ export class ProductController {
   }
 
   @Patch("me")
-  async updateMe(@Req() req: Request, @Body() body: { name?: string; locale?: string; theme?: string; notifyHearings?: boolean; soundMode?: "all" | "urgent" | "off" }) {
+  async updateMe(@Req() req: Request, @Body() body: { name?: string; locale?: string; theme?: string; notifyHearings?: boolean; soundMode?: "all" | "urgent" | "off"; expoPushToken?: string }) {
     return { user: await this.work.updateAccount(await userIdFrom(this.jwt, req), body) };
+  }
+
+  @Post("me/nafath")
+  async startNafath(@Req() req: Request) {
+    return this.auth.startNafath(await userIdFrom(this.jwt, req));
+  }
+
+  @Post("me/nafath/status")
+  async nafathStatus(@Req() req: Request, @Body() body: { transId?: string }) {
+    if (!body.transId) fail("VALIDATION", 400, "Nafath transaction is required");
+    return this.auth.pollNafath(await userIdFrom(this.jwt, req), body.transId);
   }
 
   @Get("me/export")

@@ -48,13 +48,14 @@ export class WorkService {
     return presentUser(user, await this.kernel.plan(user.planCode, jurisdictionOf(user.jurisdiction).code));
   }
 
-  async updateAccount(userId: string, input: { name?: string; locale?: string; theme?: string; notifyHearings?: boolean; soundMode?: SoundMode }) {
+  async updateAccount(userId: string, input: { name?: string; locale?: string; theme?: string; notifyHearings?: boolean; soundMode?: SoundMode; expoPushToken?: string }) {
     const data: Prisma.UserUpdateInput = {};
     if (input.name) data.name = input.name.trim().slice(0, 80);
     if (input.locale) data.locale = input.locale.slice(0, 8);
     if (input.theme === "light" || input.theme === "dark") data.theme = input.theme;
     if (typeof input.notifyHearings === "boolean") data.notifyHearings = input.notifyHearings;
     if (input.soundMode === "all" || input.soundMode === "urgent" || input.soundMode === "off") data.soundMode = input.soundMode;
+    if (typeof input.expoPushToken === "string") data.expoPushToken = input.expoPushToken.trim().slice(0, 200);
     const user = await this.kernel.prisma.user.update({ where: { id: userId }, data });
     return presentUser(user, await this.kernel.plan(user.planCode, jurisdictionOf(user.jurisdiction).code));
   }
@@ -888,12 +889,7 @@ export class WorkService {
       where: { userId_provider: { userId, provider: "google_drive" } },
     });
     const live = this.kernel.config.integrationsMode === "live" && account?.status === "connected" && account.accessEnc;
-    if (!live) {
-      const job = await this.kernel.prisma.exportJob.create({
-        data: { userId, provider: "google_drive", memoId, status: "stubbed", externalId: `stub-${memoId.slice(0, 8)}` },
-      });
-      return { status: job.status, externalId: job.externalId || "" };
-    }
+    if (!live) fail("NOT_CONFIGURED", 409, "Connect Google Drive before exporting");
     const user = await this.fresh(userId);
     const token = this.kernel.dec(this.kernel.dekOf(user.wrappedDataKey), account.accessEnc || "");
     const file = await this.exportMemo(userId, memoId, "docx");

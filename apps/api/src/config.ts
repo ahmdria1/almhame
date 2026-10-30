@@ -71,6 +71,11 @@ export interface AppConfig {
   najizTokenPath: string;
   najizLicensePath: string;
   najizMockBlockIds: string[];
+  nafathBaseUrl: string;
+  nafathAppId: string;
+  nafathAppKey: string;
+  nafathService: string;
+  expoAccessToken: string;
 }
 
 export const DEFAULT_SMTP_FROM = "no-reply@emuhami.com";
@@ -161,6 +166,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     najizTokenPath: env.NAJIZ_TOKEN_PATH || "/oauth/v1/token",
     najizLicensePath: env.NAJIZ_LICENSE_PATH || "/lawyers/v1/licenses",
     najizMockBlockIds: (env.NAJIZ_MOCK_BLOCK_IDS || "").split(",").map((item) => item.trim()).filter(Boolean),
+    nafathBaseUrl: env.NAFATH_BASE_URL || "",
+    nafathAppId: env.NAFATH_APP_ID || "",
+    nafathAppKey: env.NAFATH_APP_KEY || "",
+    nafathService: env.NAFATH_SERVICE || "",
+    expoAccessToken: env.EXPO_ACCESS_TOKEN || "",
     corsOrigins: [
       ...new Set([
         webOrigin,
@@ -188,8 +198,18 @@ export function assertProductionProviders(config: AppConfig): void {
   const blocked: string[] = [];
   if (config.llmProvider === "mock") blocked.push("LLM_PROVIDER");
   if (config.embeddingProvider === "mock") blocked.push("EMBEDDING_PROVIDER");
-  if (config.smsProvider === "mock") blocked.push("SMS_PROVIDER");
   if (config.paymentGateway === "sandbox" || config.paymentGateway === "mock") blocked.push("PAYMENT_GATEWAY");
+  if (!config.modelBaseUrl || !config.modelApiKey || !config.modelName) blocked.push("MODEL_BASE_URL");
+  if (!config.embeddingBaseUrl || !config.embeddingApiKey || !config.embeddingModel) blocked.push("EMBEDDING_BASE_URL");
+  if (!config.alrajhiTranportalId || !config.alrajhiTranportalPassword || !config.alrajhiResourceKey) blocked.push("ALRAJHI_TRANPORTAL_ID");
+  if (config.smsProvider === "mock" || config.smsProvider === "disabled" || !config.smsApiKey || !config.smsBaseUrl || !config.smsSender) blocked.push("SMS_PROVIDER");
+  if (config.integrationsMode !== "live" || !config.googleClientId || !config.googleClientSecret || !config.msClientId || !config.msClientSecret) blocked.push("INTEGRATIONS_MODE");
+  if (!config.najizBaseUrl || !config.najizClientId || !config.najizClientSecret) blocked.push("NAJIZ_CLIENT_ID");
+  if (!config.nafathBaseUrl || !config.nafathAppId || !config.nafathAppKey || !config.nafathService) blocked.push("NAFATH_APP_ID");
+  if (!config.expoAccessToken) blocked.push("EXPO_ACCESS_TOKEN");
+  if (!config.clamavHost) blocked.push("CLAMAV_HOST");
+  if (!config.storageDir) blocked.push("STORAGE_DIR");
+  if (config.sellerVat === "300000000000003") blocked.push("SELLER_VAT_NUMBER");
   if (!config.smtpHost || !config.smtpFrom) blocked.push("SMTP_HOST");
   if (config.otpDebug) blocked.push("OTP_DEBUG");
   if (config.emailDebug) blocked.push("EMAIL_DEBUG");

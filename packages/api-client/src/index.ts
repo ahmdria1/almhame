@@ -236,6 +236,14 @@ export class ElawyerClient {
     return this.request(`/integrations/${provider}/start`, { method: "POST" }) as Promise<{ url: string | null; configured: boolean }>;
   }
 
+  startNafath() {
+    return this.request("/me/nafath", { method: "POST" }) as Promise<{ transId: string; random: string }>;
+  }
+
+  nafathStatus(transId: string) {
+    return this.request("/me/nafath/status", { method: "POST", body: JSON.stringify({ transId }) }) as Promise<{ status: string }>;
+  }
+
   exportDrive(memoId: string) {
     return this.request("/integrations/google_drive/export", {
       method: "POST",

@@ -3,12 +3,14 @@ import { createHash, randomBytes } from "crypto";
 import { HttpException, Injectable } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
-import { encryptString, generateDek, wrapKey } from "./domain/envelope";
+import { decryptString, encryptString, generateDek, wrapKey } from "./domain/envelope";
 import { lawyerCheckerFrom, nationalIdShape, normalizeNationalId } from "./domain/lawyer-check";
 import { generateOtpCode, hashOtp, isPhone, normalizePhone, otpMatches } from "./domain/otp";
 import { debugCodeResponseEnabled } from "./config";
 import { fail } from "./http-error";
 import { Kernel } from "./kernel";
+import { requestNafath, nafathStatus } from "./domain/nafath";
+import { sendSms } from "./domain/sms";
 import { sendAuthMail } from "./mail";
 import { presentUser } from "./present";
 
@@ -86,6 +88,47 @@ export class AuthService {
       data: { passwordHash: await bcrypt.hash(password, 10) },
     });
     return { ok: true };
+  }
+
+  async startNafath(userId: string) {
+    const user = await this.kernel.prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.nationalIdEnc) fail("NATIONAL_ID_REQUIRED", 400, "Add a national ID before Nafath");
+    const cfg = this.kernel.config;
+    if (!cfg.nafathBaseUrl || !cfg.nafathAppId || !cfg.nafathAppKey) fail("NOT_CONFIGURED", 503, "Nafath is not configured");
+    const nationalId = decryptString(user.nationalIdEnc, this.kernel.dekOf(user.wrappedDataKey));
+    let started;
+    try {
+      started = await requestNafath(
+        { baseUrl: cfg.nafathBaseUrl, appId: cfg.nafathAppId, appKey: cfg.nafathAppKey, service: cfg.nafathService },
+        nationalId,
+      );
+    } catch {
+      fail("NAFATH_UNAVAILABLE", 503, "Nafath did not accept the request");
+    }
+    await this.kernel.prisma.nafathRequest.create({
+      data: { userId, transId: started.transId, randomCode: started.random },
+    });
+    return { transId: started.transId, random: started.random };
+  }
+
+  async pollNafath(userId: string, transId: string) {
+    const row = await this.kernel.prisma.nafathRequest.findFirst({ where: { userId, transId } });
+    if (!row) fail("NOT_FOUND", 404, "Nafath request was not found");
+    const user = await this.kernel.prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.nationalIdEnc) fail("NATIONAL_ID_REQUIRED", 400, "Add a national ID before Nafath");
+    const cfg = this.kernel.config;
+    const nationalId = decryptString(user.nationalIdEnc, this.kernel.dekOf(user.wrappedDataKey));
+    let status = "WAITING";
+    try {
+      status = await nafathStatus(
+        { baseUrl: cfg.nafathBaseUrl, appId: cfg.nafathAppId, appKey: cfg.nafathAppKey },
+        { nationalId, transId, random: row.randomCode },
+      );
+    } catch {
+      fail("NAFATH_UNAVAILABLE", 503, "Nafath did not return a status");
+    }
+    await this.kernel.prisma.nafathRequest.update({ where: { id: row.id }, data: { status } });
+    return { status };
   }
 
   async verify(challengeId: string, code: string) {
@@ -198,6 +241,16 @@ export class AuthService {
     const pathName = purpose === "password_reset" ? "/reset" : purpose === "admin_activate" ? "/activate" : "/otp";
     const link = `${origin}${pathName}?challenge=${challenge.id}`;
     await sendAuthMail(this.kernel.config, { to: target, code, purpose, link });
+    if (userId) {
+      const account = await this.kernel.prisma.user.findUnique({ where: { id: userId } });
+      if (account?.phone) {
+        const cfg = this.kernel.config;
+        await sendSms(
+          { provider: cfg.smsProvider, baseUrl: cfg.smsBaseUrl, apiKey: cfg.smsApiKey, sender: cfg.smsSender, nodeEnv: cfg.nodeEnv },
+          { to: account.phone, text: code },
+        );
+      }
+    }
     return {
       challengeId: challenge.id,
       ...(debugCodeResponseEnabled(this.kernel.config) ? { debugCode: code } : {}),

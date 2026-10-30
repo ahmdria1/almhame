@@ -330,5 +330,9 @@
   "settings.soundUrgent": "Yalnızca acil",
   "settings.soundOff": "Sessiz",
   "plans.oneTime": "Tek ödeme, kendiliğinden yenilenmez",
-  "plans.noRenew": "Süre ya da kota bitince kendiniz yenilemeniz için hatırlatırız."
+  "plans.noRenew": "Süre ya da kota bitince kendiniz yenilemeniz için hatırlatırız.",
+  "settings.nafath": "Nafath ile doğrula",
+  "settings.nafathBody": "Kayıtlı kimlik numarası için Nafath'a istek göndeririz. Nafath uygulamasındaki sayıyı onayla.",
+  "settings.nafathStart": "Doğrulamayı başlat",
+  "settings.nafathRandom": "Nafath uygulamasındaki sayı: {random}"
 }

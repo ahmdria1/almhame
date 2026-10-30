@@ -8,8 +8,36 @@ function production(overrides: Partial<AppConfig> = {}): AppConfig {
     nodeEnv: "production",
     llmProvider: "remote",
     embeddingProvider: "remote",
-    smsProvider: "disabled",
+    smsProvider: "http",
+    smsApiKey: "sms-key",
+    smsBaseUrl: "https://sms.example.sa/send",
+    smsSender: "EMU",
     paymentGateway: "alrajhi",
+    modelBaseUrl: "https://model.example.sa",
+    modelApiKey: "model-key",
+    modelName: "draft",
+    embeddingBaseUrl: "https://embed.example.sa",
+    embeddingApiKey: "embed-key",
+    embeddingModel: "embed",
+    alrajhiTranportalId: "tran",
+    alrajhiTranportalPassword: "pass",
+    alrajhiResourceKey: "0123456789abcdef",
+    integrationsMode: "live",
+    googleClientId: "google",
+    googleClientSecret: "google-secret",
+    msClientId: "ms",
+    msClientSecret: "ms-secret",
+    najizBaseUrl: "https://developers.najiz.sa",
+    najizClientId: "najiz",
+    najizClientSecret: "najiz-secret",
+    nafathBaseUrl: "https://nafath.api.elm.sa",
+    nafathAppId: "nafath-app",
+    nafathAppKey: "nafath-key",
+    nafathService: "login",
+    expoAccessToken: "expo-token",
+    clamavHost: "clamav",
+    storageDir: "/var/lib/elawyer",
+    sellerVat: "311111111111113",
     smtpHost: "smtp.example.sa",
     smtpFrom: "noreply@example.sa",
     otpDebug: false,
@@ -35,6 +63,14 @@ describe("production boot guard", () => {
     expect(() => assertProductionProviders(production({ otpPepper: "short-pepper" }))).toThrow(/OTP_PEPPER/);
     expect(() => assertProductionProviders(production({ kmsMasterKey: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=" }))).toThrow(/KMS_MASTER_KEY/);
     expect(() => assertProductionProviders(production({ kmsMasterKey: Buffer.from("short").toString("base64") }))).toThrow(/KMS_MASTER_KEY/);
+    expect(() => assertProductionProviders(production({ embeddingProvider: "mock" }))).toThrow(/EMBEDDING_PROVIDER/);
+    expect(() => assertProductionProviders(production({ llmProvider: "mock" }))).toThrow(/LLM_PROVIDER/);
+    expect(() => assertProductionProviders(production({ najizClientId: "" }))).toThrow(/NAJIZ_CLIENT_ID/);
+    expect(() => assertProductionProviders(production({ nafathAppId: "" }))).toThrow(/NAFATH_APP_ID/);
+    expect(() => assertProductionProviders(production({ smsProvider: "mock" }))).toThrow(/SMS_PROVIDER/);
+    expect(() => assertProductionProviders(production({ integrationsMode: "stub" }))).toThrow(/INTEGRATIONS_MODE/);
+    expect(() => assertProductionProviders(production({ expoAccessToken: "" }))).toThrow(/EXPO_ACCESS_TOKEN/);
+    expect(() => assertProductionProviders(production({ sellerVat: "300000000000003" }))).toThrow(/SELLER_VAT_NUMBER/);
   });
 
   it("marks production cookies secure", () => {

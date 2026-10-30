@@ -83,6 +83,7 @@ model User {
   nationalIdEnc       String?
   planReminderKey     String?
   soundMode           SoundMode @default(all)
+  expoPushToken   String?
   orgId           String?
   orgRole         String?
   notifyHearings  Boolean   @default(true)
@@ -108,6 +109,19 @@ model User {
   notifications Notification[]
   exportJobs    ExportJob[]
   assessments   CaseAssessment[]
+  nafath        NafathRequest[]
+}
+
+model NafathRequest {
+  id         String   @id @default(cuid())
+  userId     String
+  transId    String
+  randomCode String
+  status     String   @default("pending")
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 model Organization {

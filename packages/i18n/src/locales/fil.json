@@ -330,5 +330,9 @@
   "settings.soundUrgent": "Agarang abiso lamang",
   "settings.soundOff": "Walang tunog",
   "plans.oneTime": "Isang bayad, walang awtomatikong pag-renew",
-  "plans.noRenew": "Kapag natapos ang panahon o ang quota, ipapaalala naming bumili ka muli."
+  "plans.noRenew": "Kapag natapos ang panahon o ang quota, ipapaalala naming bumili ka muli.",
+  "settings.nafath": "I-verify sa Nafath",
+  "settings.nafathBody": "Nagpapadala kami ng kahilingan sa Nafath para sa pambansang ID na naka-save. Kumpirmahin ang numero sa app ng Nafath.",
+  "settings.nafathStart": "Simulan ang pag-verify",
+  "settings.nafathRandom": "Numero sa app ng Nafath: {random}"
 }
