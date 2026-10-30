@@ -233,18 +233,6 @@ export class BillingService {
               description: `Plan ${intent.planCode}`,
             },
           });
-          if (intent.planCode === "office") {
-            const seats = PLAN_DEFS.office.seats;
-            const org = await tx.organization.findUnique({ where: { ownerId: user.id } });
-            if (!org) {
-              const created = await tx.organization.create({
-                data: { name: user.name, ownerId: user.id, seatLimit: seats, letterheadName: "" },
-              });
-              await tx.user.update({ where: { id: user.id }, data: { orgId: created.id, orgRole: "owner" } });
-            } else {
-              await tx.organization.update({ where: { id: org.id }, data: { seatLimit: seats } });
-            }
-          }
         }
       });
     } catch (error) {
