@@ -21,6 +21,7 @@ import type { Request, Response } from "express";
 import { PlanCode } from "@prisma/client";
 import { COURTS, MEMO_TYPES, PLAN_CODES } from "@elawyer/types";
 import { AdminService } from "./admin.service";
+import { TranslationService } from "./translation.service";
 import { AuthService } from "./auth.service";
 import { BillingService } from "./billing.service";
 import { clearAdminCookie, clearSessionCookies, cookieSettings, issueCsrf, setAccessCookie, setAdminCookie, setRefreshCookie } from "./cookies";
@@ -538,6 +539,7 @@ export class AdminController {
     private readonly auth: AuthService,
     private readonly admin: AdminService,
     private readonly corpus: CorpusService,
+    private readonly translations: TranslationService,
     private readonly jwt: JwtService,
     private readonly kernel: Kernel,
   ) {}
@@ -618,6 +620,33 @@ export class AdminController {
   async settings(@Req() req: Request) {
     await adminIdFrom(this.jwt, req);
     return this.admin.settings();
+  }
+
+  @Post("copy")
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  async saveCopy(@Req() req: Request, @Body() body: { scope?: string; sourceId?: string; text?: string; priority?: "normal" | "urgent" }) {
+    await adminIdFrom(this.jwt, req);
+    if (!body.scope || !body.text) fail("VALIDATION", 400, "Arabic text is required");
+    return this.translations.save({ scope: body.scope, sourceId: body.sourceId, text: body.text, priority: body.priority });
+  }
+
+  @Get("copy/:scope/:sourceId")
+  async copyStatus(@Req() req: Request, @Param("scope") scope: string, @Param("sourceId") sourceId: string) {
+    await adminIdFrom(this.jwt, req);
+    return this.translations.status(scope, sourceId);
+  }
+
+  @Patch("copy/:scope/:sourceId/:locale")
+  async copyOverride(@Req() req: Request, @Param("scope") scope: string, @Param("sourceId") sourceId: string, @Param("locale") locale: string, @Body() body: { text?: string }) {
+    await adminIdFrom(this.jwt, req);
+    if (!body.text) fail("VALIDATION", 400, "Override text is required");
+    return this.translations.override(scope, sourceId, locale, body.text);
+  }
+
+  @Post("copy/:scope/:sourceId/publish")
+  async publishCopy(@Req() req: Request, @Param("scope") scope: string, @Param("sourceId") sourceId: string) {
+    await adminIdFrom(this.jwt, req);
+    return this.translations.publish(scope, sourceId);
   }
 
   @Post("corpus/refresh")

@@ -504,6 +504,27 @@ model ExportJob {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model LocalizedText {
+  id        String   @id @default(cuid())
+  scope     String
+  sourceId  String
+  locale    String
+  text      String
+  status    String   @default("pending")
+  error     String   @default("")
+  updatedAt DateTime @updatedAt
+
+  @@unique([scope, sourceId, locale])
+  @@index([scope, sourceId])
+}
+
+model AdminNotice {
+  id        String   @id @default(cuid())
+  priority  String   @default("normal")
+  status    String   @default("draft")
+  createdAt DateTime @default(now())
+}
+
 model AuditLog {
   id         String   @id @default(cuid())
   actorType  String

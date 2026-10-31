@@ -12,6 +12,7 @@ const LINKS = [
   ["/dashboard/memos", "المذكرات حسب المحكمة"],
   ["/dashboard/corpus", "قاعدة الأنظمة"],
   ["/dashboard/settings", "الإعدادات"],
+  ["/dashboard/translations", "الترجمات"],
   ["/dashboard/audit", "سجل العمليات"],
 ];
 
