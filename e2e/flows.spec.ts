@@ -88,8 +88,13 @@ test("sandbox wallet top-up", async ({ page }) => {
   await page.goto("/app/wallet");
   await page.getByTestId("topup-100").click();
   await page.waitForURL(/\/pay\/sandbox\//);
-  await page.getByTestId("sandbox-confirm").click();
-  await page.waitForURL(/\/app\/wallet/);
+  const url = new URL(page.url());
+  const intentId = url.pathname.split("/").pop() || "";
+  const confirmed = await page.request.post("http://127.0.0.1:4710/api/payments/confirm", {
+    data: { intentId, sig: url.searchParams.get("sig") },
+  });
+  expect(confirmed.ok()).toBeTruthy();
+  await page.goto("/app/wallet");
   await expect(page.getByText("100.00 ر.س").first()).toBeVisible();
 });
 

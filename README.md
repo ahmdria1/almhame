@@ -134,9 +134,9 @@ Also set `KMS_MASTER_KEY`, `JWT_SECRET`, `OTP_PEPPER`, real `LLM_PROVIDER`, `EMB
 | --- | --- |
 | `MODEL_API_KEY`, `MODEL_BASE_URL`, `MODEL_NAME` | Remote draft model. Set `LLM_PROVIDER=remote`. Production refuses `mock`. |
 | `EMBEDDING_API_KEY`, `EMBEDDING_BASE_URL`, `EMBEDDING_MODEL` | Remote embeddings, 384 dimensions. Set `EMBEDDING_PROVIDER=remote`. Production refuses `mock`. |
-| `ALRAJHI_TRANPORTAL_ID`, `ALRAJHI_TRANPORTAL_PASSWORD`, `ALRAJHI_RESOURCE_KEY` | Al Rajhi hosted payment. Also set `ALRAJHI_HOSTED_URL`, `ALRAJHI_RESPONSE_URL`, `ALRAJHI_ERROR_URL`, and `PAYMENT_GATEWAY=alrajhi`. The resource key must be 16 or 32 bytes. This build encrypts `trandata` with AES-CBC and IV `PGKEYENCDECIVSPC`. Confirm that IV and key length against the bank kit before going live. |
+| `ALRAJHI_TRANPORTAL_ID`, `ALRAJHI_TRANPORTAL_PASSWORD`, `ALRAJHI_RESOURCE_KEY` | Al Rajhi hosted payment. Also set `ALRAJHI_HOSTED_URL`, `ALRAJHI_MERCHANT_URL` (inquiry and refund, action 8 and action 2), `ALRAJHI_RESPONSE_URL`, `ALRAJHI_ERROR_URL`, and `PAYMENT_GATEWAY=alrajhi`. A plan is activated only after the bank inquiry returns the same captured amount. The resource key must be 16 or 32 bytes. This build encrypts `trandata` with AES-CBC and IV `PGKEYENCDECIVSPC`. Confirm that IV and key length against the bank kit before going live. |
 | `KMS_MASTER_KEY` | Base64 of 32 bytes. Wraps each account's data key. Losing it makes stored content unreadable. |
-| `SMS_PROVIDER` | Not used for sign-up. Production refuses `mock`. Set `disabled` or a real provider. |
+| `SMS_PROVIDER`, `SMS_API_KEY`, `SMS_SENDER`, `SMS_BASE_URL` | Taqnyat SMS. Production requires `SMS_PROVIDER=taqnyat`, a bearer token in `SMS_API_KEY`, and a sender name already registered at Taqnyat. `SMS_BASE_URL` defaults to `https://api.taqnyat.sa`. Messages are `POST /v1/messages`. A mock provider is for tests and local development only. |
 | `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN` | Error reporting. Request bodies are stripped. |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URL` | Google Drive. Set `INTEGRATIONS_MODE=live` for a real upload. |
 | `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_REDIRECT_URL` | OneDrive and calendar OAuth. |

@@ -9,7 +9,7 @@ import { EMBED_DIM, mockEmbed, vectorLiteral } from "./embeddings";
 import { decodeMasterKey, decryptBytes, decryptString, encryptBytes, encryptString, generateDek, unwrapKey, wrapKey } from "./envelope";
 import { halalasToSar, nextInvoiceNumber, splitVatInclusive, zatcaQrBase64 } from "./invoice";
 import { createHash, createHmac } from "crypto";
-import { buildTrandata, decryptTrandata, encryptTrandata } from "./alrajhi";
+import { ALRAJHI_MERCHANT_URL, buildFollowupTrandata, buildTrandata, decryptTrandata, encryptTrandata, postTranportal } from "./alrajhi";
 import { generateOtpCode, isPhone, otpMatches, hashOtp, normalizePhone } from "./otp";
 import { sandboxSignatureOk, signSandbox } from "./payments";
 import { chatQuota, chatsCounted, courtAllowed, memoQuota, PLAN_DEFS, resolvePlan } from "./plans";
@@ -482,7 +482,7 @@ describe("embeddings and payment crypto", () => {
     expect(norm).toBeCloseTo(1, 5);
   });
 
-  it("round-trips tranportal data and sandbox signatures", () => {
+  it("round-trips tranportal data and sandbox signatures", async () => {
     const key = "1234567890abcdef";
     const json = buildTrandata({
       tranportalId: "merchant",
@@ -500,6 +500,33 @@ describe("embeddings and payment crypto", () => {
     expect(vectorLiteral(mockEmbed("نص"))).toMatch(/^\[[0-9.,-]+\]$/);
     expect(() => vectorLiteral([1])).toThrow(/dimension/);
     expect(() => encryptTrandata("{}", "short")).toThrow(/16 or 32/);
+    const inquiry = JSON.parse(buildFollowupTrandata({
+      tranportalId: "merchant",
+      password: "secret",
+      action: "8",
+      amountSar: "99.00",
+      trackId: "track-1",
+      transId: "pay-9",
+      responseUrl: "https://example.sa/ok",
+      errorUrl: "https://example.sa/err",
+    }));
+    expect(inquiry[0].action).toBe("8");
+    expect(inquiry[0].udf5).toBe("PaymentID");
+    expect(inquiry[0].transId).toBe("pay-9");
+    const refund = JSON.parse(buildFollowupTrandata({ ...inquiry[0], action: "2", tranportalId: "merchant", password: "secret", amountSar: "99.00", trackId: "track-1", transId: "pay-9", responseUrl: "https://example.sa/ok", errorUrl: "https://example.sa/err" }));
+    expect(refund[0].action).toBe("2");
+    const inner = JSON.stringify([{ result: "CAPTURED", amt: "99.00" }]);
+    const fetchImpl = jest.fn().mockResolvedValue(new Response(JSON.stringify([{ status: "1", trandata: encryptTrandata(inner, key) }]), { status: 200 }));
+    await expect(postTranportal({
+      merchantUrl: ALRAJHI_MERCHANT_URL,
+      tranportalId: "merchant",
+      resourceKey: key,
+      plain: inner,
+      responseUrl: "https://example.sa/ok",
+      errorUrl: "https://example.sa/err",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    })).resolves.toEqual({ result: "CAPTURED", amt: "99.00" });
+    expect(fetchImpl.mock.calls[0][0]).toBe(ALRAJHI_MERCHANT_URL);
   });
 });
 

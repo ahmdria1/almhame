@@ -21,6 +21,7 @@ if (!process.env.SITE_URL) throw new Error("SITE_URL is not set");
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  pageExtensions: process.env.NODE_ENV === "production" ? ["ts", "tsx", "js", "jsx"] : ["ts", "tsx", "js", "jsx", "sandbox.tsx"],
   productionBrowserSourceMaps: false,
   reactStrictMode: true,
   poweredByHeader: false,

@@ -1,4 +1,6 @@
 import { FAIR_USE_CHAT_TURNS, FAIR_USE_UPLOAD_PAGES, PAY_PER_MEMO_HALALAS } from "@elawyer/types";
+import { ALRAJHI_MERCHANT_URL } from "./domain/alrajhi";
+import { TAQNYAT_BASE, smsSenderAccepted } from "./domain/sms";
 
 export interface AppConfig {
   databaseUrl: string;
@@ -24,6 +26,7 @@ export interface AppConfig {
   alrajhiTranportalPassword: string;
   alrajhiResourceKey: string;
   alrajhiHostedUrl: string;
+  alrajhiMerchantUrl: string;
   alrajhiResponseUrl: string;
   alrajhiErrorUrl: string;
   payPerMemoHalalas: number;
@@ -120,6 +123,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     alrajhiTranportalPassword: env.ALRAJHI_TRANPORTAL_PASSWORD || "",
     alrajhiResourceKey: env.ALRAJHI_RESOURCE_KEY || "",
     alrajhiHostedUrl: env.ALRAJHI_HOSTED_URL || "https://securepayments.alrajhibank.com.sa/pg/payment/hosted.htm",
+    alrajhiMerchantUrl: env.ALRAJHI_MERCHANT_URL || ALRAJHI_MERCHANT_URL,
     alrajhiResponseUrl: env.ALRAJHI_RESPONSE_URL || "",
     alrajhiErrorUrl: env.ALRAJHI_ERROR_URL || "",
     payPerMemoHalalas: Number(env.PAY_PER_MEMO_HALALAS || PAY_PER_MEMO_HALALAS),
@@ -134,7 +138,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     smsProvider: env.SMS_PROVIDER || "mock",
     smsApiKey: env.SMS_API_KEY || "",
     smsSender: env.SMS_SENDER || "",
-    smsBaseUrl: env.SMS_BASE_URL || "",
+    smsBaseUrl: env.SMS_BASE_URL || (env.SMS_PROVIDER === "taqnyat" ? TAQNYAT_BASE : ""),
     integrationsMode: env.INTEGRATIONS_MODE || "stub",
     googleClientId: env.GOOGLE_CLIENT_ID || "",
     googleClientSecret: env.GOOGLE_CLIENT_SECRET || "",
@@ -202,7 +206,7 @@ export function assertProductionProviders(config: AppConfig): void {
   if (!config.modelBaseUrl || !config.modelApiKey || !config.modelName) blocked.push("MODEL_BASE_URL");
   if (!config.embeddingBaseUrl || !config.embeddingApiKey || !config.embeddingModel) blocked.push("EMBEDDING_BASE_URL");
   if (!config.alrajhiTranportalId || !config.alrajhiTranportalPassword || !config.alrajhiResourceKey) blocked.push("ALRAJHI_TRANPORTAL_ID");
-  if (config.smsProvider === "mock" || config.smsProvider === "disabled" || !config.smsApiKey || !config.smsBaseUrl || !config.smsSender) blocked.push("SMS_PROVIDER");
+  if (!smsSenderAccepted(config.smsProvider, config.smsApiKey, config.smsSender, config.smsBaseUrl || TAQNYAT_BASE)) blocked.push("SMS_SENDER");
   if (config.integrationsMode !== "live" || !config.googleClientId || !config.googleClientSecret || !config.msClientId || !config.msClientSecret) blocked.push("INTEGRATIONS_MODE");
   if (!config.najizBaseUrl || !config.najizClientId || !config.najizClientSecret) blocked.push("NAJIZ_CLIENT_ID");
   if (!config.nafathBaseUrl || !config.nafathAppId || !config.nafathAppKey || !config.nafathService) blocked.push("NAFATH_APP_ID");

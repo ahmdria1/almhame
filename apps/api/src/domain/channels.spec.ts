@@ -4,24 +4,34 @@ import { sendSms } from "./sms";
 
 describe("production channels", () => {
   it("posts an SMS only when the provider is real", async () => {
-    const fetchImpl = jest.fn().mockResolvedValue(new Response("{}", { status: 200 }));
+    const fetchImpl = jest.fn().mockResolvedValue(new Response("{}", { status: 201 }));
     await sendSms(
-      { provider: "mock", baseUrl: "https://sms.example", apiKey: "k", sender: "EMU", nodeEnv: "development", fetchImpl: fetchImpl as unknown as typeof fetch },
+      { provider: "mock", baseUrl: "https://api.taqnyat.sa", apiKey: "k", sender: "EMU", nodeEnv: "development", fetchImpl: fetchImpl as unknown as typeof fetch },
       { to: "966500000000", text: "123456" },
     );
     expect(fetchImpl).not.toHaveBeenCalled();
     await sendSms(
-      { provider: "http", baseUrl: "https://sms.example/send", apiKey: "k", sender: "EMU", nodeEnv: "production", fetchImpl: fetchImpl as unknown as typeof fetch },
-      { to: "966500000000", text: "123456" },
+      { provider: "taqnyat", baseUrl: "https://api.taqnyat.sa", apiKey: "k", sender: "EMU", nodeEnv: "production", fetchImpl: fetchImpl as unknown as typeof fetch },
+      { to: "0551234567", text: "123456" },
     );
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("https://api.taqnyat.sa/v1/messages");
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer k");
+    expect(JSON.parse(String(init.body))).toEqual({ recipients: ["966551234567"], body: "123456", sender: "EMU" });
     fetchImpl.mockResolvedValueOnce(new Response("no", { status: 500 }));
     await expect(
       sendSms(
-        { provider: "http", baseUrl: "https://sms.example/send", apiKey: "k", sender: "EMU", nodeEnv: "production", fetchImpl: fetchImpl as unknown as typeof fetch },
+        { provider: "taqnyat", baseUrl: "https://api.taqnyat.sa", apiKey: "k", sender: "EMU", nodeEnv: "production", fetchImpl: fetchImpl as unknown as typeof fetch },
         { to: "966500000000", text: "123456" },
       ),
     ).rejects.toThrow(/sms failed/);
+    await expect(
+      sendSms(
+        { provider: "taqnyat", baseUrl: "https://api.taqnyat.sa", apiKey: "k", sender: "", nodeEnv: "production", fetchImpl: fetchImpl as unknown as typeof fetch },
+        { to: "966500000000", text: "123456" },
+      ),
+    ).rejects.toThrow(/sms sender/);
   });
 
   it("posts an Expo notification with the access token", async () => {

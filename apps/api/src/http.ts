@@ -502,11 +502,8 @@ export class ProductController {
 }
 
 @Controller("payments")
-export class PaymentController {
-  constructor(
-    private readonly billing: BillingService,
-    private readonly kernel: Kernel,
-  ) {}
+export class SandboxPaymentController {
+  constructor(private readonly billing: BillingService) {}
 
   @Post("confirm")
   confirm(@Body() body: { intentId?: string; sig?: string }) {
@@ -518,6 +515,14 @@ export class PaymentController {
   webhook(@Body() body: { intentId?: string; status?: string; eventKey?: string }, @Headers("x-signature") signature = "") {
     return this.billing.webhook(body, signature);
   }
+}
+
+@Controller("payments")
+export class PaymentController {
+  constructor(
+    private readonly billing: BillingService,
+    private readonly kernel: Kernel,
+  ) {}
 
   @Post("callback")
   async callback(@Body() body: Record<string, string>, @Res() res: Response) {
@@ -537,6 +542,7 @@ export class AdminController {
   constructor(
     private readonly auth: AuthService,
     private readonly admin: AdminService,
+    private readonly billing: BillingService,
     private readonly corpus: CorpusService,
     private readonly jwt: JwtService,
     private readonly kernel: Kernel,
@@ -606,6 +612,12 @@ export class AdminController {
   async payments(@Req() req: Request) {
     await adminIdFrom(this.jwt, req);
     return this.admin.payments();
+  }
+
+  @Post("payments/:id/refund")
+  async refund(@Req() req: Request, @Param("id") id: string) {
+    await adminIdFrom(this.jwt, req);
+    return this.billing.refundPaid(id);
   }
 
   @Get("audit")

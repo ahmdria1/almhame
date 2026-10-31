@@ -8,7 +8,8 @@ import { BillingService } from "./billing.service";
 import { BootstrapService } from "./bootstrap.service";
 import { CorpusService } from "./corpus.service";
 import { ChatGateway } from "./gateway";
-import { AdminController, AuthController, HealthController, PaymentController, ProductController } from "./http";
+import { sandboxRoutesEnabled } from "./domain/payments";
+import { AdminController, AuthController, HealthController, PaymentController, ProductController, SandboxPaymentController } from "./http";
 import { AuditInterceptor, ApiExceptionFilter } from "./interceptors";
 import { Kernel } from "./kernel";
 import { PrismaService } from "./prisma.service";
@@ -34,7 +35,14 @@ import { WorkService } from "./work.service";
       }),
     }),
   ],
-  controllers: [HealthController, AuthController, ProductController, PaymentController, AdminController],
+  controllers: [
+    HealthController,
+    AuthController,
+    ProductController,
+    PaymentController,
+    AdminController,
+    ...(sandboxRoutesEnabled(process.env.NODE_ENV || "development") ? [SandboxPaymentController] : []),
+  ],
   providers: [
     PrismaService,
     Kernel,

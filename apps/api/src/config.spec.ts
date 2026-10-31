@@ -8,9 +8,9 @@ function production(overrides: Partial<AppConfig> = {}): AppConfig {
     nodeEnv: "production",
     llmProvider: "remote",
     embeddingProvider: "remote",
-    smsProvider: "http",
+    smsProvider: "taqnyat",
     smsApiKey: "sms-key",
-    smsBaseUrl: "https://sms.example.sa/send",
+    smsBaseUrl: "https://api.taqnyat.sa",
     smsSender: "EMU",
     paymentGateway: "alrajhi",
     modelBaseUrl: "https://model.example.sa",
@@ -67,7 +67,10 @@ describe("production boot guard", () => {
     expect(() => assertProductionProviders(production({ llmProvider: "mock" }))).toThrow(/LLM_PROVIDER/);
     expect(() => assertProductionProviders(production({ najizClientId: "" }))).toThrow(/NAJIZ_CLIENT_ID/);
     expect(() => assertProductionProviders(production({ nafathAppId: "" }))).toThrow(/NAFATH_APP_ID/);
-    expect(() => assertProductionProviders(production({ smsProvider: "mock" }))).toThrow(/SMS_PROVIDER/);
+    expect(() => assertProductionProviders(production({ smsProvider: "mock" }))).toThrow(/SMS_SENDER/);
+    expect(() => assertProductionProviders(production({ smsSender: "" }))).toThrow(/SMS_SENDER/);
+    expect(() => assertProductionProviders(production({ smsSender: "test" }))).toThrow(/SMS_SENDER/);
+    expect(() => assertProductionProviders(production({ smsProvider: "http" }))).toThrow(/SMS_SENDER/);
     expect(() => assertProductionProviders(production({ integrationsMode: "stub" }))).toThrow(/INTEGRATIONS_MODE/);
     expect(() => assertProductionProviders(production({ expoAccessToken: "" }))).toThrow(/EXPO_ACCESS_TOKEN/);
     expect(() => assertProductionProviders(production({ sellerVat: "300000000000003" }))).toThrow(/SELLER_VAT_NUMBER/);

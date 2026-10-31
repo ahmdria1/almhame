@@ -31,6 +31,7 @@ enum PaymentStatus {
   paid
   failed
   cancelled
+  refunded
 }
 
 enum TxType {
