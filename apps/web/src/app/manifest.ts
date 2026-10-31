@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "المحامي الإلكتروني المتقدم",
     short_name: "المحامي الإلكتروني",
-    description: "صياغة قانونية للجهات القضائية السعودية",
+    description: "قضيتك تفهمها بلغتك، ومذكرتك جاهزة بلغة المحاكم.",
     start_url: "/",
     display: "standalone",
     lang: "ar",
