@@ -9,7 +9,6 @@ import {
   Folder,
   Globe,
   LogOut,
-  Plug,
   Search,
   Settings,
   Wallet,
@@ -17,6 +16,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { playNoticeSound, primeNoticeAudio } from "@/lib/notice-audio";
 import { useApp } from "@/lib/providers";
 import { Logo } from "./logo";
 import { cn } from "./ui";
@@ -56,19 +56,23 @@ export function AccountMenu() {
   const { t, user, logout } = useApp();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [notes, setNotes] = useState<{ id: string; title: string }[]>([]);
+  const [notes, setNotes] = useState<{ id: string; title: string; priority?: "normal" | "urgent"; sound?: string }[]>([]);
   const [showNotes, setShowNotes] = useState(false);
   const { client } = useApp();
   useEffect(() => {
     if (!showNotes) return;
-    client.notifications().then((result) => setNotes(result.items)).catch(() => setNotes([]));
-  }, [showNotes, client]);
+    primeNoticeAudio();
+    client.notifications().then((result) => {
+      setNotes(result.items);
+      const first = result.items.find((item) => !item.readAt && item.sound);
+      if (first?.sound) playNoticeSound(first.sound, user?.soundMode || "all", first.priority || "normal");
+    }).catch(() => setNotes([]));
+  }, [showNotes, client, user?.soundMode]);
   if (!user) return null;
   const items = [
     ["/app/wallet", "nav.wallet", Wallet],
     ["/app/memos", "nav.memos", Folder],
     ["/app/saved", "nav.saved", Bookmark],
-    ["/app/integrations", "nav.integrations", Plug],
     ["/app/plans", "nav.subscription", CreditCard],
     ["/app/settings", "nav.settings", Settings],
   ] as const;

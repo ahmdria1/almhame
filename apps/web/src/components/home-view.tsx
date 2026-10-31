@@ -10,8 +10,8 @@ import { jsonLdFor } from "@/seo/jsonld";
 const FEATURES = ["f1", "f2", "f3", "f4", "f5", "f6"] as const;
 const STEPS = ["s1", "s2", "s3", "s4"] as const;
 const FAQ = ["1", "2", "3", "4"] as const;
-const PLAN_KEY = { free: "plans.freeName", basic: "plans.basicName", pro: "plans.proName", office: "plans.officeName" } as const;
-const PLAN_DESC = { free: "plans.freeDesc", basic: "plans.basicDesc", pro: "plans.proDesc", office: "plans.officeDesc" } as const;
+const PLAN_KEY = { free: "plans.freeName", basic: "plans.basicName", pro: "plans.proName" } as const;
+const PLAN_DESC = { free: "plans.freeDesc", basic: "plans.basicDesc", pro: "plans.proDesc" } as const;
 
 function sar(halalas: number): string {
   const value = halalas / 100;
@@ -98,7 +98,7 @@ export function HomeView({ locale }: { locale: Locale }) {
             <h2 className="text-3xl font-bold text-navy-700">{t("landing.plansTitle")}</h2>
             <p className="mt-2 text-ink-700">{t("landing.plansSubtitle")}</p>
             <p className="mt-2 text-sm text-ink-700">{COPY.vat[locale]}</p>
-            <div className="mt-8 grid gap-4 md:grid-cols-4">
+            <div className="mt-8 grid gap-4 md:grid-cols-3">
               {PLAN_CODES.map((code) => {
                 const plan = PUBLISHED_PLANS[code];
                 const featured = code === "pro";

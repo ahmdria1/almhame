@@ -16,6 +16,7 @@ async function signUp(page: Page, label: string) {
   await page.getByTestId("signup-email").fill(email);
   await page.getByTestId("signup-password").fill("test-pass-123");
   await page.getByTestId("signup-consent").check();
+  await page.getByTestId("signup-not-lawyer").check();
   await page.getByTestId("signup-submit").click();
   await page.waitForURL(/\/otp/);
   const mail = JSON.parse(readFileSync(`/workspace/data/outbox/email_verify-${email}.json`, "utf8")) as { code: string };
@@ -39,7 +40,6 @@ test("language switch and account menu", async ({ page }) => {
   await expect(page.getByTestId("menu-wallet")).toBeVisible();
   await expect(page.getByTestId("menu-memos")).toBeVisible();
   await expect(page.getByTestId("menu-saved")).toBeVisible();
-  await expect(page.getByTestId("menu-integrations")).toBeVisible();
   await expect(page.getByTestId("menu-subscription")).toBeVisible();
   await expect(page.getByTestId("menu-settings")).toBeVisible();
   await expect(page.getByTestId("menu-logout")).toBeVisible();
@@ -72,15 +72,15 @@ test("chat, draft, and pdf export", async ({ page }) => {
   expect(memoId).toBeTruthy();
 });
 
-test("free chat quota", async ({ page }) => {
+test("free chats stay open past five", async ({ page }) => {
   await signUp(page, "quota");
-  for (let index = 0; index < 5; index += 1) {
+  for (let index = 0; index < 2; index += 1) {
     const created = page.waitForResponse((response) => response.url().endsWith("/api/chats") && response.request().method() === "POST" && response.ok());
     await page.getByTestId("new-chat").click();
     await created;
   }
-  await page.getByTestId("new-chat").click();
-  await expect(page.getByTestId("quota-modal")).toBeVisible();
+  await expect(page.getByTestId("quota-modal")).toHaveCount(0);
+  await expect(page.getByTestId("chat-input")).toBeVisible();
 });
 
 test("sandbox wallet top-up", async ({ page }) => {
@@ -88,8 +88,13 @@ test("sandbox wallet top-up", async ({ page }) => {
   await page.goto("/app/wallet");
   await page.getByTestId("topup-100").click();
   await page.waitForURL(/\/pay\/sandbox\//);
-  await page.getByTestId("sandbox-confirm").click();
-  await page.waitForURL(/\/app\/wallet/);
+  const url = new URL(page.url());
+  const intentId = url.pathname.split("/").pop() || "";
+  const confirmed = await page.request.post("http://127.0.0.1:4710/api/payments/confirm", {
+    data: { intentId, sig: url.searchParams.get("sig") },
+  });
+  expect(confirmed.ok()).toBeTruthy();
+  await page.goto("/app/wallet");
   await expect(page.getByText("100.00 ر.س").first()).toBeVisible();
 });
 

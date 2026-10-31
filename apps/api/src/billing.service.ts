@@ -2,12 +2,14 @@ import { Injectable } from "@nestjs/common";
 import { createHash, randomUUID } from "crypto";
 import { JURISDICTION_CATALOG, jurisdictionOf } from "@elawyer/types";
 import { PlanCode } from "@prisma/client";
-import { buildTrandata, decryptTrandata, encryptTrandata } from "./domain/alrajhi";
-import { PLAN_DEFS, yearlyHalalas } from "./domain/plans";
+import { ALRAJHI_MERCHANT_URL, buildFollowupTrandata, buildTrandata, capturedAmount, decryptTrandata, encryptTrandata, postTranportal } from "./domain/alrajhi";
+import { PLAN_DEFS } from "./domain/plans";
 import { halalasToSar, nextInvoiceNumber, splitVatInclusive, zatcaQrBase64 } from "./domain/invoice";
-import { sandboxSignatureOk, signSandbox } from "./domain/payments";
+import { assertSandboxGateway, sandboxSignatureOk, signSandbox } from "./domain/payments";
 import { fail } from "./http-error";
+import { decryptString } from "./domain/envelope";
 import { Kernel } from "./kernel";
+import { screenLayperson } from "./auth.service";
 
 @Injectable()
 export class BillingService {
@@ -23,15 +25,18 @@ export class BillingService {
           jurisdiction: plan.jurisdiction,
           currency: plan.currency,
           priceHalalas: plan.priceHalalas,
-          yearlyHalalas: yearlyHalalas(plan.priceHalalas),
           memoLimit: plan.memoLimit,
           chatLimit: plan.chatLimit,
+          chatTurnsPerMemo: plan.chatTurnsPerMemo,
+          uploadPagesPerMemo: plan.uploadPagesPerMemo,
+          validityDays: plan.validityDays,
           courts: plan.courts,
           word: plan.word,
           caseManagement: plan.caseManagement,
           letterhead: plan.letterhead,
-          seats: plan.seats,
           payPerMemoHalalas: pay,
+          oneTime: true as const,
+          autoRenew: false as const,
         };
       }),
     );
@@ -55,9 +60,12 @@ export class BillingService {
     let planCode: PlanCode | null = null;
     const cycle = input.cycle || "monthly";
     if (input.purpose === "subscription") {
+      const nationalId = account.nationalIdEnc ? decryptString(account.nationalIdEnc, this.kernel.dekOf(account.wrappedDataKey)) : "";
+      await screenLayperson(this.kernel.config, { name: account.name, phone: account.phone, email: account.email, nationalId });
+      if (input.cycle === "yearly") fail("RECURRING_DISABLED", 400, "Plans are a one-time payment and do not renew");
       if (!input.planCode || input.planCode === "free") fail("VALIDATION", 400, "Choose a paid plan");
       const plan = await this.kernel.plan(input.planCode, place.code);
-      amount = cycle === "yearly" ? yearlyHalalas(plan.priceHalalas) : plan.priceHalalas;
+      amount = plan.priceHalalas;
       planCode = input.planCode;
     }
     if (!Number.isInteger(amount) || amount < 100) fail("VALIDATION", 400, "Amount is too small");
@@ -66,7 +74,7 @@ export class BillingService {
         userId,
         purpose: input.purpose,
         planCode: planCode ?? undefined,
-        cycle,
+        cycle: input.purpose === "subscription" ? "once" : cycle,
         amountHalalas: amount,
         jurisdiction: place.code,
         currency: place.currency,
@@ -78,6 +86,7 @@ export class BillingService {
   }
 
   async confirmSandbox(intentId: string, sig: string) {
+    this.requireSandbox();
     if (!sandboxSignatureOk(this.kernel.config.paymentSandboxSecret, intentId, sig)) {
       fail("PAYMENT_SIGNATURE", 400, "Payment signature was rejected");
     }
@@ -85,6 +94,7 @@ export class BillingService {
   }
 
   async webhook(body: { intentId?: string; status?: string; eventKey?: string }, signature: string) {
+    this.requireSandbox();
     const eventKey = body.eventKey || "";
     if (!eventKey || !sandboxSignatureOk(this.kernel.config.paymentSandboxSecret, eventKey, signature)) {
       fail("PAYMENT_SIGNATURE", 400, "Webhook signature was rejected");
@@ -94,20 +104,111 @@ export class BillingService {
   }
 
   async gatewayCallback(body: Record<string, string>) {
-    const secret = this.kernel.config.alrajhiResourceKey;
+    const cfg = this.kernel.config;
+    const secret = cfg.alrajhiResourceKey;
     if (!secret || !body.trandata) fail("PAYMENT_REJECTED", 400, "Gateway payload is incomplete");
     const decoded = JSON.parse(decryptTrandata(body.trandata, secret)) as Array<Record<string, string>>;
     const row = decoded[0] || {};
     const intent = await this.kernel.prisma.paymentIntent.findUnique({ where: { id: row.trackId } });
     if (!intent) fail("NOT_FOUND", 404, "Payment was not found");
-    const captured = row.result === "CAPTURED" || row.result === "SUCCESS";
-    const amountOk = row.amt === halalasToSar(intent.amountHalalas);
-    if (!captured || !amountOk) {
+    const transId = row.paymentId || row.transId || "";
+    const callback = capturedAmount(row);
+    const amount = halalasToSar(intent.amountHalalas);
+    if (!callback.captured || callback.amount !== amount || !transId) {
       await this.kernel.prisma.paymentIntent.update({ where: { id: intent.id }, data: { status: "failed" } });
       return { status: "failed" };
     }
-    await this.fulfill(intent.id, `paid:${intent.id}`);
+    let inquiry: Record<string, string>;
+    try {
+      inquiry = await postTranportal({
+        merchantUrl: cfg.alrajhiMerchantUrl || ALRAJHI_MERCHANT_URL,
+        tranportalId: cfg.alrajhiTranportalId,
+        resourceKey: secret,
+        responseUrl: cfg.alrajhiResponseUrl,
+        errorUrl: cfg.alrajhiErrorUrl,
+        plain: buildFollowupTrandata({
+          tranportalId: cfg.alrajhiTranportalId,
+          password: cfg.alrajhiTranportalPassword,
+          action: "8",
+          amountSar: amount,
+          trackId: intent.id,
+          transId,
+          responseUrl: cfg.alrajhiResponseUrl,
+          errorUrl: cfg.alrajhiErrorUrl,
+        }),
+      });
+    } catch {
+      fail("PAYMENT_REJECTED", 502, "The bank inquiry did not confirm this payment");
+    }
+    const confirmed = capturedAmount(inquiry);
+    if (!confirmed.captured || confirmed.amount !== amount) {
+      await this.kernel.prisma.paymentIntent.update({ where: { id: intent.id }, data: { status: "failed" } });
+      return { status: "failed" };
+    }
+    await this.fulfill(intent.id, `paid:${intent.id}`, transId);
     return { status: "paid" };
+  }
+
+  async refundPaid(intentId: string) {
+    const intent = await this.kernel.prisma.paymentIntent.findUnique({ where: { id: intentId } });
+    if (!intent) fail("NOT_FOUND", 404, "Payment was not found");
+    if (intent.status === "refunded") return { status: "refunded", duplicate: true };
+    if (intent.status !== "paid" || intent.gateway !== "alrajhi" || !intent.gatewayRef || intent.gatewayRef.startsWith("paid:")) {
+      fail("PAYMENT_REJECTED", 409, "This payment cannot be refunded");
+    }
+    const cfg = this.kernel.config;
+    const amount = halalasToSar(intent.amountHalalas);
+    let result: Record<string, string>;
+    try {
+      result = await postTranportal({
+        merchantUrl: cfg.alrajhiMerchantUrl || ALRAJHI_MERCHANT_URL,
+        tranportalId: cfg.alrajhiTranportalId,
+        resourceKey: cfg.alrajhiResourceKey,
+        responseUrl: cfg.alrajhiResponseUrl,
+        errorUrl: cfg.alrajhiErrorUrl,
+        plain: buildFollowupTrandata({
+          tranportalId: cfg.alrajhiTranportalId,
+          password: cfg.alrajhiTranportalPassword,
+          action: "2",
+          amountSar: amount,
+          trackId: intent.id,
+          transId: intent.gatewayRef,
+          responseUrl: cfg.alrajhiResponseUrl,
+          errorUrl: cfg.alrajhiErrorUrl,
+        }),
+      });
+    } catch {
+      fail("PAYMENT_REJECTED", 502, "The bank did not accept the refund");
+    }
+    if (!capturedAmount(result).captured) fail("PAYMENT_REJECTED", 502, "The bank did not accept the refund");
+    await this.kernel.prisma.$transaction(async (tx) => {
+      const updated = await tx.paymentIntent.updateMany({
+        where: { id: intent.id, status: "paid" },
+        data: { status: "refunded" },
+      });
+      if (updated.count === 0) return;
+      if (intent.purpose === "topup") {
+        await tx.wallet.update({
+          where: { userId: intent.userId },
+          data: { balanceHalalas: { decrement: intent.amountHalalas } },
+        });
+      } else if (intent.planCode) {
+        await tx.user.updateMany({
+          where: { id: intent.userId, planCode: intent.planCode },
+          data: { planCode: "free", planExpiresAt: null, memoCountPeriod: 0, chatCountPeriod: 0 },
+        });
+      }
+      await tx.walletTransaction.create({
+        data: {
+          userId: intent.userId,
+          type: "adjustment",
+          amountHalalas: -intent.amountHalalas,
+          idempotencyKey: `refund:${intent.id}`,
+          description: "Al Rajhi refund",
+        },
+      });
+    });
+    return { status: "refunded", duplicate: false };
   }
 
   hostedForm(intentId: string) {
@@ -144,6 +245,14 @@ export class BillingService {
     });
   }
 
+  private requireSandbox() {
+    try {
+      assertSandboxGateway(this.kernel.config.paymentGateway);
+    } catch {
+      fail("NOT_FOUND", 404, "Sandbox confirmation is not available");
+    }
+  }
+
   private redirectFor(intentId: string, _amount: number) {
     if (this.kernel.config.paymentGateway === "alrajhi") {
       return { intentId, redirectUrl: `${this.kernel.config.apiPublicUrl}/api/payments/redirect/${intentId}` };
@@ -152,7 +261,7 @@ export class BillingService {
     return { intentId, redirectUrl: `${this.kernel.config.webOrigin}/pay/sandbox/${intentId}?sig=${sig}` };
   }
 
-  private async fulfill(intentId: string, eventKey: string) {
+  private async fulfill(intentId: string, eventKey: string, gatewayRef = eventKey) {
     const intent = await this.kernel.prisma.paymentIntent.findUnique({ where: { id: intentId } });
     if (!intent) fail("NOT_FOUND", 404, "Payment was not found");
     if (intent.status === "paid") return { status: "paid", duplicate: true };
@@ -166,7 +275,7 @@ export class BillingService {
         await tx.paymentEvent.create({ data: { intentId, eventKey, payloadHash: hash } });
         const updated = await tx.paymentIntent.updateMany({
           where: { id: intentId, status: "pending" },
-          data: { status: "paid", gatewayRef: eventKey },
+          data: { status: "paid", gatewayRef },
         });
         if (updated.count === 0) return;
         const seq = await tx.invoiceSequence.upsert({
@@ -218,11 +327,19 @@ export class BillingService {
             },
           });
         } else if (intent.planCode) {
-          const renews = new Date(issued);
-          renews.setUTCDate(renews.getUTCDate() + (intent.cycle === "yearly" ? 365 : 30));
+          const days = PLAN_DEFS[intent.planCode].validityDays || 30;
+          const expires = new Date(issued);
+          expires.setUTCDate(expires.getUTCDate() + days);
           await tx.user.update({
             where: { id: user.id },
-            data: { planCode: intent.planCode, planRenewsAt: renews, memoCountPeriod: 0, chatCountPeriod: 0, periodStartedAt: issued },
+            data: {
+              planCode: intent.planCode,
+              planExpiresAt: expires,
+              memoCountPeriod: 0,
+              chatCountPeriod: 0,
+              periodStartedAt: issued,
+              planReminderKey: null,
+            },
           });
           await tx.walletTransaction.create({
             data: {
@@ -230,7 +347,7 @@ export class BillingService {
               type: "subscription",
               amountHalalas: intent.amountHalalas,
               idempotencyKey: eventKey,
-              description: `Plan ${intent.planCode}`,
+              description: `One-time plan ${intent.planCode}`,
             },
           });
         }

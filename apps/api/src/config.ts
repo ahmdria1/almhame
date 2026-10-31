@@ -1,4 +1,6 @@
-import { PAY_PER_MEMO_HALALAS } from "@elawyer/types";
+import { FAIR_USE_CHAT_TURNS, FAIR_USE_UPLOAD_PAGES, PAY_PER_MEMO_HALALAS } from "@elawyer/types";
+import { ALRAJHI_MERCHANT_URL } from "./domain/alrajhi";
+import { TAQNYAT_BASE, smsSenderAccepted } from "./domain/sms";
 
 export interface AppConfig {
   databaseUrl: string;
@@ -24,6 +26,7 @@ export interface AppConfig {
   alrajhiTranportalPassword: string;
   alrajhiResourceKey: string;
   alrajhiHostedUrl: string;
+  alrajhiMerchantUrl: string;
   alrajhiResponseUrl: string;
   alrajhiErrorUrl: string;
   payPerMemoHalalas: number;
@@ -62,6 +65,20 @@ export interface AppConfig {
   clamavHost: string;
   clamavPort: number;
   clamavRequired: boolean;
+  fairUseChatTurns: number;
+  fairUseUploadPages: number;
+  assessmentDailyLimit: number;
+  najizBaseUrl: string;
+  najizClientId: string;
+  najizClientSecret: string;
+  najizTokenPath: string;
+  najizLicensePath: string;
+  najizMockBlockIds: string[];
+  nafathBaseUrl: string;
+  nafathAppId: string;
+  nafathAppKey: string;
+  nafathService: string;
+  expoAccessToken: string;
 }
 
 export const DEFAULT_SMTP_FROM = "no-reply@emuhami.com";
@@ -106,6 +123,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     alrajhiTranportalPassword: env.ALRAJHI_TRANPORTAL_PASSWORD || "",
     alrajhiResourceKey: env.ALRAJHI_RESOURCE_KEY || "",
     alrajhiHostedUrl: env.ALRAJHI_HOSTED_URL || "https://securepayments.alrajhibank.com.sa/pg/payment/hosted.htm",
+    alrajhiMerchantUrl: env.ALRAJHI_MERCHANT_URL || ALRAJHI_MERCHANT_URL,
     alrajhiResponseUrl: env.ALRAJHI_RESPONSE_URL || "",
     alrajhiErrorUrl: env.ALRAJHI_ERROR_URL || "",
     payPerMemoHalalas: Number(env.PAY_PER_MEMO_HALALAS || PAY_PER_MEMO_HALALAS),
@@ -120,7 +138,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     smsProvider: env.SMS_PROVIDER || "mock",
     smsApiKey: env.SMS_API_KEY || "",
     smsSender: env.SMS_SENDER || "",
-    smsBaseUrl: env.SMS_BASE_URL || "",
+    smsBaseUrl: env.SMS_BASE_URL || (env.SMS_PROVIDER === "taqnyat" ? TAQNYAT_BASE : ""),
     integrationsMode: env.INTEGRATIONS_MODE || "stub",
     googleClientId: env.GOOGLE_CLIENT_ID || "",
     googleClientSecret: env.GOOGLE_CLIENT_SECRET || "",
@@ -143,6 +161,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     clamavHost: (env.CLAMAV_HOST || "").trim(),
     clamavPort: Number(env.CLAMAV_PORT || 3310),
     clamavRequired: env.NODE_ENV === "production" || env.CLAMAV_REQUIRED === "true",
+    fairUseChatTurns: Number(env.FAIR_USE_CHAT_TURNS || FAIR_USE_CHAT_TURNS),
+    fairUseUploadPages: Number(env.FAIR_USE_UPLOAD_PAGES || FAIR_USE_UPLOAD_PAGES),
+    assessmentDailyLimit: Number(env.ASSESSMENT_DAILY_LIMIT || 24),
+    najizBaseUrl: env.NAJIZ_BASE_URL || "",
+    najizClientId: env.NAJIZ_CLIENT_ID || "",
+    najizClientSecret: env.NAJIZ_CLIENT_SECRET || "",
+    najizTokenPath: env.NAJIZ_TOKEN_PATH || "/oauth/v1/token",
+    najizLicensePath: env.NAJIZ_LICENSE_PATH || "/lawyers/v1/licenses",
+    najizMockBlockIds: (env.NAJIZ_MOCK_BLOCK_IDS || "").split(",").map((item) => item.trim()).filter(Boolean),
+    nafathBaseUrl: env.NAFATH_BASE_URL || "",
+    nafathAppId: env.NAFATH_APP_ID || "",
+    nafathAppKey: env.NAFATH_APP_KEY || "",
+    nafathService: env.NAFATH_SERVICE || "",
+    expoAccessToken: env.EXPO_ACCESS_TOKEN || "",
     corsOrigins: [
       ...new Set([
         webOrigin,
@@ -170,8 +202,18 @@ export function assertProductionProviders(config: AppConfig): void {
   const blocked: string[] = [];
   if (config.llmProvider === "mock") blocked.push("LLM_PROVIDER");
   if (config.embeddingProvider === "mock") blocked.push("EMBEDDING_PROVIDER");
-  if (config.smsProvider === "mock") blocked.push("SMS_PROVIDER");
   if (config.paymentGateway === "sandbox" || config.paymentGateway === "mock") blocked.push("PAYMENT_GATEWAY");
+  if (!config.modelBaseUrl || !config.modelApiKey || !config.modelName) blocked.push("MODEL_BASE_URL");
+  if (!config.embeddingBaseUrl || !config.embeddingApiKey || !config.embeddingModel) blocked.push("EMBEDDING_BASE_URL");
+  if (!config.alrajhiTranportalId || !config.alrajhiTranportalPassword || !config.alrajhiResourceKey) blocked.push("ALRAJHI_TRANPORTAL_ID");
+  if (!smsSenderAccepted(config.smsProvider, config.smsApiKey, config.smsSender, config.smsBaseUrl || TAQNYAT_BASE)) blocked.push("SMS_SENDER");
+  if (config.integrationsMode !== "live" || !config.googleClientId || !config.googleClientSecret || !config.msClientId || !config.msClientSecret) blocked.push("INTEGRATIONS_MODE");
+  if (!config.najizBaseUrl || !config.najizClientId || !config.najizClientSecret) blocked.push("NAJIZ_CLIENT_ID");
+  if (!config.nafathBaseUrl || !config.nafathAppId || !config.nafathAppKey || !config.nafathService) blocked.push("NAFATH_APP_ID");
+  if (!config.expoAccessToken) blocked.push("EXPO_ACCESS_TOKEN");
+  if (!config.clamavHost) blocked.push("CLAMAV_HOST");
+  if (!config.storageDir) blocked.push("STORAGE_DIR");
+  if (config.sellerVat === "300000000000003") blocked.push("SELLER_VAT_NUMBER");
   if (!config.smtpHost || !config.smtpFrom) blocked.push("SMTP_HOST");
   if (config.otpDebug) blocked.push("OTP_DEBUG");
   if (config.emailDebug) blocked.push("EMAIL_DEBUG");

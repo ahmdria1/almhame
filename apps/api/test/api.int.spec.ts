@@ -11,6 +11,7 @@ import { CorpusService } from "../src/corpus.service";
 import { PrismaService } from "../src/prisma.service";
 import { pingScanner } from "../src/domain/clamd";
 import { signSandbox } from "../src/domain/payments";
+import { MOCK_TRANSCRIPT } from "../src/domain/voice";
 
 describe("api integration", () => {
   let app: INestApplication;
@@ -31,7 +32,7 @@ describe("api integration", () => {
     const signup = await request(app.getHttpServer())
       .post("/api/auth/signup")
       .set("X-Forwarded-For", ip)
-      .send({ name, phone: mobile, email, password, consent: true })
+      .send({ name, phone: mobile, email, password, consent: true, notPracticingLawyer: true })
       .expect(201);
     expect(signup.body.debugCode).toMatch(/^\d{6}$/);
     const blocked = await request(app.getHttpServer()).post("/api/auth/login").set("X-Forwarded-For", ip).send({ email, password }).expect(403);
@@ -143,21 +144,15 @@ describe("api integration", () => {
       .expect(404);
   });
 
-  it("stops the sixth free chat", async () => {
+  it("does not cap free chats at five", async () => {
     const user = await account();
-    for (let index = 0; index < 5; index += 1) {
+    for (let index = 0; index < 6; index += 1) {
       await request(app.getHttpServer())
         .post("/api/chats")
         .set("Authorization", `Bearer ${user.token}`)
         .send({ court: "general", memoType: "lawsuit" })
         .expect(201);
     }
-    const blocked = await request(app.getHttpServer())
-      .post("/api/chats")
-      .set("Authorization", `Bearer ${user.token}`)
-      .send({ court: "general", memoType: "lawsuit" })
-      .expect(402);
-    expect(blocked.body.error.code).toBe("QUOTA_CHATS");
   });
 
   it("states that the labor statute is missing and rejects an invented article", async () => {
@@ -297,7 +292,7 @@ describe("api integration", () => {
     const signup = await request(app.getHttpServer())
       .post("/api/auth/signup")
       .set("X-Forwarded-For", "203.0.113.10")
-      .send({ name: "أحمد العمراني", phone: mobile, email, password: "test-pass-123", consent: true })
+      .send({ name: "أحمد العمراني", phone: mobile, email, password: "test-pass-123", consent: true, notPracticingLawyer: true })
       .expect(201);
     const wrong = signup.body.debugCode === "000000" ? "111111" : "000000";
     for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -320,7 +315,7 @@ describe("api integration", () => {
     const second = await request(app.getHttpServer())
       .post("/api/auth/signup")
       .set("X-Forwarded-For", "203.0.113.20")
-      .send({ name: "أحمد العمراني", phone: other, email: otherEmail, password: "test-pass-123", consent: true })
+      .send({ name: "أحمد العمراني", phone: other, email: otherEmail, password: "test-pass-123", consent: true, notPracticingLawyer: true })
       .expect(201);
     for (let attempt = 0; attempt < 5; attempt += 1) {
       await request(app.getHttpServer())
@@ -357,12 +352,11 @@ describe("api integration", () => {
         .send({ court: "general", memoType: "lawsuit" })
         .expect(201);
     }
-    const blocked = await request(app.getHttpServer())
+    await request(app.getHttpServer())
       .post("/api/chats")
       .set("Authorization", `Bearer ${user.token}`)
       .send({ court: "general", memoType: "lawsuit" })
-      .expect(402);
-    expect(blocked.body.error.code).toBe("QUOTA_CHATS");
+      .expect(201);
     const checkout = await request(app.getHttpServer())
       .post("/api/billing/checkout")
       .set("Authorization", `Bearer ${user.token}`)
@@ -377,7 +371,7 @@ describe("api integration", () => {
       .expect(201);
     const upgraded = await prisma.user.findUnique({ where: { id: user.userId } });
     expect(upgraded?.planCode).toBe("basic");
-    expect(upgraded?.chatCount).toBe(6);
+    expect(upgraded?.chatCount).toBe(7);
     expect(upgraded?.chatCountPeriod).toBe(1);
     await prisma.planSetting.update({ where: { jurisdiction_code: { jurisdiction: "SA", code: "basic" } }, data: { chatLimit: 1 } });
     try {
@@ -401,7 +395,7 @@ describe("api integration", () => {
         .expect(201);
       const renewed = await prisma.user.findUnique({ where: { id: user.userId } });
       expect(renewed?.chatCountPeriod).toBe(1);
-      expect(renewed?.chatCount).toBe(7);
+      expect(renewed?.chatCount).toBe(8);
     } finally {
       await prisma.planSetting.update({ where: { jurisdiction_code: { jurisdiction: "SA", code: "basic" } }, data: { chatLimit: null } });
     }
@@ -547,5 +541,155 @@ describe("api integration", () => {
     expect(await prisma.user.findUnique({ where: { id: user.userId } })).toBeNull();
     expect(await prisma.chat.count({ where: { id: chat.body.chat.id } })).toBe(0);
     await request(app.getHttpServer()).get("/api/me").set("Authorization", `Bearer ${user.token}`).expect(404);
+  });
+
+  it("turns a voice note into a transcript message and hides it from another account", async () => {
+    const user = await account();
+    const other = await account("طرف آخر");
+    const chat = await request(app.getHttpServer())
+      .post("/api/chats")
+      .set("Authorization", `Bearer ${user.token}`)
+      .send({ court: "general", memoType: "lawsuit" })
+      .expect(201);
+    const header = Buffer.alloc(44);
+    header.write("RIFF", 0);
+    header.writeUInt32LE(36 + 32, 4);
+    header.write("WAVE", 8);
+    header.write("fmt ", 12);
+    header.writeUInt32LE(16, 16);
+    header.writeUInt16LE(1, 20);
+    header.writeUInt16LE(1, 22);
+    header.writeUInt32LE(8000, 24);
+    header.writeUInt32LE(16000, 28);
+    header.writeUInt16LE(2, 32);
+    header.writeUInt16LE(16, 34);
+    header.write("data", 36);
+    header.writeUInt32LE(32, 40);
+    const note = Buffer.concat([header, Buffer.alloc(32)]);
+    const rejected = await request(app.getHttpServer())
+      .post(`/api/chats/${chat.body.chat.id}/voice`)
+      .set("Authorization", `Bearer ${other.token}`)
+      .attach("file", Buffer.from("not-audio"), { filename: "note.txt", contentType: "text/plain" });
+    expect(rejected.status).toBe(404);
+    const junk = await request(app.getHttpServer())
+      .post(`/api/chats/${chat.body.chat.id}/voice`)
+      .set("Authorization", `Bearer ${user.token}`)
+      .attach("file", Buffer.from("not-audio"), { filename: "note.txt", contentType: "text/plain" });
+    expect(junk.status).toBe(422);
+    expect(junk.body.error.code).toBe("UNSUPPORTED_TYPE");
+    const spoken = await request(app.getHttpServer())
+      .post(`/api/chats/${chat.body.chat.id}/voice`)
+      .set("Authorization", `Bearer ${user.token}`)
+      .attach("file", note, { filename: "note.wav", contentType: "audio/wav" })
+      .expect(201);
+    expect(spoken.body.user.content).toBe(MOCK_TRANSCRIPT);
+    expect(spoken.body.counsel.content.length).toBeGreaterThan(0);
+    const stored = await prisma.message.findFirst({ where: { chatId: chat.body.chat.id, role: "user" } });
+    expect(stored?.contentEnc).not.toContain("RIFF");
+    expect(stored?.contentEnc).not.toContain(MOCK_TRANSCRIPT);
+  });
+
+  it("rejects a practicing lawyer, stores an assessment, and keeps it private", async () => {
+    const ip = "198.51.100.77";
+    const blocked = await request(app.getHttpServer())
+      .post("/api/auth/signup")
+      .set("X-Forwarded-For", ip)
+      .send({
+        name: "محام ممارس",
+        phone: phone(),
+        email: `lawyer${seq}@example.sa`,
+        password: "test-pass-123",
+        consent: true,
+        notPracticingLawyer: true,
+        nationalId: "1999999999",
+      });
+    expect(blocked.status).toBe(403);
+    expect(blocked.body.error.code).toBe("LAWYER_BLOCKED");
+    const missing = await request(app.getHttpServer())
+      .post("/api/auth/signup")
+      .set("X-Forwarded-For", "198.51.100.78")
+      .send({
+        name: "بدون إقرار",
+        phone: phone(),
+        email: `nodecl${seq}@example.sa`,
+        password: "test-pass-123",
+        consent: true,
+        notPracticingLawyer: false,
+      });
+    expect(missing.status).toBe(400);
+    const owner = await account();
+    const other = await account("شخص آخر");
+    const facts = "My name is Rahim. The company did not pay 15000 riyals. Date 2024-03-12.";
+    const made = await request(app.getHttpServer())
+      .post("/api/assessments")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ facts })
+      .expect(201);
+    expect(made.body.assessment.successLow).toBeLessThan(made.body.assessment.successHigh);
+    expect(made.body.assessment.disclaimer.length).toBeGreaterThan(10);
+    expect(made.body.assessment.caseType).toMatch(/[A-Za-z]/);
+    const hidden = await request(app.getHttpServer())
+      .get(`/api/assessments/${made.body.assessment.id}`)
+      .set("Authorization", `Bearer ${other.token}`);
+    expect(hidden.status).toBe(404);
+    const seen = await request(app.getHttpServer())
+      .get(`/api/assessments/${made.body.assessment.id}`)
+      .set("Authorization", `Bearer ${owner.token}`)
+      .expect(200);
+    expect(seen.body.assessment.id).toBe(made.body.assessment.id);
+  });
+
+  it("prepares the hearing in Arabic and reminds when a paid plan expires", async () => {
+    const user = await account();
+    const chat = await request(app.getHttpServer())
+      .post("/api/chats")
+      .set("Authorization", `Bearer ${user.token}`)
+      .send({ court: "general", memoType: "lawsuit" })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/chats/${chat.body.chat.id}/messages`)
+      .set("Authorization", `Bearer ${user.token}`)
+      .send({ text: "المدعي: أحمد\nالمدعى عليه: شركة\nالطلبات: أجر\nلم يُصرف أجر شهر أغسطس بعد انتهاء الخدمة في 2024-03-12 والمبلغ 15000." })
+      .expect(201);
+    const drafted = await request(app.getHttpServer())
+      .post(`/api/chats/${chat.body.chat.id}/draft`)
+      .set("Authorization", `Bearer ${user.token}`)
+      .send({})
+      .expect(201);
+    expect(drafted.body.memo.body).toContain("بسم الله");
+    expect(drafted.body.memo.body).toContain("تنبيه");
+    expect(drafted.body.memo.hearingPrep.items[0].questionAr).toMatch(/ما موضوع/);
+    expect(drafted.body.memo.summary.text.length).toBeGreaterThan(10);
+    const detail = await request(app.getHttpServer())
+      .get(`/api/chats/${chat.body.chat.id}`)
+      .set("Authorization", `Bearer ${user.token}`)
+      .expect(200);
+    const hearing = await request(app.getHttpServer())
+      .post(`/api/cases/${detail.body.caseFile.id}/hearings`)
+      .set("Authorization", `Bearer ${user.token}`)
+      .send({ kind: "appeal_deadline", occursAt: new Date(Date.now() + 5 * 86400000).toISOString(), title: "موعد استئناف" })
+      .expect(201);
+    expect(hearing.body.id).toBeTruthy();
+    await prisma.user.update({
+      where: { id: user.userId },
+      data: { planCode: "basic", planExpiresAt: new Date(Date.now() - 60_000), memoCountPeriod: 3 },
+    });
+    const me = await request(app.getHttpServer()).get("/api/me").set("Authorization", `Bearer ${user.token}`).expect(200);
+    expect(me.body.user.planCode).toBe("free");
+    const notes = await request(app.getHttpServer()).get("/api/me/notifications").set("Authorization", `Bearer ${user.token}`).expect(200);
+    expect(notes.body.items.some((item: { kind?: string; sound?: string }) => item.kind === "plan_reminder" && item.sound === "normal-2")).toBe(true);
+    const unpaid = await request(app.getHttpServer())
+      .post("/api/billing/checkout")
+      .set("Authorization", `Bearer ${user.token}`)
+      .send({ purpose: "subscription", planCode: "pro", cycle: "yearly" });
+    expect(unpaid.status).toBe(400);
+    const pending = await request(app.getHttpServer())
+      .post("/api/billing/checkout")
+      .set("Authorization", `Bearer ${user.token}`)
+      .send({ purpose: "subscription", planCode: "basic", idempotencyKey: `once-${user.userId}` })
+      .expect(201);
+    const stillFree = await prisma.user.findUnique({ where: { id: user.userId } });
+    expect(stillFree?.planCode).toBe("free");
+    expect(pending.body.intentId).toBeTruthy();
   });
 });

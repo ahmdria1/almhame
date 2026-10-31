@@ -20,11 +20,14 @@
       "associatedDomains": ["applinks:emuhami.com"],
       "infoPlist": {
         "NSCameraUsageDescription": "لإرفاق صورة من الكاميرا بالمحادثة. Used to attach a photo from the camera to the chat.",
-        "NSPhotoLibraryUsageDescription": "لإرفاق صورة من مكتبة الصور بالمحادثة. Used to attach a photo from the library to the chat."
+        "NSPhotoLibraryUsageDescription": "لإرفاق صورة من مكتبة الصور بالمحادثة. Used to attach a photo from the library to the chat.",
+        "NSMicrophoneUsageDescription": "لتسجيل رسالة صوتية في المحادثة. Used to record a voice note in the chat."
       }
     },
     "android": {
       "package": "com.emuhami.app",
+      "softwareKeyboardLayoutMode": "resize",
+      "permissions": ["RECORD_AUDIO"],
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -43,6 +46,23 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "sounds": [
+            "./assets/sounds/normal-1.wav",
+            "./assets/sounds/normal-2.wav",
+            "./assets/sounds/urgent-1.wav",
+            "./assets/sounds/urgent-2.wav"
+          ]
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "لتسجيل رسالة صوتية في المحادثة. Used to record a voice note in the chat."
+        }
+      ],
       [
         "expo-image-picker",
         {

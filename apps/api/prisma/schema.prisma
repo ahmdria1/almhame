@@ -20,11 +20,18 @@ enum PlanCode {
   pro
 }
 
+enum SoundMode {
+  all
+  urgent
+  off
+}
+
 enum PaymentStatus {
   pending
   paid
   failed
   cancelled
+  refunded
 }
 
 enum TxType {
@@ -50,6 +57,7 @@ enum IntegrationProvider {
 enum HearingKind {
   hearing
   objection_deadline
+  appeal_deadline
 }
 
 model User {
@@ -65,13 +73,18 @@ model User {
   locale          String    @default("ar")
   jurisdiction    String    @default("SA")
   theme           String    @default("light")
-  planCode        PlanCode  @default(free)
-  planRenewsAt    DateTime?
-  chatCount       Int       @default(0)
-  chatCountPeriod Int       @default(0)
-  memoCountPeriod Int       @default(0)
-  periodStartedAt DateTime  @default(now())
-  wrappedDataKey  String
+  planCode            PlanCode  @default(free)
+  planExpiresAt       DateTime?
+  chatCount           Int       @default(0)
+  chatCountPeriod     Int       @default(0)
+  memoCountPeriod     Int       @default(0)
+  periodStartedAt     DateTime  @default(now())
+  wrappedDataKey      String
+  notLawyerDeclaredAt DateTime?
+  nationalIdEnc       String?
+  planReminderKey     String?
+  soundMode           SoundMode @default(all)
+  expoPushToken   String?
   orgId           String?
   orgRole         String?
   notifyHearings  Boolean   @default(true)
@@ -93,9 +106,23 @@ model User {
   payments     PaymentIntent[]
   saved        SavedItem[]
   integrations IntegrationAccount[]
-  hearings     Hearing[]
+  hearings      Hearing[]
   notifications Notification[]
-  exportJobs   ExportJob[]
+  exportJobs    ExportJob[]
+  assessments   CaseAssessment[]
+  nafath        NafathRequest[]
+}
+
+model NafathRequest {
+  id         String   @id @default(cuid())
+  userId     String
+  transId    String
+  randomCode String
+  status     String   @default("pending")
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 model Organization {
@@ -174,6 +201,7 @@ model Document {
   filename   String
   mime       String
   byteSize   Int
+  pageCount  Int      @default(1)
   storageKey String
   ocrEnc     String?
   createdAt  DateTime @default(now())
@@ -190,8 +218,9 @@ model Chat {
   titleEnc     String
   jurisdiction String   @default("SA")
   court        String
-  memoType  MemoType @default(lawsuit)
-  createdAt DateTime @default(now())
+  memoType     MemoType @default(lawsuit)
+  clientLocale String   @default("ar")
+  createdAt    DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   country   Jurisdiction @relation(fields: [jurisdiction], references: [code])
@@ -224,6 +253,7 @@ model Memo {
   court        String
   memoType   MemoType
   bodyEnc    String
+  summaryEnc String    @default("")
   status     String    @default("draft")
   flagged    Boolean   @default(false)
   createdAt  DateTime  @default(now())
@@ -232,8 +262,9 @@ model Memo {
   country    Jurisdiction @relation(fields: [jurisdiction], references: [code])
   caseFile   CaseFile? @relation(fields: [caseId], references: [id])
   chat       Chat?     @relation(fields: [chatId], references: [id])
-  citations  MemoCitation[]
-  saved      SavedItem[]
+  citations   MemoCitation[]
+  saved       SavedItem[]
+  hearingPrep HearingPrep?
 
   @@index([userId, updatedAt])
 }
@@ -434,11 +465,33 @@ model Notification {
   id         String    @id @default(cuid())
   userId     String
   hearingId  String?
+  kind       String    @default("hearing")
+  priority   String    @default("normal")
+  titleEnc   String    @default("")
   readAt     DateTime?
   createdAt  DateTime  @default(now())
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+model CaseAssessment {
+  id        String   @id @default(cuid())
+  userId    String
+  court     String   @default("general")
+  factsEnc  String
+  resultEnc String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model HearingPrep {
+  memoId    String   @id
+  bodyEnc   String
+  updatedAt DateTime @updatedAt
+  memo      Memo     @relation(fields: [memoId], references: [id], onDelete: Cascade)
 }
 
 model ExportJob {
@@ -508,6 +561,7 @@ model PlanSetting {
   currency      String   @default("SAR")
   memoLimit     Int
   chatLimit     Int?
+  validityDays  Int      @default(30)
   courts        String[] @default([])
   updatedAt     DateTime @updatedAt
   country       Jurisdiction @relation(fields: [jurisdiction], references: [code])

@@ -91,7 +91,7 @@ export function readSlots(userTexts: string[]): DraftSlots & { ready: boolean; q
       facts,
       requests: requests || "",
       ready: false,
-      question: "صف الوقائع بجملة واضحة: ماذا حدث، ومتى، وما الذي تطلبه؟",
+      question: "احكِ لي وش صار بوضوح: وش حدث، ومتى، ووش تبي يصير؟",
     };
   }
   if (!plaintiff) {
@@ -101,7 +101,7 @@ export function readSlots(userTexts: string[]): DraftSlots & { ready: boolean; q
       facts,
       requests: requests || "",
       ready: false,
-      question: "من المدّعي؟ أجب بالصيغة: المدّعي: الاسم.",
+      question: "مين صاحب الطلب؟ اكتب: المدّعي: الاسم.",
     };
   }
   if (!defendant) {
@@ -111,7 +111,7 @@ export function readSlots(userTexts: string[]): DraftSlots & { ready: boolean; q
       facts,
       requests: requests || "",
       ready: false,
-      question: "من المدّعى عليه؟ أجب بالصيغة: المدّعى عليه: الاسم.",
+      question: "مين الطرف الثاني؟ اكتب: المدّعى عليه: الاسم.",
     };
   }
   return {
@@ -120,7 +120,7 @@ export function readSlots(userTexts: string[]): DraftSlots & { ready: boolean; q
     facts,
     requests: requests || "الحكم وفق الوقائع، مع تحميل المدّعى عليه الرسوم.",
     ready: true,
-    question: "الوقائع كافية للصياغة. راجع المذكرة بعد إنشائها، ولا تودعها قبل مطابقة المصادر.",
+    question: "الوقائع تكفي ونقدر نرتّب المذكرة. راجعها قبل لا تقدمها. هالخدمة مساعدة، مو محامي مرخص، وما نضمن النتيجة.",
   };
 }
 

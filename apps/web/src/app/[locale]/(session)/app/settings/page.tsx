@@ -12,6 +12,8 @@ export default function SettingsPage() {
   const { t, user, client, setTheme, theme, setLocale, locale, logout } = useApp();
   const [name, setName] = useState(user?.name || "");
   const [message, setMessage] = useState("");
+  const [nafathRandom, setNafathRandom] = useState("");
+  const [nafathError, setNafathError] = useState("");
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -30,6 +32,21 @@ export default function SettingsPage() {
         {message ? <p className="mt-2 text-sm text-success">{message}</p> : null}
       </form>
       <section className="paper rounded-3xl border border-ink-200 p-5 dark:border-white/10">
+        <h2 className="font-semibold">{t("settings.nafath")}</h2>
+        <p className="mt-2 text-sm leading-7 text-ink-500">{t("settings.nafathBody")}</p>
+        <Button className="mt-4" type="button" variant="secondary" onClick={async () => {
+          setNafathError("");
+          try {
+            const started = await client.startNafath();
+            setNafathRandom(started.random);
+          } catch (err) {
+            setNafathError(err instanceof Error ? err.message : t("common.error"));
+          }
+        }}>{t("settings.nafathStart")}</Button>
+        {nafathRandom ? <p className="mt-3 text-sm">{t("settings.nafathRandom", { random: nafathRandom })}</p> : null}
+        {nafathError ? <p className="mt-2 text-sm text-danger">{nafathError}</p> : null}
+      </section>
+      <section className="paper rounded-3xl border border-ink-200 p-5 dark:border-white/10">
         <h2 className="font-semibold">{t("settings.appearance")}</h2>
         <div className="mt-3 flex gap-2">
           <Button variant={theme === "light" ? "primary" : "secondary"} type="button" onClick={() => setTheme("light")}>{t("settings.light")}</Button>
@@ -47,6 +64,15 @@ export default function SettingsPage() {
           <input type="checkbox" defaultChecked={user?.notifyHearings} onChange={(event) => void client.updateMe({ notifyHearings: event.target.checked })} />
           {t("settings.hearingsToggle")}
         </label>
+        <fieldset className="mt-4 grid gap-2 text-sm">
+          <legend className="font-semibold">{t("settings.sound")}</legend>
+          {(["all", "urgent", "off"] as const).map((mode) => (
+            <label key={mode} className="flex items-center gap-2">
+              <input type="radio" name="sound" checked={user?.soundMode === mode} onChange={() => void client.updateMe({ soundMode: mode })} />
+              {t(mode === "all" ? "settings.soundAll" : mode === "urgent" ? "settings.soundUrgent" : "settings.soundOff")}
+            </label>
+          ))}
+        </fieldset>
       </section>
       <section className="paper rounded-3xl border border-danger/30 p-5">
         <h2 className="font-semibold">{t("settings.privacy")}</h2>

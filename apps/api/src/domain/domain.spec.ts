@@ -9,10 +9,10 @@ import { EMBED_DIM, mockEmbed, vectorLiteral } from "./embeddings";
 import { decodeMasterKey, decryptBytes, decryptString, encryptBytes, encryptString, generateDek, unwrapKey, wrapKey } from "./envelope";
 import { halalasToSar, nextInvoiceNumber, splitVatInclusive, zatcaQrBase64 } from "./invoice";
 import { createHash, createHmac } from "crypto";
-import { buildTrandata, decryptTrandata, encryptTrandata } from "./alrajhi";
+import { ALRAJHI_MERCHANT_URL, buildFollowupTrandata, buildTrandata, decryptTrandata, encryptTrandata, postTranportal } from "./alrajhi";
 import { generateOtpCode, isPhone, otpMatches, hashOtp, normalizePhone } from "./otp";
 import { sandboxSignatureOk, signSandbox } from "./payments";
-import { chatQuota, chatsCounted, courtAllowed, memoQuota, PLAN_DEFS, resolvePlan, yearlyHalalas } from "./plans";
+import { chatQuota, chatsCounted, courtAllowed, memoQuota, PLAN_DEFS, resolvePlan } from "./plans";
 
 const master = decodeMasterKey(Buffer.from("0123456789abcdef0123456789abcdef").toString("base64"));
 
@@ -44,23 +44,25 @@ describe("otp and phone", () => {
 describe("plans and vat", () => {
   it("enforces free chat and memo quotas", () => {
     expect(chatQuota(PLAN_DEFS.free, 4).ok).toBe(true);
-    expect(chatQuota(PLAN_DEFS.free, 5)).toEqual({ ok: false, code: "QUOTA_CHATS" });
+    expect(memoQuota(PLAN_DEFS.free, 1)).toEqual({ ok: false, code: "QUOTA_MEMOS" });
     expect(chatsCounted(PLAN_DEFS.free, 5, 0)).toBe(5);
     expect(chatsCounted(PLAN_DEFS.basic, 5, 0)).toBe(0);
     expect(chatQuota(PLAN_DEFS.basic, chatsCounted(PLAN_DEFS.basic, 5, 0)).ok).toBe(true);
-    expect(memoQuota(PLAN_DEFS.basic, 30)).toEqual({ ok: false, code: "QUOTA_MEMOS" });
-    expect(PLAN_DEFS.basic.priceHalalas).toBe(9900);
-    expect(PLAN_DEFS.pro.priceHalalas).toBe(24900);
-    expect(PLAN_DEFS.office.priceHalalas).toBe(59900);
+    expect(memoQuota(PLAN_DEFS.basic, 15)).toEqual({ ok: false, code: "QUOTA_MEMOS" });
+    expect(PLAN_DEFS.free.memoLimit).toBe(1);
+    expect(PLAN_DEFS.basic.priceHalalas).toBe(3900);
+    expect(PLAN_DEFS.pro.priceHalalas).toBe(11900);
+    expect(PLAN_DEFS.pro.memoLimit).toBe(50);
+    expect(PLAN_DEFS.basic.validityDays).toBe(30);
     expect(PLAN_DEFS.pro.word).toBe(true);
     expect(PLAN_DEFS.basic.word).toBe(false);
   });
 
   it("splits inclusive VAT at 15 percent", () => {
-    const split = splitVatInclusive(9900);
-    expect(split.subtotalHalalas + split.vatHalalas).toBe(9900);
+    const split = splitVatInclusive(3900);
+    expect(split.subtotalHalalas + split.vatHalalas).toBe(3900);
     expect(split.vatHalalas).toBeGreaterThan(0);
-    expect(halalasToSar(2900)).toBe("29.00");
+    expect(halalasToSar(900)).toBe("9.00");
   });
 
   it("builds a phase-one invoice qr", () => {
@@ -480,7 +482,7 @@ describe("embeddings and payment crypto", () => {
     expect(norm).toBeCloseTo(1, 5);
   });
 
-  it("round-trips tranportal data and sandbox signatures", () => {
+  it("round-trips tranportal data and sandbox signatures", async () => {
     const key = "1234567890abcdef";
     const json = buildTrandata({
       tranportalId: "merchant",
@@ -498,6 +500,33 @@ describe("embeddings and payment crypto", () => {
     expect(vectorLiteral(mockEmbed("نص"))).toMatch(/^\[[0-9.,-]+\]$/);
     expect(() => vectorLiteral([1])).toThrow(/dimension/);
     expect(() => encryptTrandata("{}", "short")).toThrow(/16 or 32/);
+    const inquiry = JSON.parse(buildFollowupTrandata({
+      tranportalId: "merchant",
+      password: "secret",
+      action: "8",
+      amountSar: "99.00",
+      trackId: "track-1",
+      transId: "pay-9",
+      responseUrl: "https://example.sa/ok",
+      errorUrl: "https://example.sa/err",
+    }));
+    expect(inquiry[0].action).toBe("8");
+    expect(inquiry[0].udf5).toBe("PaymentID");
+    expect(inquiry[0].transId).toBe("pay-9");
+    const refund = JSON.parse(buildFollowupTrandata({ ...inquiry[0], action: "2", tranportalId: "merchant", password: "secret", amountSar: "99.00", trackId: "track-1", transId: "pay-9", responseUrl: "https://example.sa/ok", errorUrl: "https://example.sa/err" }));
+    expect(refund[0].action).toBe("2");
+    const inner = JSON.stringify([{ result: "CAPTURED", amt: "99.00" }]);
+    const fetchImpl = jest.fn().mockResolvedValue(new Response(JSON.stringify([{ status: "1", trandata: encryptTrandata(inner, key) }]), { status: 200 }));
+    await expect(postTranportal({
+      merchantUrl: ALRAJHI_MERCHANT_URL,
+      tranportalId: "merchant",
+      resourceKey: key,
+      plain: inner,
+      responseUrl: "https://example.sa/ok",
+      errorUrl: "https://example.sa/err",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    })).resolves.toEqual({ result: "CAPTURED", amt: "99.00" });
+    expect(fetchImpl.mock.calls[0][0]).toBe(ALRAJHI_MERCHANT_URL);
   });
 });
 
@@ -512,7 +541,7 @@ describe("remaining domain branches", () => {
     expect(normalizePhone("966551234567")).toBe("+966551234567");
     expect(normalizePhone("12345")).toBe("+12345");
     expect(otpMatches("123456", "abcd", "pepper-value")).toBe(false);
-    expect(yearlyHalalas(9900)).toBe(118800);
+    expect(PLAN_DEFS.pro.validityDays).toBe(30);
     const overridden = resolvePlan("basic", { priceHalalas: 1000, memoLimit: 2, chatLimit: 3 });
     expect(overridden.priceHalalas).toBe(1000);
     expect(resolvePlan("pro", null).code).toBe("pro");

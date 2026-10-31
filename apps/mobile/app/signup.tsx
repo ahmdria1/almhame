@@ -20,7 +20,7 @@ export default function Signup() {
       <TextInput style={styles.input} placeholder="الجوال" value={phone} onChangeText={setPhone} />
       <TextInput style={styles.input} placeholder="البريد" value={email} onChangeText={setEmail} autoCapitalize="none" />
       <TextInput style={styles.input} placeholder="كلمة المرور" value={password} onChangeText={setPassword} secureTextEntry />
-      <Pressable onPress={() => setConsent((value) => !value)}><Text style={styles.consent}>{consent ? "☑" : "☐"} أوافق على معالجة بياناتي</Text></Pressable>
+      <Pressable onPress={() => setConsent((value) => !value)}><Text style={styles.consent}>{consent ? "☑" : "☐"} أوافق على معالجة بياناتي، ولست محاميًا ممارسًا</Text></Pressable>
       <View style={styles.legalRow}>
         <Pressable onPress={() => void Linking.openURL("https://emuhami.com/الخصوصية")}><Text style={styles.link}>الخصوصية</Text></Pressable>
         <Pressable onPress={() => void Linking.openURL("https://emuhami.com/الشروط")}><Text style={styles.link}>الشروط</Text></Pressable>
@@ -28,7 +28,7 @@ export default function Signup() {
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Pressable style={styles.button} onPress={async () => {
         try {
-          const result = await client().signup({ name, phone, email, password, consent });
+          const result = await client().signup({ name, phone, email, password, consent, notPracticingLawyer: consent });
           router.push({ pathname: "/otp", params: { challenge: result.challengeId, debug: result.debugCode || "" } });
         } catch (err) {
           setError(err instanceof Error ? err.message : "تعذر الإرسال");

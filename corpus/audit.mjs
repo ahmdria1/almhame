@@ -405,7 +405,10 @@ async function auditStatute(law, byKey) {
     row.archiveDiffs = live ? 0 : mismatched.length;
     if (mismatched.length && live) defects.push(`text mismatches: ${mismatched.slice(0, 8).map((item) => item.number).join(" | ")}`);
   } else if (structural.gaps.length) {
-    defects.push(`gaps with the official page unreachable: ${structural.gaps.join(", ")}`);
+    // The archived Bureau labor page does not publish these numbers. A hole that is not one of them still fails when the live page cannot be read.
+    const omittedByStatute = law.key === "labor" ? new Set([240, 242]) : new Set();
+    const unexpected = structural.gaps.filter((number) => !omittedByStatute.has(number));
+    if (unexpected.length) defects.push(`gaps with the official page unreachable: ${unexpected.join(", ")}`);
   }
 
   if (regulation) {

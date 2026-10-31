@@ -19,6 +19,31 @@ html, body {
   font-family: var(--font-cairo), "Cairo", sans-serif;
 }
 
+.memo-body {
+  font-family: "Noto Sans Arabic", var(--font-cairo), sans-serif;
+  font-size: 16px;
+  line-height: 29px;
+}
+
+.chip {
+  background: #e1f2f5;
+  color: #176373;
+}
+
+.range-meter {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.range-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(to right, #17345f, #1f7a8c);
+}
+
 body {
   background: #f8fafc;
 }

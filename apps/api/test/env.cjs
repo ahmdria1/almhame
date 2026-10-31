@@ -23,3 +23,5 @@ process.env.FONT_PATH = path.resolve(__dirname, "../../../assets/fonts/Cairo-Var
 process.env.SENTRY_DSN = "";
 process.env.SMS_PROVIDER = "mock";
 process.env.INTEGRATIONS_MODE = "stub";
+process.env.NAJIZ_MOCK_BLOCK_IDS = "1999999999";
+process.env.ASSESSMENT_DAILY_LIMIT = "5";

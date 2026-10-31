@@ -19,8 +19,9 @@ export function presentUser(user: User, plan: PlanDef = PLAN_DEFS[user.planCode 
     memoCountPeriod: user.memoCountPeriod,
     memoLimit: plan.memoLimit,
     memoRemaining: Math.max(0, plan.memoLimit - user.memoCountPeriod),
-    planRenewsAt: user.planRenewsAt ? user.planRenewsAt.toISOString() : null,
+    planExpiresAt: user.planExpiresAt ? user.planExpiresAt.toISOString() : null,
     notifyHearings: user.notifyHearings,
+    soundMode: user.soundMode,
     orgId: user.orgId,
     orgRole: user.orgRole,
     features: {
@@ -28,7 +29,7 @@ export function presentUser(user: User, plan: PlanDef = PLAN_DEFS[user.planCode 
       caseManagement: plan.caseManagement,
       letterhead: plan.letterhead,
       courts: plan.courts,
-      seats: plan.seats,
+      deadlines: true,
     },
   };
 }

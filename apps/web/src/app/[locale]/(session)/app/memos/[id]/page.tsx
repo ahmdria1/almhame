@@ -1,6 +1,7 @@
 "use client";
 
 import type { MemoView } from "@elawyer/types";
+import "@/app/memo-font.css";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -13,6 +14,7 @@ export default function MemoEditorPage() {
   const [memo, setMemo] = useState<MemoView | null>(null);
   const [body, setBody] = useState("");
   const [filter, setFilter] = useState("all");
+  const [tab, setTab] = useState<"memo" | "prep" | "summary">("memo");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -83,7 +85,33 @@ export default function MemoEditorPage() {
           </div>
         </div>
         {message ? <p className="mb-2 text-sm text-teal-700">{message}</p> : null}
-        <textarea data-testid="memo-body" value={body} onChange={(event) => setBody(event.target.value)} className="paper min-h-[70vh] w-full rounded-3xl border border-ink-200 p-8 text-base leading-8 shadow-card outline-none dark:border-white/10" />
+        <div className="mb-3 flex gap-2 text-sm font-semibold">
+          {([["memo", "memo.tabMemo"], ["prep", "memo.tabPrep"], ["summary", "memo.tabSummary"]] as const).map(([key, label]) => (
+            <button key={key} type="button" data-testid={`memo-tab-${key}`} onClick={() => setTab(key)} className={`rounded-full px-3 py-1 ${tab === key ? "chip" : "bg-ink-100"}`}>{t(label)}</button>
+          ))}
+        </div>
+        {tab === "prep" ? (
+          <div data-testid="hearing-prep" className="paper grid gap-3 rounded-3xl border border-ink-200 p-6 dark:border-white/10">
+            <h2 className="text-lg font-semibold">{t("memo.prepTitle")}</h2>
+            {(memo.hearingPrep?.items || []).map((item) => (
+              <article key={item.questionAr} className="rounded-2xl border border-ink-200 p-4 text-sm leading-7">
+                <p className="font-semibold">{item.questionAr}</p>
+                <p className="text-ink-500">{item.questionClient}</p>
+                <p className="mt-2">{item.answerAr}</p>
+                <p className="text-ink-500">{item.answerClient}</p>
+              </article>
+            ))}
+            <p className="text-sm text-ink-500">{memo.hearingPrep?.interpreterTipClient}</p>
+            <p className="text-sm text-ink-500">{memo.hearingPrep?.disclaimer}</p>
+          </div>
+        ) : null}
+        {tab === "summary" ? (
+          <div data-testid="memo-summary" className="paper rounded-3xl border border-ink-200 p-6 text-base leading-8 dark:border-white/10">
+            <p>{memo.summary?.text}</p>
+            <p className="mt-3 text-sm text-ink-500">{memo.summary?.notice}</p>
+          </div>
+        ) : null}
+        {tab === "memo" ? <textarea data-testid="memo-body" value={body} onChange={(event) => setBody(event.target.value)} className="memo-body paper min-h-[70vh] w-full rounded-3xl border border-ink-200 p-8 shadow-card outline-none dark:border-white/10" /> : null}
         <p className="mt-2 text-xs text-ink-500">{t("editor.checkSource")}</p>
       </section>
     </div>

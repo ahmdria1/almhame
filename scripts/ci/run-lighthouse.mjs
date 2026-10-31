@@ -115,6 +115,9 @@ async function main() {
 
   try {
     await waitFor(origin, child);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await fetch(new URL("/", origin)).catch(() => undefined);
+    }
     const sitemap = await fetch(new URL("/sitemap.xml", origin)).then((response) => {
       if (!response.ok) throw new Error(`sitemap responded ${response.status}`);
       return response.text();

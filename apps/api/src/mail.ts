@@ -31,3 +31,25 @@ export async function sendAuthMail(
   });
   await transport.sendMail({ from: config.smtpFrom, to: input.to, subject, text });
 }
+
+export async function sendNoticeMail(
+  config: AppConfig,
+  input: { to: string; subject: string; text: string; purpose: string },
+): Promise<void> {
+  const outbox = config.outboxDir || path.resolve(config.storageDir, "../outbox");
+  if (config.nodeEnv !== "production") {
+    await mkdir(outbox, { recursive: true });
+    await writeFile(
+      path.join(outbox, `${input.purpose}-${input.to.replace(/[^\w.@+-]+/g, "_")}.json`),
+      JSON.stringify({ ...input, at: new Date().toISOString() }, null, 2),
+    );
+  }
+  if (config.nodeEnv === "test" || !config.smtpHost) return;
+  const transport = nodemailer.createTransport({
+    host: config.smtpHost,
+    port: config.smtpPort,
+    secure: config.smtpPort === 465,
+    auth: config.smtpUser ? { user: config.smtpUser, pass: config.smtpPass } : undefined,
+  });
+  await transport.sendMail({ from: config.smtpFrom, to: input.to, subject: input.subject, text: input.text });
+}

@@ -40,7 +40,7 @@ async function stampLogicalText(document: PDFDocument, fontPath: string, title: 
       if (pageIndex >= pages.length) return;
       y = pages[pageIndex].getHeight() - 6;
     }
-    pages[pageIndex].drawText(line, { x: 2, y, size: 1, font: face, color: rgb(1, 1, 1), opacity: 0 });
+    pages[pageIndex].drawText(line, { x: 2, y, size: 1, font: face, color: rgb(1, 1, 1) });
     y -= 1.4;
   }
 }

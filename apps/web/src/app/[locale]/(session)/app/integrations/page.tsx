@@ -34,7 +34,7 @@ export default function IntegrationsPage() {
                   const memos = await client.memos();
                   if (!memos.memos[0]) return;
                   const result = await client.exportDrive(memos.memos[0].id);
-                  setNote(`${t("integrations.stubOk")} ${result.externalId}`);
+                  setNote(result.externalId);
                   return;
                 }
                 const started = await client.startIntegration(item.provider);

@@ -1,13 +1,16 @@
 import { DEFAULT_JURISDICTION, JURISDICTION_CATALOG, jurisdictionOf } from "@elawyer/types";
 import { createHash, randomBytes } from "crypto";
-import { Injectable } from "@nestjs/common";
+import { HttpException, Injectable } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
-import bcrypt from "bcryptjs";
-import { generateDek, wrapKey } from "./domain/envelope";
+import { hashPassword, passwordMatches } from "./domain/password";
+import { decryptString, encryptString, generateDek, wrapKey } from "./domain/envelope";
+import { lawyerCheckerFrom, nationalIdShape, normalizeNationalId } from "./domain/lawyer-check";
 import { generateOtpCode, hashOtp, isPhone, normalizePhone, otpMatches } from "./domain/otp";
 import { debugCodeResponseEnabled } from "./config";
 import { fail } from "./http-error";
 import { Kernel } from "./kernel";
+import { requestNafath, nafathStatus } from "./domain/nafath";
+import { sendSms } from "./domain/sms";
 import { sendAuthMail } from "./mail";
 import { presentUser } from "./present";
 
@@ -18,12 +21,16 @@ export class AuthService {
     private readonly jwt: JwtService,
   ) {}
 
-  async signup(input: { name: string; phone: string; email: string; password: string; consent: boolean }) {
+  async signup(input: { name: string; phone: string; email: string; password: string; consent: boolean; notPracticingLawyer: boolean; nationalId?: string }) {
     if (input.consent !== true) fail("CONSENT_REQUIRED", 400, "Consent is required");
+    if (input.notPracticingLawyer !== true) fail("LAWYER_DECLARATION", 400, "Confirm you are not a practicing lawyer");
     const phone = normalizePhone(input.phone);
     const email = input.email.trim().toLowerCase();
     this.assertPassword(input.password);
     if (!isPhone(phone)) fail("VALIDATION", 400, "Enter a valid mobile number");
+    const nationalId = normalizeNationalId(input.nationalId);
+    if (input.nationalId && !nationalIdShape(nationalId)) fail("VALIDATION", 400, "National ID must be 10 digits");
+    await screenLayperson(this.kernel.config, { name: input.name, phone, email, nationalId });
     const existing = await this.kernel.prisma.user.findFirst({ where: { OR: [{ phone }, { email }] } });
     if (existing) fail("ACCOUNT_EXISTS", 409, "An account already uses this mobile or email");
     const dek = generateDek();
@@ -32,9 +39,11 @@ export class AuthService {
         name: input.name.trim(),
         phone,
         email,
-        passwordHash: await bcrypt.hash(input.password, 10),
+        passwordHash: await hashPassword(input.password),
         consentAt: new Date(),
         consentVersion: this.kernel.config.consentVersion,
+        notLawyerDeclaredAt: new Date(),
+        nationalIdEnc: nationalId ? encryptString(nationalId, dek) : null,
         jurisdiction: DEFAULT_JURISDICTION,
         wrappedDataKey: wrapKey(dek, this.kernel.master),
         wallet: { create: { balanceHalalas: 0, currency: JURISDICTION_CATALOG[DEFAULT_JURISDICTION].currency } },
@@ -55,8 +64,11 @@ export class AuthService {
   async login(emailRaw: string, password: string) {
     const email = emailRaw.trim().toLowerCase();
     const user = await this.kernel.prisma.user.findUnique({ where: { email } });
-    if (!user?.passwordHash || !(await bcrypt.compare(password, user.passwordHash))) {
-      fail("UNAUTHENTICATED", 401, "Email or password is wrong");
+    if (!user?.passwordHash) fail("UNAUTHENTICATED", 401, "Email or password is wrong");
+    const check = await passwordMatches(password, user.passwordHash);
+    if (!check.ok) fail("UNAUTHENTICATED", 401, "Email or password is wrong");
+    if (check.rehash) {
+      await this.kernel.prisma.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(password) } });
     }
     if (!user.emailVerifiedAt) fail("EMAIL_UNVERIFIED", 403, "Confirm the email before signing in");
     return this.tokensFor(user.id);
@@ -76,9 +88,50 @@ export class AuthService {
     if (!challenge.userId) fail("OTP_INVALID", 400, "The code is wrong or expired");
     await this.kernel.prisma.user.update({
       where: { id: challenge.userId },
-      data: { passwordHash: await bcrypt.hash(password, 10) },
+      data: { passwordHash: await hashPassword(password) },
     });
     return { ok: true };
+  }
+
+  async startNafath(userId: string) {
+    const user = await this.kernel.prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.nationalIdEnc) fail("NATIONAL_ID_REQUIRED", 400, "Add a national ID before Nafath");
+    const cfg = this.kernel.config;
+    if (!cfg.nafathBaseUrl || !cfg.nafathAppId || !cfg.nafathAppKey) fail("NOT_CONFIGURED", 503, "Nafath is not configured");
+    const nationalId = decryptString(user.nationalIdEnc, this.kernel.dekOf(user.wrappedDataKey));
+    let started;
+    try {
+      started = await requestNafath(
+        { baseUrl: cfg.nafathBaseUrl, appId: cfg.nafathAppId, appKey: cfg.nafathAppKey, service: cfg.nafathService },
+        nationalId,
+      );
+    } catch {
+      fail("NAFATH_UNAVAILABLE", 503, "Nafath did not accept the request");
+    }
+    await this.kernel.prisma.nafathRequest.create({
+      data: { userId, transId: started.transId, randomCode: started.random },
+    });
+    return { transId: started.transId, random: started.random };
+  }
+
+  async pollNafath(userId: string, transId: string) {
+    const row = await this.kernel.prisma.nafathRequest.findFirst({ where: { userId, transId } });
+    if (!row) fail("NOT_FOUND", 404, "Nafath request was not found");
+    const user = await this.kernel.prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.nationalIdEnc) fail("NATIONAL_ID_REQUIRED", 400, "Add a national ID before Nafath");
+    const cfg = this.kernel.config;
+    const nationalId = decryptString(user.nationalIdEnc, this.kernel.dekOf(user.wrappedDataKey));
+    let status = "WAITING";
+    try {
+      status = await nafathStatus(
+        { baseUrl: cfg.nafathBaseUrl, appId: cfg.nafathAppId, appKey: cfg.nafathAppKey },
+        { nationalId, transId, random: row.randomCode },
+      );
+    } catch {
+      fail("NAFATH_UNAVAILABLE", 503, "Nafath did not return a status");
+    }
+    await this.kernel.prisma.nafathRequest.update({ where: { id: row.id }, data: { status } });
+    return { status };
   }
 
   async verify(challengeId: string, code: string) {
@@ -121,7 +174,7 @@ export class AuthService {
       data: {
         email,
         name: "المسؤول",
-        passwordHash: await bcrypt.hash(randomBytes(32).toString("hex"), 10),
+        passwordHash: await hashPassword(randomBytes(32).toString("hex")),
       },
     });
     return this.issueEmail(null, admin.id, email, "admin_activate");
@@ -133,15 +186,18 @@ export class AuthService {
     if (!challenge.adminId) fail("OTP_INVALID", 400, "The code is wrong or expired");
     await this.kernel.prisma.adminAccount.update({
       where: { id: challenge.adminId },
-      data: { passwordHash: await bcrypt.hash(password, 10), emailVerifiedAt: new Date() },
+      data: { passwordHash: await hashPassword(password), emailVerifiedAt: new Date() },
     });
     return { ok: true };
   }
 
   async adminLogin(email: string, password: string) {
     const admin = await this.kernel.prisma.adminAccount.findUnique({ where: { email: email.toLowerCase() } });
-    if (!admin || !(await bcrypt.compare(password, admin.passwordHash))) {
-      fail("UNAUTHENTICATED", 401, "Admin sign-in failed");
+    if (!admin) fail("UNAUTHENTICATED", 401, "Admin sign-in failed");
+    const check = await passwordMatches(password, admin.passwordHash);
+    if (!check.ok) fail("UNAUTHENTICATED", 401, "Admin sign-in failed");
+    if (check.rehash) {
+      await this.kernel.prisma.adminAccount.update({ where: { id: admin.id }, data: { passwordHash: await hashPassword(password) } });
     }
     if (!admin.emailVerifiedAt) fail("EMAIL_UNVERIFIED", 403, "Confirm the admin email first");
     const accessToken = await this.jwt.signAsync({ sub: admin.id, role: "admin" }, { expiresIn: "8h" });
@@ -191,6 +247,16 @@ export class AuthService {
     const pathName = purpose === "password_reset" ? "/reset" : purpose === "admin_activate" ? "/activate" : "/otp";
     const link = `${origin}${pathName}?challenge=${challenge.id}`;
     await sendAuthMail(this.kernel.config, { to: target, code, purpose, link });
+    if (userId) {
+      const account = await this.kernel.prisma.user.findUnique({ where: { id: userId } });
+      if (account?.phone) {
+        const cfg = this.kernel.config;
+        await sendSms(
+          { provider: cfg.smsProvider, baseUrl: cfg.smsBaseUrl, apiKey: cfg.smsApiKey, sender: cfg.smsSender, nodeEnv: cfg.nodeEnv },
+          { to: account.phone, text: code },
+        );
+      }
+    }
     return {
       challengeId: challenge.id,
       ...(debugCodeResponseEnabled(this.kernel.config) ? { debugCode: code } : {}),
@@ -212,6 +278,32 @@ export class AuthService {
     }
     await this.kernel.prisma.otpChallenge.update({ where: { id: challenge.id }, data: { consumedAt: new Date() } });
     return challenge;
+  }
+}
+
+export async function screenLayperson(
+  config: { najizBaseUrl: string; najizClientId: string; najizClientSecret: string; najizTokenPath: string; najizLicensePath: string; najizMockBlockIds: string[]; nodeEnv?: string },
+  input: { name: string; phone: string; email: string; nationalId?: string },
+) {
+  const checker = lawyerCheckerFrom({
+    baseUrl: config.najizBaseUrl,
+    clientId: config.najizClientId,
+    clientSecret: config.najizClientSecret,
+    tokenPath: config.najizTokenPath,
+    licensePath: config.najizLicensePath,
+    mockBlockIds: config.najizMockBlockIds,
+    nodeEnv: config.nodeEnv,
+  });
+  const nationalId = normalizeNationalId(input.nationalId);
+  if (checker.mode === "najiz" && !nationalIdShape(nationalId)) {
+    fail("NATIONAL_ID_REQUIRED", 400, "A national ID is required for the license check");
+  }
+  try {
+    const result = await checker.check({ ...input, nationalId });
+    if (result.practicingLawyer) fail("LAWYER_BLOCKED", 403, "Practicing lawyers cannot use this service");
+  } catch (error) {
+    if (error instanceof HttpException) throw error;
+    fail("LAWYER_CHECK_UNAVAILABLE", 503, "The license check is unavailable");
   }
 }
 
