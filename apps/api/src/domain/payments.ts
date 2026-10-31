@@ -1,5 +1,11 @@
 import { createHmac, timingSafeEqual } from "crypto";
 
+export function assertSandboxGateway(gateway: string): void {
+  if (gateway !== "sandbox") {
+    throw new Error("SANDBOX_DISABLED");
+  }
+}
+
 export function signSandbox(secret: string, payload: string): string {
   return createHmac("sha256", secret).update(payload).digest("hex");
 }

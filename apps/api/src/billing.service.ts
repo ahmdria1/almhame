@@ -5,7 +5,7 @@ import { PlanCode } from "@prisma/client";
 import { buildTrandata, decryptTrandata, encryptTrandata } from "./domain/alrajhi";
 import { PLAN_DEFS } from "./domain/plans";
 import { halalasToSar, nextInvoiceNumber, splitVatInclusive, zatcaQrBase64 } from "./domain/invoice";
-import { sandboxSignatureOk, signSandbox } from "./domain/payments";
+import { assertSandboxGateway, sandboxSignatureOk, signSandbox } from "./domain/payments";
 import { fail } from "./http-error";
 import { decryptString } from "./domain/envelope";
 import { Kernel } from "./kernel";
@@ -86,6 +86,7 @@ export class BillingService {
   }
 
   async confirmSandbox(intentId: string, sig: string) {
+    this.requireSandbox();
     if (!sandboxSignatureOk(this.kernel.config.paymentSandboxSecret, intentId, sig)) {
       fail("PAYMENT_SIGNATURE", 400, "Payment signature was rejected");
     }
@@ -93,6 +94,7 @@ export class BillingService {
   }
 
   async webhook(body: { intentId?: string; status?: string; eventKey?: string }, signature: string) {
+    this.requireSandbox();
     const eventKey = body.eventKey || "";
     if (!eventKey || !sandboxSignatureOk(this.kernel.config.paymentSandboxSecret, eventKey, signature)) {
       fail("PAYMENT_SIGNATURE", 400, "Webhook signature was rejected");
@@ -150,6 +152,14 @@ export class BillingService {
           <input type="hidden" name="errorURL" value="${cfg.alrajhiErrorUrl}" />
         </form><script>document.getElementById('pay').submit()</script>`;
     });
+  }
+
+  private requireSandbox() {
+    try {
+      assertSandboxGateway(this.kernel.config.paymentGateway);
+    } catch {
+      fail("NOT_FOUND", 404, "Sandbox confirmation is not available");
+    }
   }
 
   private redirectFor(intentId: string, _amount: number) {
