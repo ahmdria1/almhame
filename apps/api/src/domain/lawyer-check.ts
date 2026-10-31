@@ -90,6 +90,7 @@ export function lawyerCheckerFrom(input: {
   tokenPath: string;
   licensePath: string;
   mockBlockIds: string[];
+  nodeEnv?: string;
   fetchImpl?: typeof fetch;
 }): LawyerLicenseChecker {
   if (input.baseUrl && input.clientId && input.clientSecret) {
@@ -101,6 +102,9 @@ export function lawyerCheckerFrom(input: {
       licensePath: input.licensePath || "/lawyers/v1/licenses",
       fetchImpl: input.fetchImpl,
     });
+  }
+  if (input.nodeEnv === "production") {
+    throw new Error("Refusing to boot with mock or missing providers: NAJIZ_CLIENT_ID");
   }
   return new MockLawyerChecker(new Set(input.mockBlockIds));
 }

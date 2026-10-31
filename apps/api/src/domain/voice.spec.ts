@@ -35,7 +35,7 @@ describe("voice notes", () => {
     expect(() => mockTranscript(Buffer.from("not-audio"))).toThrow(/unsupported/);
   });
 
-  it("reads the transcript from an OpenAI-compatible endpoint", async () => {
+  it("reads the transcript from the configured transcription endpoint", async () => {
     const fetchImpl = jest.fn(async () => new Response(JSON.stringify({ text: "  أجر لم يُصرف  " }), { status: 200 }));
     await expect(transcribeRemote({
       baseUrl: "https://model.example/v1/",

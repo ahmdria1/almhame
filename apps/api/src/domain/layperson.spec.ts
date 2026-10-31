@@ -111,6 +111,17 @@ describe("lawyer check and fair use", () => {
       practicingLawyer: false,
       source: "mock",
     });
+    expect(() =>
+      lawyerCheckerFrom({
+        baseUrl: "",
+        clientId: "",
+        clientSecret: "",
+        tokenPath: "",
+        licensePath: "",
+        mockBlockIds: [],
+        nodeEnv: "production",
+      }),
+    ).toThrow(/NAJIZ_CLIENT_ID/);
     const fetchImpl = jest.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "tok" }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ licenseStatus: "ساري" }), { status: 200 }));

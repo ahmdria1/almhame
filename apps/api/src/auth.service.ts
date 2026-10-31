@@ -276,7 +276,7 @@ export class AuthService {
 }
 
 export async function screenLayperson(
-  config: { najizBaseUrl: string; najizClientId: string; najizClientSecret: string; najizTokenPath: string; najizLicensePath: string; najizMockBlockIds: string[] },
+  config: { najizBaseUrl: string; najizClientId: string; najizClientSecret: string; najizTokenPath: string; najizLicensePath: string; najizMockBlockIds: string[]; nodeEnv?: string },
   input: { name: string; phone: string; email: string; nationalId?: string },
 ) {
   const checker = lawyerCheckerFrom({
@@ -286,6 +286,7 @@ export async function screenLayperson(
     tokenPath: config.najizTokenPath,
     licensePath: config.najizLicensePath,
     mockBlockIds: config.najizMockBlockIds,
+    nodeEnv: config.nodeEnv,
   });
   const nationalId = normalizeNationalId(input.nationalId);
   if (checker.mode === "najiz" && !nationalIdShape(nationalId)) {
