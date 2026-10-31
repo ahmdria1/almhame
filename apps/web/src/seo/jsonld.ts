@@ -10,7 +10,6 @@ const PLAN_NAME: Record<(typeof PLAN_CODES)[number], string> = {
   free: "plans.freeName",
   basic: "plans.basicName",
   pro: "plans.proName",
-  office: "plans.officeName",
 };
 
 function price(halalas: number): string {
@@ -81,7 +80,7 @@ export function jsonLdFor(locale: Locale, page: PageRef): JsonLd {
         url: absoluteUrl("/"),
         logo: {
           "@type": "ImageObject",
-          url: absoluteUrl("/opengraph-image"),
+          url: absoluteUrl("/og-image-1200x630.png"),
           width: 1200,
           height: 630,
         },

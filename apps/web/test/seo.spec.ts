@@ -81,7 +81,7 @@ describe("public SEO", () => {
         const robots = meta.robots as { index?: boolean; follow?: boolean };
         expect(robots.index).toBe(true);
         expect(robots.follow).toBe(true);
-        const image = absoluteUrl("/opengraph-image");
+        const image = absoluteUrl("/og-image-1200x630.png");
         const og = meta.openGraph as { images?: Array<{ url: string; width: number; height: number; alt: string }>; locale?: string };
         expect(og.images?.[0].url).toBe(image);
         expect(og.images?.[0].width).toBe(1200);
@@ -127,7 +127,6 @@ describe("public SEO", () => {
         (PUBLISHED_PLANS.free.priceHalalas / 100).toFixed(2),
         (PUBLISHED_PLANS.basic.priceHalalas / 100).toFixed(2),
         (PUBLISHED_PLANS.pro.priceHalalas / 100).toFixed(2),
-        (PUBLISHED_PLANS.office.priceHalalas / 100).toFixed(2),
       ]);
       const pricing = jsonLdFor(locale, { kind: "top", id: "pricing" });
       const priced = pricing["@graph"].find((node) => node["@type"] === "SoftwareApplication");
@@ -166,7 +165,7 @@ describe("public SEO", () => {
     for (const path of ["/app", "/app/wallet", "/app/memos", "/app/saved", "/app/integrations", "/admin", "/api", "/api/health", "/login", "/signup", "/pay", "/pay/result", "/q", "/en/app", "/en/app/wallet", "/ur/app/memos", "/ar/admin", "/hi/q"]) {
       expect(blockedByRobots(path)).toBe(true);
     }
-    for (const path of ["/", "/en", "/icon", "/apple-icon", "/opengraph-image", "/questions", "/en/questions", "/sitemap.xml", "/robots.txt", "/manifest.webmanifest"]) {
+    for (const path of ["/", "/en", "/icon", "/apple-icon", "/og-image-1200x630.png", "/questions", "/en/questions", "/sitemap.xml", "/robots.txt", "/manifest.webmanifest"]) {
       expect(blockedByRobots(path)).toBe(false);
     }
     for (const locale of LOCALES) {

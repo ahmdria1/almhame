@@ -29,7 +29,7 @@ export function languageAlternates(page: PageRef): Record<string, string> {
 export function buildMetadata(locale: Locale, page: PageRef, index = true): Metadata {
   const copy = pageCopy(locale, page);
   const canonical = absoluteUrl(pagePath(locale, page));
-  const image = absoluteUrl("/opengraph-image");
+  const image = absoluteUrl("/og-image-1200x630.png");
   const languages = languageAlternates(page);
   return {
     title: { absolute: copy.title },
