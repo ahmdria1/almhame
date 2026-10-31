@@ -13,6 +13,7 @@ import { AuditInterceptor, ApiExceptionFilter } from "./interceptors";
 import { Kernel } from "./kernel";
 import { PrismaService } from "./prisma.service";
 import { ReminderService } from "./reminders.service";
+import { TranslationService } from "./translation.service";
 import { WorkService } from "./work.service";
 
 @Module({
@@ -43,6 +44,7 @@ import { WorkService } from "./work.service";
     BillingService,
     WorkService,
     ReminderService,
+    TranslationService,
     AdminService,
     BootstrapService,
     ChatGateway,
