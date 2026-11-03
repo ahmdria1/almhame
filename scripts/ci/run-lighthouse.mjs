@@ -76,7 +76,7 @@ function reportFiles(outputDir) {
 function printReports(outputDir) {
   const files = reportFiles(outputDir);
   if (files.length === 0) throw new Error(`no Lighthouse reports in ${outputDir}`);
-  let failed = 0;
+  const grouped = new Map();
   for (const file of files) {
     const report = JSON.parse(readFileSync(file, "utf8"));
     if (report.configSettings?.formFactor !== "mobile") {
@@ -84,12 +84,23 @@ function printReports(outputDir) {
     }
     const requested = report.requestedUrl || report.finalUrl;
     const scores = {};
+    for (const key of Object.keys(THRESHOLDS)) scores[key] = report.categories?.[key]?.score ?? null;
+    const runs = grouped.get(requested) || [];
+    runs.push(scores);
+    grouped.set(requested, runs);
+  }
+  let failed = 0;
+  for (const [requested, runs] of grouped) {
+    const ordered = [...runs].sort((a, b) => (a.performance ?? 0) - (b.performance ?? 0));
+    const median = ordered[Math.floor((ordered.length - 1) / 2)];
+    const shown = {};
     for (const key of Object.keys(THRESHOLDS)) {
-      const score = report.categories?.[key]?.score;
-      scores[key] = score == null ? null : Math.round(score * 100);
+      const score = median[key];
+      shown[key] = score == null ? null : Math.round(score * 100);
       if (score == null || score < THRESHOLDS[key]) failed += 1;
     }
-    console.log(`${requested}  performance ${scores.performance}  accessibility ${scores.accessibility}  best-practices ${scores["best-practices"]}  seo ${scores.seo}`);
+    const spread = ordered.map((run) => (run.performance == null ? "-" : Math.round(run.performance * 100))).join(",");
+    console.log(`${requested}  performance ${shown.performance}  accessibility ${shown.accessibility}  best-practices ${shown["best-practices"]}  seo ${shown.seo}  runs ${spread}`);
   }
   return failed;
 }
@@ -127,7 +138,7 @@ async function main() {
       ci: {
         collect: {
           url: urls,
-          numberOfRuns: 1,
+          numberOfRuns: 3,
           settings: {
             chromeFlags: "--headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage",
             onlyCategories: Object.keys(THRESHOLDS),

@@ -5,7 +5,10 @@ import { tmpdir } from "os";
 import path from "path";
 import { INestApplication } from "@nestjs/common";
 import request from "supertest";
+import { draftCheckRecord } from "../src/domain/draft-guard";
+import { redactSentryEvent } from "../src/instrument";
 import { createApp } from "../src/main";
+import { WorkService } from "../src/work.service";
 import { AuthService } from "../src/auth.service";
 import { CorpusService } from "../src/corpus.service";
 import { PrismaService } from "../src/prisma.service";
@@ -547,5 +550,45 @@ describe("api integration", () => {
     expect(await prisma.user.findUnique({ where: { id: user.userId } })).toBeNull();
     expect(await prisma.chat.count({ where: { id: chat.body.chat.id } })).toBe(0);
     await request(app.getHttpServer()).get("/api/me").set("Authorization", `Bearer ${user.token}`).expect(404);
+  });
+
+  it("stores a draft check and strips the user's facts from the sentry event", async () => {
+    const secret = "واقعة سرية لا تُسجل خالد طلب مبلغًا لم يذكره";
+    const work = app.get(WorkService);
+    await (work as unknown as { recordDraftCheck: (failure: ReturnType<typeof draftCheckRecord>, modelId: string, attempt: number) => Promise<void> }).recordDraftCheck(
+      draftCheckRecord({
+        recordId: "labor-77",
+        articleNumber: "77",
+        statute: "نظام العمل",
+        failureType: "quote",
+        quoteSpan: "وجب دفع الأجر",
+        facts: secret,
+        memo: secret,
+      }),
+      "draft-model",
+      1,
+    );
+    const row = await prisma.draftCheckFailure.findFirst({ orderBy: { createdAt: "desc" } });
+    expect(row?.failureType).toBe("quote");
+    expect(row?.quoteSpan).toContain("وجب دفع الأجر");
+    expect(row?.modelId).toBe("draft-model");
+    expect(row?.attempt).toBe(1);
+    expect(JSON.stringify(row)).not.toContain("واقعة سرية");
+    expect(JSON.stringify(row)).not.toContain("خالد طلب");
+    const event = redactSentryEvent({
+      request: { data: secret, cookies: secret, headers: { cookie: secret }, query_string: secret },
+      extra: { draftCheck: { recordId: "labor-77", articleNumber: "77", statute: "نظام العمل", modelId: "draft-model", attempt: 1, failureType: "quote", quoteSpan: "وجب دفع الأجر", facts: secret, memo: secret } },
+    });
+    expect(JSON.stringify(event)).not.toContain("واقعة سرية");
+    expect(event.request?.data).toBeUndefined();
+    expect(event.extra?.draftCheck).toEqual({
+      recordId: "labor-77",
+      articleNumber: "77",
+      statute: "نظام العمل",
+      modelId: "draft-model",
+      attempt: 1,
+      failureType: "quote",
+      quoteSpan: "وجب دفع الأجر",
+    });
   });
 });

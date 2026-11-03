@@ -1,5 +1,8 @@
 import { mkdirSync, readFileSync } from "fs";
+import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
+
+const outboxDir = process.env.OUTBOX_DIR || path.join(process.cwd(), "data", "outbox");
 
 const keys = Object.keys(JSON.parse(readFileSync("packages/i18n/src/locales/ar.json", "utf8")) as Record<string, string>);
 const shots = process.env.SHOT_DIR || "/tmp/elawyer-shots";
@@ -62,7 +65,7 @@ async function signUp(page: Page) {
   await page.getByTestId("signup-consent").check();
   await page.getByTestId("signup-submit").click();
   await page.waitForURL(/\/otp/);
-  const mail = JSON.parse(readFileSync(`/workspace/data/outbox/email_verify-${email}.json`, "utf8")) as { code: string };
+  const mail = JSON.parse(readFileSync(path.join(outboxDir, `email_verify-${email}.json`), "utf8")) as { code: string };
   await page.getByTestId("otp-input").fill(mail.code);
   await page.getByTestId("otp-submit").click();
   await page.waitForURL(/\/app/);

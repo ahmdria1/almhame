@@ -1,10 +1,14 @@
+import path from "node:path";
 import { defineConfig, devices } from "@playwright/test";
+
+const outboxDir = path.join(process.cwd(), "data", "outbox");
+process.env.OUTBOX_DIR = outboxDir;
 
 const apiEnv = {
   ...process.env,
   NODE_ENV: "test",
   PORT: "4710",
-  OUTBOX_DIR: "/workspace/data/outbox",
+  OUTBOX_DIR: outboxDir,
   LLM_PROVIDER: "mock",
   EMBEDDING_PROVIDER: "mock",
   PAYMENT_GATEWAY: "sandbox",

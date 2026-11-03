@@ -50,7 +50,7 @@ export function HomeView({ locale }: { locale: Locale }) {
             <p className="mt-3 rounded-2xl border border-ink-200 px-4 py-3 text-sm leading-7 text-ink-700">{t("landing.heroCounsel")}</p>
           </div>
         </section>
-        <section id="features" className="mx-auto max-w-6xl px-4 py-12">
+        <section id="features" className="mx-auto max-w-6xl px-4 py-12 [content-visibility:auto] [contain-intrinsic-size:auto_800px]">
           <h2 className="text-3xl font-bold text-navy-700">{t("landing.featuresTitle")}</h2>
           <p className="mt-2 text-ink-700">{t("landing.featuresSubtitle")}</p>
           <ul className="mt-6 flex flex-wrap gap-2">
@@ -77,7 +77,7 @@ export function HomeView({ locale }: { locale: Locale }) {
             })}
           </div>
         </section>
-        <section id="courts" className="bg-white py-12">
+        <section id="courts" className="bg-white py-12 [content-visibility:auto] [contain-intrinsic-size:auto_800px]">
           <div className="mx-auto max-w-6xl px-4">
             <h2 className="text-3xl font-bold text-navy-700">{t("landing.courtsTitle")}</h2>
             <p className="mt-2 text-ink-700">{t("landing.courtsSubtitle")}</p>
@@ -92,7 +92,7 @@ export function HomeView({ locale }: { locale: Locale }) {
             </ul>
           </div>
         </section>
-        <section id="how" className="mx-auto max-w-6xl px-4 py-14">
+        <section id="how" className="mx-auto max-w-6xl px-4 py-14 [content-visibility:auto] [contain-intrinsic-size:auto_800px]">
           <h2 className="text-3xl font-bold text-navy-700">{t("landing.howTitle")}</h2>
           <p className="mt-2 text-ink-700">{t("landing.howSubtitle")}</p>
           <ol className="mt-8 grid gap-4 md:grid-cols-4">
@@ -105,7 +105,7 @@ export function HomeView({ locale }: { locale: Locale }) {
             ))}
           </ol>
         </section>
-        <section id="plans" className="bg-white py-14">
+        <section id="plans" className="bg-white py-14 [content-visibility:auto] [contain-intrinsic-size:auto_800px]">
           <div className="mx-auto max-w-6xl px-4">
             <h2 className="text-3xl font-bold text-navy-700">{t("landing.plansTitle")}</h2>
             <p className="mt-2 text-ink-700">{t("landing.plansSubtitle")}</p>
@@ -122,7 +122,7 @@ export function HomeView({ locale }: { locale: Locale }) {
             </p>
           </div>
         </section>
-        <section id="faq" className="mx-auto max-w-3xl px-4 py-14">
+        <section id="faq" className="mx-auto max-w-3xl px-4 py-14 [content-visibility:auto] [contain-intrinsic-size:auto_800px]">
           <h2 className="text-3xl font-bold text-navy-700">{t("landing.faqTitle")}</h2>
           <div className="mt-6 divide-y divide-ink-200 rounded-3xl border border-ink-200 bg-white">
             {FAQ.map((item) => (

@@ -22,7 +22,7 @@ export function PublicHeader({ locale, page }: { locale: Locale; page: PageRef }
   ] as const;
   const here = pagePath(locale, page);
   return (
-    <header className="sticky top-0 z-40 border-b border-ink-200/80 bg-white/90 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-ink-200/80 bg-white">
       <a href="#content" className="sr-only focus:not-sr-only focus:fixed focus:start-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-navy-700 focus:px-4 focus:py-2 focus:text-white">
         {COPY.skip[locale]}
       </a>

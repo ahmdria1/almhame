@@ -24,7 +24,9 @@
       "get-uri>basic-ftp": "6.2.1",
       "metro>image-size": "file:vendor/image-size-callable",
       "chromium-bidi>zod": "4.6.6",
-      "external-editor>tmp": "0.2.7"
+      "external-editor>tmp": "0.2.7",
+      "@lhci/cli>tmp": "0.2.7",
+      "query-string>decode-uri-component": "0.5.1"
     },
     "auditConfig": {
       "ignoreCves": [

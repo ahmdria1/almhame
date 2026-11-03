@@ -597,6 +597,20 @@ model PendingUpdate {
   @@index([status])
 }
 
+model DraftCheckFailure {
+  id            String   @id @default(cuid())
+  recordId      String   @default("")
+  articleNumber String   @default("")
+  statute       String   @default("")
+  modelId       String   @default("")
+  attempt       Int
+  failureType   String
+  quoteSpan     String   @default("")
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 model TokenLedger {
   id        String   @id @default(cuid())
   userId    String

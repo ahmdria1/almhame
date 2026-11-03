@@ -24,6 +24,10 @@ test("allows css cursor, pagination variables, and lockfile package names", () =
   assert.deepEqual(findViolations("  cli-cursor@2.1.0:", "pnpm-lock.yaml"), []);
   assert.deepEqual(findViolations("      restore-cursor: 2.0.0", "pnpm-lock.yaml"), []);
   assert.deepEqual(findViolations("created by Ahmed Alamrani.", "README.md"), []);
+  assert.deepEqual(findViolations('h.getPropertyValue("cursor")', "bundle.js"), []);
+  assert.deepEqual(findViolations("style['cursor']", "bundle.js"), []);
+  assert.deepEqual(findViolations('bot list "chatgpt-user"', "vendor.js"), []);
+  assert.deepEqual(findViolations("page.screenshot({ path: `/opt/cursor/artifacts/home.png` })", "visual.spec.ts"), []);
 });
 
 test("rejects tool attribution in names, emails, and sentences", () => {

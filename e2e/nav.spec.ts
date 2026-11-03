@@ -1,9 +1,11 @@
 import { execFileSync } from "child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "fs";
+import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 
 const LOCALES = ["ar", "en", "ur", "hi", "pa", "si", "bn", "ne", "fil", "tr", "am"] as const;
 const SHOTS = process.env.SHOT_DIR || "/tmp/elawyer-shots";
+const outboxDir = process.env.OUTBOX_DIR || path.join(process.cwd(), "data", "outbox");
 const WEB = "http://127.0.0.1:4720";
 const ADMIN = "http://127.0.0.1:4730";
 const API = "http://127.0.0.1:4710/api";
@@ -33,7 +35,7 @@ async function signUp(page: Page) {
   await page.getByTestId("signup-consent").check();
   await page.getByTestId("signup-submit").click();
   await page.waitForURL(/\/otp/);
-  const mail = JSON.parse(readFileSync(`/workspace/data/outbox/email_verify-${email}.json`, "utf8")) as { code: string };
+  const mail = JSON.parse(readFileSync(path.join(outboxDir, `email_verify-${email}.json`), "utf8")) as { code: string };
   await page.getByTestId("otp-input").fill(mail.code);
   await page.getByTestId("otp-submit").click();
   await page.waitForURL(/\/app/);
@@ -147,10 +149,10 @@ test("admin navigation reaches each section", async ({ page, request }) => {
   const email = "nav-admin@example.sa";
   const created = JSON.parse(execFileSync("node", ["dist/cli.js", "create-admin", "--email", email], {
     cwd: "apps/api",
-    env: { ...process.env, NODE_ENV: "test", OUTBOX_DIR: "/workspace/data/outbox", DATABASE_URL: process.env.DATABASE_URL || "postgresql://elawyer:elawyer@127.0.0.1:5432/elawyer" },
+    env: { ...process.env, NODE_ENV: "test", OUTBOX_DIR: outboxDir, DATABASE_URL: process.env.DATABASE_URL || "postgresql://elawyer:elawyer@127.0.0.1:5432/elawyer" },
     encoding: "utf8",
   })) as { challengeId: string };
-  const mail = JSON.parse(readFileSync(`/workspace/data/outbox/admin_activate-${email}.json`, "utf8")) as { code: string };
+  const mail = JSON.parse(readFileSync(path.join(outboxDir, `admin_activate-${email}.json`), "utf8")) as { code: string };
   const activated = await request.post(`${API}/admin/activate`, {
     data: { challengeId: created.challengeId, code: mail.code, password: "test-admin-pass" },
   });

@@ -30,6 +30,8 @@ export default function WorkspacePage() {
   const [quota, setQuota] = useState(false);
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [drafting, setDrafting] = useState(false);
+  const [draftStage, setDraftStage] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"memo" | "prepare" | "sources">("prepare");
@@ -120,15 +122,25 @@ export default function WorkspacePage() {
     }
   }
 
+  useEffect(() => {
+    if (!drafting) return;
+    const timer = setTimeout(() => setDraftStage(1), 700);
+    return () => clearTimeout(timer);
+  }, [drafting]);
+
   async function draft() {
-    if (!active) return;
+    if (!active || drafting) return;
     setError("");
+    setDraftStage(0);
+    setDrafting(true);
     try {
       const result = await client.draft(active, false);
       router.push(`/app/memos/${result.memo.id}`);
     } catch (err) {
       if (err instanceof ApiError && (err.code === "QUOTA_MEMOS" || err.code === "QUOTA_CHATS")) setQuota(true);
       else setError(userFacingError(err, t));
+    } finally {
+      setDrafting(false);
     }
   }
 
@@ -165,7 +177,8 @@ export default function WorkspacePage() {
           </dl>
           <p className="mt-4 text-xs text-ink-500">{t("workspace.completeness")} {completeness}%</p>
           <div className="mt-1 h-2 rounded-full bg-ink-100"><div className="h-2 rounded-full bg-teal-600" style={{ width: `${completeness}%` }} /></div>
-          <Button data-testid="draft-button" className="mt-4 w-full" onClick={draft} disabled={!active}>{t("workspace.draft")}</Button>
+          <Button data-testid="draft-button" className="mt-4 w-full" onClick={draft} disabled={!active || drafting}>{t("workspace.draft")}</Button>
+          {drafting ? <p data-testid="draft-status" className="mt-2 text-sm text-navy-700">{draftStage === 0 ? t("workspace.drafting") : t("workspace.draftReview")}</p> : null}
           {error ? <p className="mt-2 text-sm text-danger">{error}</p> : null}
         </div>
         <div className={tab === "sources" ? "mt-0 block lg:mt-6" : "hidden lg:mt-6 lg:block"}>

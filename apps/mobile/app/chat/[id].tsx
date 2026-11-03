@@ -18,7 +18,15 @@ export default function ChatScreen() {
   const [text, setText] = useState("");
   const [caseId, setCaseId] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [drafting, setDrafting] = useState(false);
+  const [draftStage, setDraftStage] = useState(0);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!drafting) return;
+    const timer = setTimeout(() => setDraftStage(1), 700);
+    return () => clearTimeout(timer);
+  }, [drafting]);
 
   useEffect(() => {
     client().chat(String(id)).then((result) => {
@@ -77,6 +85,7 @@ export default function ChatScreen() {
         ))}
       </ScrollView>
       {uploading ? <Text style={styles.status}>{t("workspace.uploading")}</Text> : null}
+      {drafting ? <Text style={styles.status}>{draftStage === 0 ? t("workspace.drafting") : t("workspace.draftReview")}</Text> : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <View style={styles.bar}>
         <Pressable accessibilityLabel={t("workspace.attach")} style={styles.icon} disabled={uploading || !caseId} onPress={() => void attach()}>
@@ -95,9 +104,19 @@ export default function ChatScreen() {
           setText("");
         }}><Ionicons name="send" size={20} color={colors.navy700} style={{ transform: [{ scaleX: -1 }] }} /></Pressable>
       </View>
-      <Pressable style={styles.draft} onPress={async () => {
-        const result = await client().draft(String(id));
-        router.push({ pathname: "/memo/[id]", params: { id: result.memo.id } });
+      <Pressable style={styles.draft} disabled={drafting} onPress={async () => {
+        if (drafting) return;
+        setDraftStage(0);
+        setError("");
+        setDrafting(true);
+        try {
+          const result = await client().draft(String(id));
+          router.push({ pathname: "/memo/[id]", params: { id: result.memo.id } });
+        } catch (err) {
+          setError(err instanceof ApiError && err.code === "DRAFT_RETRY" ? t("workspace.draftRetry") : t("common.error"));
+        } finally {
+          setDrafting(false);
+        }
       }}>
         <Text style={styles.primaryText}>{t("workspace.draft")}</Text>
       </Pressable>
