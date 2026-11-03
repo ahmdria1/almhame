@@ -77,12 +77,25 @@ export function routeModel(input: RouteInput): RouteDecision {
 
 const genericAnswers = new Map<string, string>();
 
+function namedParty(text: string, label: string): boolean {
+  let from = 0;
+  const marker = `${label}:`;
+  while (from < text.length) {
+    const at = text.indexOf(marker, from);
+    if (at < 0) return false;
+    const rest = text.slice(at + marker.length).trim();
+    if (rest.length > 0 && !rest.startsWith("الاسم")) return true;
+    from = at + marker.length;
+  }
+  return false;
+}
+
 export function looksUserSpecific(text: string): boolean {
   if (text.length > 240) return true;
   if (text.includes("@")) return true;
   if (/\d{6,}/.test(text)) return true;
-  if (/المدّ?عي:\s*(?!الاسم\b)\S/.test(text)) return true;
-  if (/المدّ?عى عليه:\s*(?!الاسم\b)\S/.test(text)) return true;
+  if (namedParty(text, "المدّعي") || namedParty(text, "المدعي")) return true;
+  if (namedParty(text, "المدّعى عليه") || namedParty(text, "المدعى عليه")) return true;
   return false;
 }
 
