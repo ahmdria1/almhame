@@ -4,7 +4,7 @@ import { join } from "path";
 import { citationLabel } from "./article-numbers";
 import { textHash } from "./citations";
 import { COURT_HEADING, MEMO_TITLE, type RetrievedArticle, type RetrievedJudgment } from "./draft";
-import { draftCheckRecord, draftPrompt, findAiTell, humanMemo, renumberSections, reviewModelDraft, textMatchesOfficial, type DraftPacket, type SettledDraft } from "./draft-guard";
+import { draftCheckRecord, draftPrompt, findAiTell, humanMemo, judgmentPrecedesFacts, matchArticles, renumberSections, reviewModelDraft, textMatchesOfficial, type DraftPacket, type SettledDraft } from "./draft-guard";
 import { fontFile, renderPdf } from "../render";
 import { execFileSync } from "child_process";
 import { tmpdir } from "os";
@@ -35,23 +35,34 @@ const judgmentFile = JSON.parse(readFileSync(join(__dirname, "../../../../corpus
   sourceUrl: string;
 };
 
-const facts = "يعمل خالد بن سامي لدى شركة أفق منذ ثلاث سنوات، وانتهت العلاقة في أغسطس 2026 دون إنذار، ولم يُصرف أجر شهر أغسطس.";
-const replyFacts = "قالت مذكرة الخصم إن العلاقة انتهت في أغسطس 2026 دون إنذار. وقالت كذلك إن أجر شهر أغسطس لم يُصرف لخالد بن سامي لدى شركة أفق.";
+const facts = "يعمل خالد بن سامي لدى شركة أفق منذ ثلاث سنوات، وأنهى صاحب العمل العقد في أغسطس 2023 لسبب غير مشروع ودون إنذار، ولم يُصرف أجر شهر أغسطس.";
+const replyFacts = "قالت مذكرة الخصم إن صاحب العمل أنهى العقد في أغسطس 2023 لسبب غير مشروع ودون إنذار. وقالت كذلك إن أجر شهر أغسطس لم يُصرف لخالد بن سامي لدى شركة أفق.";
 const appealFacts = `${facts} صدر الحكم رقم ${judgmentFile.judgmentNo} بتاريخ ${judgmentFile.judgmentDateGregorian}.`;
 
-function wageArticle(): RetrievedArticle {
+const wageRecord = labor.articles.find((item) => citationLabel(item.number) === "88");
+if (!wageRecord) throw new Error("stored labor article 88 is missing");
+
+function storedArticle(id: string, article: { number: string; textAr: string; sourceUrl: string }): RetrievedArticle {
   return {
-    id: "labor-77",
-    number: record!.number,
-    textAr: record!.textAr,
+    id,
+    number: article.number,
+    textAr: article.textAr,
     textEn: "",
     lawNameAr: labor.nameAr,
     lawNameEn: "",
-    sourceUrl: record!.sourceUrl,
+    sourceUrl: article.sourceUrl,
     isSample: false,
     version: labor.version,
     effectiveDate: "2005-09-27",
   };
+}
+
+function wageArticle(): RetrievedArticle {
+  return storedArticle("labor-77", record!);
+}
+
+function settlementArticle(): RetrievedArticle {
+  return storedArticle("labor-88", wageRecord!);
 }
 
 function packet(memoType: MemoType, extra?: Partial<DraftPacket>): DraftPacket {
@@ -65,7 +76,7 @@ function packet(memoType: MemoType, extra?: Partial<DraftPacket>): DraftPacket {
     court: "labor",
     memoType,
     slots,
-    articles: [wageArticle()],
+    articles: [wageArticle(), settlementArticle()],
     sharia: [],
     title: MEMO_TITLE[memoType],
     courtHeading: memoType === "appeal" ? COURT_HEADING.appeal : COURT_HEADING.labor,
@@ -84,19 +95,20 @@ function headings(body: string): string[] {
 }
 
 function mocked(memoType: MemoType): string {
-  const quote = "[[ref:labor-77]]";
+  const compensation = "[[ref:labor-77]]";
+  const settlement = "[[ref:labor-88]]";
   if (memoType === "defense") {
     return [
       "بسم الله الرحمن الرحيم",
       MEMO_TITLE.defense,
       COURT_HEADING.labor,
       "المدّعى عليه: شركة أفق",
-      "أولًا: الدفوع الشكلية",
-      "لا يقوم دفع شكلي على نص محفوظ مطابق.",
-      "ثانيًا: الدفوع الموضوعية",
-      facts,
-      `وحيث إن ${quote}، والدفع الموضوعي يدخل في هذا النص.`,
-      "ثالثًا: الطلبات",
+      "الدفوع الموضوعية",
+      "يدفع المدّعى عليه بأن التعويض عن الإنهاء لا يستحق إلا إذا أثبت المدّعي أن الإنهاء كان لسبب غير مشروع.",
+      `وحيث إن ${compensation}، لأن إنهاء العقد لسبب غير مشروع يرتب التعويض للطرف المتضرر.`,
+      "وبشأن الأجر، يدفع المدّعى عليه بأن وجوب الدفع معلق على انتهاء الخدمة وثبوت بقاء الأجر دون صرف.",
+      `وبما أن ${settlement}، لأن انتهاء الخدمة يوجب دفع الأجر الذي لم يُصرف خلال أسبوع.`,
+      "الطلبات",
       "نلتمس من فضيلتكم رد الدعوى.",
     ].join("\n");
   }
@@ -105,14 +117,15 @@ function mocked(memoType: MemoType): string {
       "بسم الله الرحمن الرحيم",
       MEMO_TITLE.reply,
       COURT_HEADING.labor,
-      "أولًا: الرد على مذكرة الخصم",
-      "البند 1: قالت مذكرة الخصم إن العلاقة انتهت في أغسطس 2026 دون إنذار.",
-      "وهذا البند لا يسلم.",
+      "الرد على مذكرة الخصم",
+      "البند 1: قالت مذكرة الخصم إن صاحب العمل أنهى العقد في أغسطس 2023 لسبب غير مشروع ودون إنذار.",
+      "الجواب: إنهاء العقد لسبب غير مشروع يرتب التعويض للطرف المتضرر، وفق المادة الحاكمة لهذا الإنهاء.",
       "البند 2: وقالت كذلك إن أجر شهر أغسطس لم يُصرف لخالد بن سامي لدى شركة أفق.",
-      "والجواب عن هذا البند فيما سيأتي.",
-      "ثانيًا: الأسانيد",
-      `وبما أن ${quote}.`,
-      "ثالثًا: الطلبات",
+      "الجواب: بقاء الأجر دون صرف بعد انتهاء الخدمة يوجب أداءه خلال أسبوع من انتهاء العلاقة.",
+      "الأسانيد",
+      `وبما أن ${compensation}، لأن الإنهاء لسبب غير مشروع يرتب التعويض.`,
+      `ولما كانت ${settlement}، لأن انتهاء الخدمة يوجب دفع الأجر غير المصروف.`,
+      "الطلبات",
       "رد ما جاء في مذكرة الخصم.",
     ].join("\n");
   }
@@ -121,14 +134,15 @@ function mocked(memoType: MemoType): string {
       "بسم الله الرحمن الرحيم",
       MEMO_TITLE.appeal,
       COURT_HEADING.appeal,
-      `المعترض: خالد بن سامي`,
-      "أولًا: الحكم المعترض عليه",
+      "المعترض: خالد بن سامي",
+      "الحكم المعترض عليه",
       `الحكم رقم ${judgmentFile.judgmentNo} الصادر بتاريخ ${judgmentFile.judgmentDateGregorian}.`,
-      "ثانيًا: أوجه الاعتراض",
+      "أوجه الاعتراض",
       appealFacts,
-      "ثالثًا: الأسانيد",
-      `ولما كانت ${quote}.`,
-      "رابعًا: الطلبات",
+      "الأسانيد",
+      `ولما كانت ${compensation}، لأن الإنهاء لسبب غير مشروع يرتب التعويض.`,
+      `وحيث إن ${settlement}، لأن انتهاء الخدمة يوجب دفع الأجر غير المصروف.`,
+      "الطلبات",
       "نلتمس من فضيلتكم نقض الحكم.",
     ].join("\n");
   }
@@ -138,11 +152,13 @@ function mocked(memoType: MemoType): string {
     COURT_HEADING.labor,
     "المدّعي: خالد بن سامي",
     "المدّعى عليه: شركة أفق",
-    "أولًا: الوقائع",
+    "الوقائع",
     facts,
-    "ثانيًا: الأسانيد النظامية",
-    `وحيث إن ${quote}، وبما أن الأجر لم يُصرف عند انتهاء العلاقة فإن هذا النص يحكم الواقعة.`,
-    "ثالثًا: الطلبات",
+    "الأسانيد النظامية",
+    `وحيث إن ${compensation}، لأن إنهاء العقد لسبب غير مشروع يرتب التعويض للطرف المتضرر.`,
+    `وبما أن ${settlement}، لأن انتهاء الخدمة يوجب دفع الأجر الذي لم يُصرف.`,
+    "الطلبات",
+    "إلزام المدّعى عليه بالتعويض المقرر عن إنهاء العقد لسبب غير مشروع.",
     "إلزام المدّعى عليه بأجر شهر أغسطس.",
     "وبناءً على ما تقدم، نلتمس من فضيلتكم الحكم بالطلبات.",
   ].join("\n");
@@ -207,10 +223,16 @@ describe("draft guard", () => {
       expect(body).not.toContain("https://");
       expect(body).toContain(`«${record!.textAr}»`);
       expect(body.split(record!.textAr).length - 1).toBe(1);
-      expect(reviewed.draft.citations).toEqual([{ kind: "article", id: "labor-77", number: record!.number }]);
+      expect(body).toContain(`«${wageRecord!.textAr}»`);
+      expect(body.split(wageRecord!.textAr).length - 1).toBe(1);
+      expect(reviewed.draft.citations).toEqual([
+        { kind: "article", id: "labor-77", number: record!.number },
+        { kind: "article", id: "labor-88", number: wageRecord!.number },
+      ]);
       expect(headings(body).join(",")).toBe(headings(body).filter((item, index, all) => all.indexOf(item) === index).join(","));
       const fallback = humanMemo(source);
-      expect(fallback.body).toContain(memoType === "reply" ? replyFacts.split(". ")[0] : memoType === "appeal" ? facts : facts);
+      if (memoType === "reply") expect(fallback.body).toContain(replyFacts.split(". ")[0]);
+      if (memoType === "lawsuit" || memoType === "appeal") expect(fallback.body).toContain(facts);
       expect(fallback.body).not.toContain("لم يُسترجع");
       expect(fallback.body).not.toContain("https://");
       expect(findAiTell(fallback.body)).toBeNull();
@@ -219,16 +241,19 @@ describe("draft guard", () => {
         expect(body).toContain("الأسانيد");
         expect(body).toContain("الطلبات");
         expect(body).toContain("المدّعي: خالد بن سامي");
+        expect(body).toContain("إلزام المدّعى عليه بالتعويض المقرر عن إنهاء العقد لسبب غير مشروع.");
         expect(body).toContain("إلزام المدّعى عليه بأجر شهر أغسطس.");
         expect(headings(fallback.body)).toEqual(["أولًا:", "ثانيًا:", "ثالثًا:"]);
       }
       if (memoType === "defense") {
-        expect(body).toContain("الدفوع الشكلية");
+        expect(body).not.toContain("الدفوع الشكلية");
         expect(body).toContain("الدفوع الموضوعية");
         expect(body).toContain("رد الدعوى");
         expect(body).not.toContain("إلزام المدّعى عليه");
-        expect(fallback.body).toContain("الدفوع الشكلية");
+        expect(body).not.toContain(facts);
+        expect(fallback.body).not.toContain("الدفوع الشكلية");
         expect(fallback.body).toContain("الدفوع الموضوعية");
+        expect(fallback.body).not.toContain(facts);
         expect(fallback.body).not.toContain("إلزام المدّعى عليه");
         const charged = humanMemo(packet("defense", { slots: { plaintiff: "خالد بن سامي", defendant: "شركة أفق", facts, requests: "إلزام المدّعى عليه بأجر شهر أغسطس." } }));
         expect(charged.body).not.toContain("إلزام المدّعى عليه");
@@ -239,9 +264,12 @@ describe("draft guard", () => {
         expect(body).toContain("الرد على مذكرة الخصم");
         expect(body).toContain("البند 1");
         expect(body).toContain("البند 2");
+        expect(body).toContain("الجواب:");
         expect(fallback.body).toContain("الرد على مذكرة الخصم");
         expect(fallback.body).toContain("البند 1");
         expect(fallback.body).toContain("البند 2");
+        expect(fallback.body).toContain("المادة (77)");
+        expect(fallback.body).toContain("المادة (88)");
       }
       if (memoType === "appeal") {
         expect(body).toContain("محكمة الاستئناف");
@@ -335,7 +363,8 @@ describe("draft guard", () => {
     const empty = humanMemo(packet("defense", { articles: [], sharia: [] }));
     expect(empty.body).not.toMatch(/المادة\s*\(/);
     expect(empty.body).not.toContain("لم يُسترجع");
-    expect(empty.body).toContain("الدفوع الشكلية");
+    expect(empty.body).not.toContain("الدفوع الشكلية");
+    expect(empty.body).toContain("الدفوع الموضوعية");
     expect(empty.citations).toEqual([]);
     const stored: RetrievedJudgment = {
       id: "j1",
@@ -365,7 +394,52 @@ describe("draft guard", () => {
     expect(draftPrompt(packet("appeal"))).toContain("نقض الحكم");
     expect(draftPrompt(packet("reply", { articles: [] }))).toContain("لا مرجع محفوظ");
     expect(draftPrompt(packet("lawsuit"))).toContain("[[ref:labor-77]]");
+    expect(draftPrompt(packet("lawsuit"))).toContain("[[ref:labor-88]]");
     expect(draftPrompt(packet("lawsuit"))).not.toContain(record!.textAr);
+    expect(draftPrompt(packet("lawsuit"))).not.toContain(wageRecord!.textAr);
+  });
+
+  it("grounds each request in the article that governs it", () => {
+    const matches = matchArticles([wageArticle(), settlementArticle()], facts, "إلزام المدّعى عليه بأجر شهر أغسطس.");
+    expect(matches.map((item) => item.issue)).toEqual(["termination-compensation", "end-of-service-wage"]);
+    expect(matches[0]?.article.id).toBe("labor-77");
+    expect(matches[1]?.article.id).toBe("labor-88");
+    expect(matchArticles([wageArticle()], "لم يُصرف أجر شهر أغسطس بعد انتهاء الخدمة.", "إلزامه بالأجر")).toEqual([]);
+    const draft = humanMemo(packet("lawsuit"));
+    const outside = draft.body.split(record!.textAr).join(" ").split(wageRecord!.textAr).join(" ");
+    expect(outside).toContain("يرتب للطرف المتضرر التعويض");
+    expect(outside).toContain("خلال أسبوع");
+    expect(draft.body).not.toContain("هذا النص يحكم الواقعة");
+    const formal = humanMemo(packet("defense", { procedural: [settlementArticle()] }));
+    expect(formal.body).toContain("الدفوع الشكلية");
+    expect(headings(formal.body)[0]).toBe("أولًا:");
+  });
+
+  it("rejects a judgment dated before the facts it decides", () => {
+    expect(judgmentPrecedesFacts(appealFacts, judgmentFile.judgmentDateGregorian)).toBe(false);
+    const early = appealFacts.replaceAll("2023", "2026");
+    expect(judgmentPrecedesFacts(early, "2024-03-14")).toBe(true);
+    const reviewed = reviewModelDraft(mocked("appeal").replaceAll("2023", "2026"), packet("appeal", {
+      slots: { plaintiff: "خالد بن سامي", defendant: "شركة أفق", facts: early, requests: "نقض الحكم." },
+    }));
+    expect(rejectedReason(reviewed)).toBe("judgment-date");
+    expect(humanMemo(packet("appeal", {
+      slots: { plaintiff: "خالد بن سامي", defendant: "شركة أفق", facts: early, requests: "نقض الحكم." },
+    })).body).toContain("تاريخ الحكم سابق");
+  });
+
+  it("rejects the stock phrases that do not answer the case", () => {
+    const phrases = [
+      "لا يقوم دفع شكلي على نص محفوظ مطابق",
+      "والدفع الموضوعي يدخل في هذا النص",
+      "وهذا البند لا يسلم",
+      "والجواب عن هذا البند فيما سيأتي",
+      "هذا النص يحكم الواقعة",
+    ];
+    for (const phrase of phrases) {
+      expect(findAiTell(phrase)).toBe(phrase);
+      for (const memoType of MEMO_TYPES) expect(humanMemo(packet(memoType)).body).not.toContain(phrase);
+    }
   });
 });
 

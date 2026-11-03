@@ -23,7 +23,89 @@ export interface SettledDraft {
   citations: CitationRef[];
 }
 
-const AI_PHRASES = ["بصفتي نموذج", "كذكاء اصطناعي", "لا أستطيع", "إليك", "بالتأكيد"];
+const AI_PHRASES = [
+  "بصفتي نموذج",
+  "كذكاء اصطناعي",
+  "لا أستطيع",
+  "إليك",
+  "بالتأكيد",
+  "لا يقوم دفع شكلي على نص محفوظ مطابق",
+  "والدفع الموضوعي يدخل في هذا النص",
+  "وهذا البند لا يسلم",
+  "والجواب عن هذا البند فيما سيأتي",
+  "هذا النص يحكم الواقعة",
+  "ولا يُقر هذا الجواب البند على إطلاقه",
+  "يقتصر المقام على الدفع الموضوعي",
+];
+
+export type ArticleIssue = "termination-compensation" | "end-of-service-wage";
+
+export interface ArticleMatch {
+  article: RetrievedArticle;
+  issue: ArticleIssue;
+  reason: string;
+}
+
+const MONTH_NUMBER: Record<string, string> = {
+  يناير: "01",
+  فبراير: "02",
+  مارس: "03",
+  أبريل: "04",
+  مايو: "05",
+  يونيو: "06",
+  يوليو: "07",
+  أغسطس: "08",
+  سبتمبر: "09",
+  أكتوبر: "10",
+  نوفمبر: "11",
+  ديسمبر: "12",
+};
+
+function governs(issue: ArticleIssue, text: string): boolean {
+  if (issue === "termination-compensation") return text.includes("سبب غير مشروع") && text.includes("تعويض") && text.includes("إنهاء");
+  return text.includes("انتهت خدمة") && text.includes("دفع أجره");
+}
+
+function issuesIn(facts: string, requests: string): ArticleIssue[] {
+  const blob = `${facts}\n${requests}`;
+  const issues: ArticleIssue[] = [];
+  if (/سبب غير مشروع|دون إنذار|انتهت العلاقة|إنهاء العقد|أنهى صاحب العمل/.test(blob)) issues.push("termination-compensation");
+  if (/أجر/.test(blob) && /لم يُ?صرف|لم يسدد|لم يُ?دفع|غير المصروف/.test(blob)) issues.push("end-of-service-wage");
+  return issues;
+}
+
+export function matchArticles(articles: RetrievedArticle[], facts: string, requests: string): ArticleMatch[] {
+  const matches: ArticleMatch[] = [];
+  for (const issue of issuesIn(facts, requests)) {
+    const article = articles.find((item) => governs(issue, item.textAr));
+    if (!article) continue;
+    const mention = articleMention(article);
+    const reason = issue === "termination-compensation"
+      ? `لأن إنهاء العقد لسبب غير مشروع يرتب للطرف المتضرر التعويض الذي قررته ${mention}.`
+      : `لأن انتهاء الخدمة مع بقاء الأجر دون صرف يوجب دفعه خلال أسبوع من انتهاء العلاقة، وهو ما قررته ${mention}.`;
+    matches.push({ article, issue, reason });
+  }
+  return matches;
+}
+
+export function judgmentDateIn(facts: string): string {
+  return facts.match(/بتاريخ\s*(\d{4}-\d{2}-\d{2})/)?.[1] || "";
+}
+
+function isoDatesIn(facts: string): string[] {
+  const found = new Set<string>();
+  for (const match of facts.matchAll(/\d{4}-\d{2}-\d{2}/g)) found.add(match[0]);
+  for (const [name, month] of Object.entries(MONTH_NUMBER)) {
+    const pattern = new RegExp(`${name}\\s+(\\d{4})`, "g");
+    for (const match of facts.matchAll(pattern)) found.add(`${match[1]}-${month}-01`);
+  }
+  return [...found];
+}
+
+export function judgmentPrecedesFacts(facts: string, judgmentDate: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(judgmentDate)) return false;
+  return isoDatesIn(facts).some((date) => date !== judgmentDate && date > judgmentDate);
+}
 
 function seedOf(text: string): number {
   let hash = 2166136261;
@@ -306,6 +388,10 @@ export function reviewModelDraft(raw: string, packet: DraftPacket): { ok: true; 
   if (body.split("بسم الله الرحمن الرحيم").length - 1 !== 1) return { ok: false, reason: "basmala", failures: repaired.failures };
   const invented = findInventedNumber(body, packet);
   if (invented) return { ok: false, reason: `invented:${invented}`, failures: [...repaired.failures, draftCheckRecord({ failureType: "invented", quoteSpan: invented })] };
+  const judgedOn = packet.memoType === "appeal" ? judgmentDateIn(packet.slots.facts) : "";
+  if (judgedOn && judgmentPrecedesFacts(packet.slots.facts, judgedOn)) {
+    return { ok: false, reason: "judgment-date", failures: [...repaired.failures, draftCheckRecord({ failureType: "judgment-date", quoteSpan: judgedOn })] };
+  }
   if (findAiTell(body)) return { ok: false, reason: "tell", failures: repaired.failures };
   const ordered = applySectionNumbers(body);
   if (packet.memoType === "defense") {
@@ -376,20 +462,29 @@ function finishDraft(packet: DraftPacket, body: string, citations: CitationRef[]
   return { title, body: text.trim(), citations };
 }
 
-function quoteBlock(article: RetrievedArticle, seed: string): string {
+function quoteBlock(article: RetrievedArticle, seed: string, reason: string): string {
   const link = pick(`${seed}:${article.id}`, ["وحيث إن", "وبما أن", "ولما كانت"]);
-  const tail = pick(`${seed}:${article.id}:tail`, [
-    "وما سلف بيانه يأخذ حكم هذا النص.",
-    "والواقعة المعروضة تدخل في مقتضى هذا النص.",
-    "وهذا النص هو سند ما ذكره الموكل.",
-  ]);
-  return `${link} ${articleMention(article)}: «${article.textAr}»، ${tail}`;
+  return `${link} ${articleMention(article)}: «${article.textAr}»، ${reason}`;
 }
 
-function statutoryLines(packet: DraftPacket, seed: string): string[] {
+function fitted(packet: DraftPacket): ArticleMatch[] {
+  return matchArticles(packet.articles, packet.slots.facts, packet.slots.requests);
+}
+
+function statutoryLines(packet: DraftPacket, seed: string, matches: ArticleMatch[]): string[] {
   const lines: string[] = [];
   if (packet.notice) lines.push(packet.notice);
-  for (const article of packet.articles) lines.push(quoteBlock(article, seed));
+  const cited = new Set<string>();
+  for (const match of matches) {
+    lines.push(quoteBlock(match.article, seed, match.reason));
+    cited.add(match.article.id);
+  }
+  const known = (["termination-compensation", "end-of-service-wage"] as ArticleIssue[]);
+  for (const article of packet.articles) {
+    if (cited.has(article.id)) continue;
+    if (known.some((issue) => governs(issue, article.textAr))) continue;
+    lines.push(quoteBlock(article, seed, `لأن الطلب يستند إلى ${articleMention(article)} دون زيادة على نصه المحفوظ.`));
+  }
   if (!lines.length && !(packet.procedural || []).length) {
     lines.push(pick(`${seed}:empty`, [
       "تقتصر الأسانيد على ما ذكره الموكل، دون إيراد رقم مادة، لأن المدونة المحفوظة لم تعرض نصًا مطابقًا.",
@@ -413,20 +508,27 @@ function judgmentLines(packet: DraftPacket, seed: string): string[] {
   });
 }
 
-function replyPoints(facts: string, seed: string): string[] {
+function replyAnswer(point: string, matches: ArticleMatch[]): string {
+  const wage = matches.find((match) => match.issue === "end-of-service-wage");
+  const termination = matches.find((match) => match.issue === "termination-compensation");
+  if (wage && /أجر|يُصرف|يصرف/.test(point)) {
+    return `الجواب: بقاء الأجر دون صرف بعد انتهاء الخدمة يوجب أداءه خلال أسبوع من انتهاء العلاقة، وفق ${articleMention(wage.article)}.`;
+  }
+  if (termination && /انتهت|إنهاء|إنذار|مشروع/.test(point)) {
+    return `الجواب: إنهاء العقد لسبب غير مشروع يرتب التعويض للطرف المتضرر، وفق ${articleMention(termination.article)}.`;
+  }
+  return "الجواب: يُجاب هذا البند بما تثبته الوقائع والسند المحفوظ دون إضافة واقعة.";
+}
+
+function replyPoints(facts: string, matches: ArticleMatch[]): string[] {
   const parts = facts.split(/(?<=[.؟!])\s+/).map((part) => part.trim()).filter(Boolean);
   const points = parts.length > 1 ? parts : [facts];
-  const answers = [
-    "وهذا البند لا يسلم، ويُرد بالسند الآتي.",
-    "والجواب عن هذا البند فيما سيأتي من الأسانيد.",
-    "ولا يُقر هذا الجواب البند على إطلاقه.",
-  ];
-  return points.flatMap((point, index) => [`البند ${index + 1}: ${point}`, pick(`${seed}:point:${index}`, answers)]);
+  return points.flatMap((point, index) => [`البند ${index + 1}: ${point}`, replyAnswer(point, matches)]);
 }
 
 function appealedJudgment(facts: string): string {
   const number = facts.match(/رقم\s*([0-9٠-٩]{2,})/)?.[1] || "";
-  const date = facts.match(/بتاريخ\s*([0-9٠-٩][0-9٠-٩/.\-]{3,})/)?.[1] || "";
+  const date = (facts.match(/بتاريخ\s*([0-9٠-٩][0-9٠-٩/.\-]{3,})/)?.[1] || "").replace(/\.+$/, "");
   if (number && date) return `الحكم رقم ${number} الصادر بتاريخ ${date}.`;
   if (number) return `الحكم رقم ${number} كما ذكره المعترض.`;
   if (date) return `الحكم الصادر بتاريخ ${date} كما ذكره المعترض.`;
@@ -440,31 +542,46 @@ function parties(packet: DraftPacket): string[] {
   return [`المدّعي: ${packet.slots.plaintiff}`, `المدّعى عليه: ${packet.slots.defendant}`];
 }
 
+function defenseMerits(matches: ArticleMatch[]): string[] {
+  const lines: string[] = [];
+  if (matches.some((match) => match.issue === "termination-compensation")) {
+    lines.push("يدفع المدّعى عليه بأن التعويض عن الإنهاء لا يستحق إلا إذا أثبت المدّعي أن الإنهاء كان لسبب غير مشروع.");
+  }
+  if (matches.some((match) => match.issue === "end-of-service-wage")) {
+    lines.push("وبشأن الأجر، يدفع المدّعى عليه بأن وجوب الدفع معلق على انتهاء الخدمة وثبوت بقاء الأجر دون صرف، ويطلب رد ما لم يقم عليه دليل.");
+  }
+  if (!lines.length) lines.push("يدفع المدّعى عليه الدعوى ويطلب ردها، دون إضافة واقعة لم يذكرها الخصم.");
+  return lines;
+}
+
+function lawsuitRequests(packet: DraftPacket, matches: ArticleMatch[]): string[] {
+  const lines: string[] = [];
+  if (matches.some((match) => match.issue === "termination-compensation")) {
+    lines.push("إلزام المدّعى عليه بالتعويض المقرر عن إنهاء العقد لسبب غير مشروع.");
+  }
+  if (matches.some((match) => match.issue === "end-of-service-wage")) {
+    lines.push(packet.slots.requests.trim() || "إلزام المدّعى عليه بدفع الأجر غير المصروف بعد انتهاء الخدمة.");
+  }
+  if (!lines.length && packet.slots.requests.trim()) lines.push(packet.slots.requests.trim());
+  return lines;
+}
+
 function sectionsOf(packet: DraftPacket, seed: string): { title: string; lines: string[] }[] {
   const procedural = packet.procedural || [];
-  const grounds = statutoryLines(packet, seed);
+  const matches = fitted(packet);
+  const grounds = statutoryLines(packet, seed, matches);
   const sharia = shariaLines(packet, seed);
   const precedents = judgmentLines(packet, seed);
+  const proceduralLines = procedural.map((article) => quoteBlock(article, `${seed}:p`, "لأن هذا النص الإجرائي هو سند الدفع الشكلي."));
   if (packet.memoType === "defense") {
-    const formal = procedural.length
-      ? procedural.map((article) => quoteBlock(article, `${seed}:formal`))
-      : [pick(`${seed}:formal-empty`, [
-          "لا يقوم دفع شكلي على نص محفوظ مطابق، ويُعرض الدفع الموضوعي فيما يلي.",
-          "يقتصر المقام على الدفع الموضوعي، دون إيراد مادة إجرائية برقم.",
-        ])];
     const plea = asksToChargeDefendant(packet.slots.requests)
       ? pick(`${seed}:plea`, ["رد الدعوى.", "رفض الدعوى.", "عدم قبول الدعوى."])
       : packet.slots.requests;
     return [
-      { title: "الدفوع الشكلية", lines: formal },
+      { title: "الدفوع الشكلية", lines: proceduralLines },
       {
         title: "الدفوع الموضوعية",
-        lines: [
-          `${pick(seed, ["يدفع المدّعى عليه هذه الدعوى بأن", "وحاصل دفاع المدّعى عليه أن", "يرد المدّعى عليه بما مؤداه أن"])} ${packet.slots.facts}`,
-          ...grounds,
-          ...sharia,
-          ...precedents,
-        ],
+        lines: [...defenseMerits(matches), ...grounds, ...sharia, ...precedents],
       },
       {
         title: "الطلبات",
@@ -478,8 +595,8 @@ function sectionsOf(packet: DraftPacket, seed: string): { title: string; lines: 
   }
   if (packet.memoType === "reply") {
     return [
-      { title: "الرد على مذكرة الخصم", lines: replyPoints(packet.slots.facts, seed) },
-      { title: "الأسانيد", lines: [...grounds, ...procedural.map((article) => quoteBlock(article, `${seed}:p`)), ...sharia, ...precedents] },
+      { title: "الرد على مذكرة الخصم", lines: replyPoints(packet.slots.facts, matches) },
+      { title: "الأسانيد", lines: [...grounds, ...proceduralLines, ...sharia, ...precedents] },
       {
         title: "الطلبات",
         lines: [packet.slots.requests, pick(`${seed}:close`, [
@@ -491,13 +608,17 @@ function sectionsOf(packet: DraftPacket, seed: string): { title: string; lines: 
     ];
   }
   if (packet.memoType === "appeal") {
+    const judgedOn = judgmentDateIn(packet.slots.facts);
+    const judgmentLine = judgedOn && judgmentPrecedesFacts(packet.slots.facts, judgedOn)
+      ? "تاريخ الحكم سابق على تاريخ الوقائع، فلا يُنسب إلى الحكم أنه فصل فيها."
+      : appealedJudgment(packet.slots.facts);
     return [
-      { title: "الحكم المعترض عليه", lines: [appealedJudgment(packet.slots.facts)] },
+      { title: "الحكم المعترض عليه", lines: [judgmentLine] },
       {
         title: "أوجه الاعتراض",
         lines: [`${pick(seed, ["أسباب الاعتراض تتلخص في أن", "ينعى المعترض على الحكم أن", "حاصل الاعتراض أن"])} ${packet.slots.facts}`],
       },
-      { title: "الأسانيد", lines: [...grounds, ...procedural.map((article) => quoteBlock(article, `${seed}:p`)), ...sharia, ...precedents] },
+      { title: "الأسانيد", lines: [...grounds, ...proceduralLines, ...sharia, ...precedents] },
       {
         title: "الطلبات",
         lines: [pick(`${seed}:close`, [
@@ -514,11 +635,11 @@ function sectionsOf(packet: DraftPacket, seed: string): { title: string; lines: 
       lines: [`${pick(seed, ["تتلخص وقائع الدعوى في أن", "يقول المدّعي في بيان دعواه إن", "حاصل شكوى المدّعي أن"])} ${packet.slots.facts}`],
     },
     { title: "الأسانيد النظامية", lines: grounds },
-    { title: "الأسانيد الإجرائية", lines: procedural.map((article) => quoteBlock(article, `${seed}:p`)) },
+    { title: "الأسانيد الإجرائية", lines: proceduralLines },
     { title: "الأسانيد الشرعية", lines: [...sharia, ...precedents] },
     {
       title: "الطلبات",
-      lines: [packet.slots.requests, pick(`${seed}:close`, [
+      lines: [...lawsuitRequests(packet, matches), pick(`${seed}:close`, [
         "وبناءً على ما تقدم، نلتمس من فضيلتكم الحكم بالطلبات.",
         "لذا نلتمس من فضيلتكم نظر الطلبات والقضاء بها.",
         "وعليه نطلب من فضيلتكم الحكم بما ورد في الطلبات.",
