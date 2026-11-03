@@ -189,7 +189,14 @@ describe("draft composer", () => {
 
 describe("citation relevance and slot labels", () => {
   const wage = "أعمل لدى شركة أفق للمقاولات منذ ثلاث سنوات بعقد غير محدد المدة، وبراتب شهري قدره ثمانية آلاف ريال. انتهت العلاقة في أغسطس 2026 دون إنذار كتابي، ولم يُصرف أجر شهر أغسطس ولا مكافأة نهاية الخدمة.";
-  const laborText = "إذا انتهت علاقة العمل وجب على صاحب العمل أن يدفع إلى العامل أجره ومكافأة نهاية الخدمة خلال أسبوع من انتهائها.";
+  const laborText = (() => {
+    const labor = JSON.parse(readFileSync(join(__dirname, "../../../../corpus/official/boe/labor.json"), "utf8")) as {
+      articles: { number: string; textAr: string }[];
+    };
+    const article = labor.articles.find((item) => citationLabel(item.number) === "88");
+    if (!article) throw new Error("stored labor article 88 is missing");
+    return article.textAr;
+  })();
   const oath = "يشترط أن يكون الحالف أهلاً للتصرف فيما يحلف عليه، ولا تقبل النيابة في أداء اليمين.";
   const proof = "يقع إثبات عدم صرف الأجر ومكافأة نهاية الخدمة على من يدعيه بالبينة.";
   const venue = "تختص المحكمة العامة بنظر الدعاوى الخارجة عن اختصاص المحاكم الأخرى وفق قواعد المرافعات.";
@@ -450,7 +457,7 @@ describe("citation relevance and slot labels", () => {
     const matched = selectGrounds({
       court: "labor",
       memoType: "lawsuit",
-      facts: wage,
+      facts: `${wage}\n${laborText}`,
       articles: [ground("labor", "labor", "نظام العمل", laborText, "88"), ground("proof", "evidence", "نظام الإثبات", proof, "40")],
       sharia: [],
       presentLawKeys: ["labor", "evidence"],

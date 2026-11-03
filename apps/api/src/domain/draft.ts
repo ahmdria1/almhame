@@ -143,7 +143,7 @@ export function composeDraft(input: DraftPacket): { title: string; body: string;
   const packet: DraftPacket = {
     ...input,
     title: input.title || MEMO_TITLE[input.memoType],
-    courtHeading: input.courtHeading || COURT_HEADING[input.court as CourtType],
+    courtHeading: input.memoType === "appeal" ? COURT_HEADING.appeal : input.courtHeading || COURT_HEADING[input.court as CourtType],
   };
   return humanMemo(packet);
 }

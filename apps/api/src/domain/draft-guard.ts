@@ -228,7 +228,12 @@ export function reviewModelDraft(raw: string, packet: DraftPacket): { ok: true; 
   const invented = findInventedNumber(body, packet);
   if (invented) return { ok: false, reason: `invented:${invented}` };
   if (findAiTell(body)) return { ok: false, reason: "tell" };
-  return { ok: true, draft: finishDraft(packet, body, citationsUsed(body, packet)) };
+  const ordered = renumberSections(body);
+  if (packet.memoType === "defense") {
+    const plea = ordered.split("الطلبات").pop() || "";
+    if (asksToChargeDefendant(plea)) return { ok: false, reason: "request" };
+  }
+  return { ok: true, draft: finishDraft(packet, ordered, citationsUsed(ordered, packet)) };
 }
 
 function citationsUsed(body: string, packet: DraftPacket): CitationRef[] {
@@ -247,6 +252,33 @@ function citationsUsed(body: string, packet: DraftPacket): CitationRef[] {
   return refs;
 }
 
+const ORDINALS = ["أولًا", "ثانيًا", "ثالثًا", "رابعًا", "خامسًا", "سادسًا", "سابعًا", "ثامنًا"];
+const APPEAL_HEADING = "فضيلة رئيس محكمة الاستئناف";
+
+export function renumberSections(text: string): string {
+  let index = 0;
+  return text.replace(/^(أولًا|ثانيًا|ثالثًا|رابعًا|خامسًا|سادسًا|سابعًا|ثامنًا)(\s*:)/gm, (_match, _ordinal: string, colon: string) => {
+    const next = ORDINALS[Math.min(index, ORDINALS.length - 1)];
+    index += 1;
+    return `${next}${colon}`;
+  });
+}
+
+function numbered(sections: { title: string; lines: string[] }[]): string[] {
+  const present = sections
+    .map((section) => ({ title: section.title, lines: section.lines.map((line) => line.trim()).filter(Boolean) }))
+    .filter((section) => section.lines.length > 0);
+  const out: string[] = [];
+  present.forEach((section, index) => {
+    out.push("", `${ORDINALS[Math.min(index, ORDINALS.length - 1)]}: ${section.title}`, ...section.lines);
+  });
+  return out;
+}
+
+function asksToChargeDefendant(text: string): boolean {
+  return text.includes("إلزام المدّعى عليه") || text.includes("إلزام المدعى عليه");
+}
+
 function finishDraft(packet: DraftPacket, body: string, citations: CitationRef[]): SettledDraft {
   const title = packet.title || "";
   const heading = packet.courtHeading || "";
@@ -260,79 +292,176 @@ function finishDraft(packet: DraftPacket, body: string, citations: CitationRef[]
 function quoteBlock(article: RetrievedArticle, seed: string): string {
   const link = pick(`${seed}:${article.id}`, ["وحيث إن", "وبما أن", "ولما كانت"]);
   const tail = pick(`${seed}:${article.id}:tail`, [
-    "وما سلف من الوقائع يأخذ حكم هذا النص.",
+    "وما سلف بيانه يأخذ حكم هذا النص.",
     "والواقعة المعروضة تدخل في مقتضى هذا النص.",
-    "وهذا النص هو سند ما ذكره الموكل في الوقائع.",
+    "وهذا النص هو سند ما ذكره الموكل.",
   ]);
   return `${link} ${articleMention(article)}: «${article.textAr}»، ${tail}`;
 }
 
+function statutoryLines(packet: DraftPacket, seed: string): string[] {
+  const lines: string[] = [];
+  if (packet.notice) lines.push(packet.notice);
+  for (const article of packet.articles) lines.push(quoteBlock(article, seed));
+  if (!lines.length && !(packet.procedural || []).length) {
+    lines.push(pick(`${seed}:empty`, [
+      "تقتصر الأسانيد على ما ذكره الموكل، دون إيراد رقم مادة، لأن المدونة المحفوظة لم تعرض نصًا مطابقًا.",
+      "لا يورد هذا المقام رقم مادة، إذ لم يُحفظ نص نظامي يطابق ما سلف.",
+    ]));
+  }
+  return lines;
+}
+
+function shariaLines(packet: DraftPacket, seed: string): string[] {
+  return packet.sharia.map((row) => {
+    const lead = pick(`${seed}:${row.id}`, ["ويستأنس بما ورد في", "ويؤيد ذلك ما جاء في", "ومن ذلك ما ورد في"]);
+    return `${lead} ${row.reference}: «${row.textAr}».`;
+  });
+}
+
+function judgmentLines(packet: DraftPacket, seed: string): string[] {
+  return (packet.judgments || []).map((row) => {
+    const lead = pick(`${seed}:${row.id}`, ["ومن السوابق، الحكم رقم", "ويُستأنس بالحكم رقم", "وقد سبق أن صدر الحكم رقم"]);
+    return `${lead} ${row.judgmentNo} الصادر من ${row.court} في ${row.city}: «${row.fullText}».`;
+  });
+}
+
+function replyPoints(facts: string, seed: string): string[] {
+  const parts = facts.split(/(?<=[.؟!])\s+/).map((part) => part.trim()).filter(Boolean);
+  const points = parts.length > 1 ? parts : [facts];
+  const answers = [
+    "وهذا البند لا يسلم، ويُرد بالسند الآتي.",
+    "والجواب عن هذا البند فيما سيأتي من الأسانيد.",
+    "ولا يُقر هذا الجواب البند على إطلاقه.",
+  ];
+  return points.flatMap((point, index) => [`البند ${index + 1}: ${point}`, pick(`${seed}:point:${index}`, answers)]);
+}
+
+function appealedJudgment(facts: string): string {
+  const number = facts.match(/رقم\s*([0-9٠-٩]{2,})/)?.[1] || "";
+  const date = facts.match(/بتاريخ\s*([0-9٠-٩][0-9٠-٩/.\-]{3,})/)?.[1] || "";
+  if (number && date) return `الحكم رقم ${number} الصادر بتاريخ ${date}.`;
+  if (number) return `الحكم رقم ${number} كما ذكره المعترض.`;
+  if (date) return `الحكم الصادر بتاريخ ${date} كما ذكره المعترض.`;
+  return "الحكم محل الاعتراض هو ما ذكره المعترض في أسباب طعنه.";
+}
+
+function parties(packet: DraftPacket): string[] {
+  if (packet.memoType === "appeal") return [`المعترض: ${packet.slots.plaintiff}`, `المعترض ضده: ${packet.slots.defendant}`];
+  if (packet.memoType === "defense") return [`المدّعى عليه: ${packet.slots.defendant}`, `المدّعي: ${packet.slots.plaintiff}`];
+  if (packet.memoType === "reply") return [`مقدم الجواب: ${packet.slots.plaintiff}`, `الخصم: ${packet.slots.defendant}`];
+  return [`المدّعي: ${packet.slots.plaintiff}`, `المدّعى عليه: ${packet.slots.defendant}`];
+}
+
+function sectionsOf(packet: DraftPacket, seed: string): { title: string; lines: string[] }[] {
+  const procedural = packet.procedural || [];
+  const grounds = statutoryLines(packet, seed);
+  const sharia = shariaLines(packet, seed);
+  const precedents = judgmentLines(packet, seed);
+  if (packet.memoType === "defense") {
+    const formal = procedural.length
+      ? procedural.map((article) => quoteBlock(article, `${seed}:formal`))
+      : [pick(`${seed}:formal-empty`, [
+          "لا يقوم دفع شكلي على نص محفوظ مطابق، ويُعرض الدفع الموضوعي فيما يلي.",
+          "يقتصر المقام على الدفع الموضوعي، دون إيراد مادة إجرائية برقم.",
+        ])];
+    const plea = asksToChargeDefendant(packet.slots.requests)
+      ? pick(`${seed}:plea`, ["رد الدعوى.", "رفض الدعوى.", "عدم قبول الدعوى."])
+      : packet.slots.requests;
+    return [
+      { title: "الدفوع الشكلية", lines: formal },
+      {
+        title: "الدفوع الموضوعية",
+        lines: [
+          `${pick(seed, ["يدفع المدّعى عليه هذه الدعوى بأن", "وحاصل دفاع المدّعى عليه أن", "يرد المدّعى عليه بما مؤداه أن"])} ${packet.slots.facts}`,
+          ...grounds,
+          ...sharia,
+          ...precedents,
+        ],
+      },
+      {
+        title: "الطلبات",
+        lines: [plea, pick(`${seed}:close`, [
+          "وبناءً على ما تقدم، نلتمس من فضيلتكم رد الدعوى.",
+          "لذا نلتمس من فضيلتكم الحكم برفض الدعوى.",
+          "وعليه نطلب من فضيلتكم عدم قبول الدعوى.",
+        ])],
+      },
+    ];
+  }
+  if (packet.memoType === "reply") {
+    return [
+      { title: "الرد على مذكرة الخصم", lines: replyPoints(packet.slots.facts, seed) },
+      { title: "الأسانيد", lines: [...grounds, ...procedural.map((article) => quoteBlock(article, `${seed}:p`)), ...sharia, ...precedents] },
+      {
+        title: "الطلبات",
+        lines: [packet.slots.requests, pick(`${seed}:close`, [
+          "وبناءً على ما تقدم، نلتمس من فضيلتكم رد ما جاء في مذكرة الخصم.",
+          "لذا نلتمس من فضيلتكم عدم الالتفات إلى مذكرة الخصم.",
+          "وعليه نطلب من فضيلتكم الأخذ بهذا الجواب.",
+        ])],
+      },
+    ];
+  }
+  if (packet.memoType === "appeal") {
+    return [
+      { title: "الحكم المعترض عليه", lines: [appealedJudgment(packet.slots.facts)] },
+      {
+        title: "أوجه الاعتراض",
+        lines: [`${pick(seed, ["أسباب الاعتراض تتلخص في أن", "ينعى المعترض على الحكم أن", "حاصل الاعتراض أن"])} ${packet.slots.facts}`],
+      },
+      { title: "الأسانيد", lines: [...grounds, ...procedural.map((article) => quoteBlock(article, `${seed}:p`)), ...sharia, ...precedents] },
+      {
+        title: "الطلبات",
+        lines: [pick(`${seed}:close`, [
+          "وبناءً على ما تقدم، نلتمس من فضيلتكم نقض الحكم.",
+          "لذا نلتمس من فضيلتكم نقض الحكم المطعون فيه.",
+          "وعليه نطلب من فضيلتكم نقض الحكم.",
+        ])],
+      },
+    ];
+  }
+  return [
+    {
+      title: "الوقائع",
+      lines: [`${pick(seed, ["تتلخص وقائع الدعوى في أن", "يقول المدّعي في بيان دعواه إن", "حاصل شكوى المدّعي أن"])} ${packet.slots.facts}`],
+    },
+    { title: "الأسانيد النظامية", lines: grounds },
+    { title: "الأسانيد الإجرائية", lines: procedural.map((article) => quoteBlock(article, `${seed}:p`)) },
+    { title: "الأسانيد الشرعية", lines: [...sharia, ...precedents] },
+    {
+      title: "الطلبات",
+      lines: [packet.slots.requests, pick(`${seed}:close`, [
+        "وبناءً على ما تقدم، نلتمس من فضيلتكم الحكم بالطلبات.",
+        "لذا نلتمس من فضيلتكم نظر الطلبات والقضاء بها.",
+        "وعليه نطلب من فضيلتكم الحكم بما ورد في الطلبات.",
+      ])],
+    },
+  ];
+}
+
 export function humanMemo(packet: DraftPacket): SettledDraft {
   const title = packet.title || "";
-  const heading = packet.courtHeading || "";
+  const heading = packet.memoType === "appeal" ? APPEAL_HEADING : packet.courtHeading || "";
   const seed = `${packet.memoType}:${packet.slots.facts}`;
-  const openers: Record<MemoType, string[]> = {
-    lawsuit: ["تتلخص وقائع الدعوى في أن", "يقول المدّعي في بيان دعواه إن", "حاصل شكوى المدّعي أن"],
-    defense: ["يدفع المدّعى عليه هذه الدعوى بأن", "وحاصل دفاع المدّعى عليه أن", "يرد المدّعى عليه بما مؤداه أن"],
-    reply: ["جوابًا على ما أثير، فإن", "تعقيبًا على مذكرة الخصم، فإن", "يرد صاحب الجواب بأن"],
-    appeal: ["أسباب الاعتراض تتلخص في أن", "ينعى المعترض على الحكم أن", "حاصل الاعتراض أن"],
-  };
-  const closings = [
-    "وبناءً على ما تقدم، نلتمس من فضيلتكم الحكم بالطلبات.",
-    "لذا نلتمس من فضيلتكم نظر الطلبات والقضاء بها.",
-    "وعليه نطلب من فضيلتكم الحكم بما ورد في الطلبات.",
-  ];
   const lines = ["بسم الله الرحمن الرحيم", "", title, "", heading];
   if (packet.letterhead) lines.push(packet.letterhead);
-  lines.push(
-    "",
-    `المدّعي: ${packet.slots.plaintiff}`,
-    `المدّعى عليه: ${packet.slots.defendant}`,
-    "",
-    "أولًا: الوقائع",
-    `${pick(seed, openers[packet.memoType])} ${packet.slots.facts}`,
-    "",
-    "ثانيًا: الأسانيد النظامية",
-  );
-  const procedural = packet.procedural || [];
-  if (packet.notice) lines.push(packet.notice);
-  else if (packet.articles.length === 0 && procedural.length === 0) {
-    lines.push(pick(`${seed}:empty`, [
-      "تقتصر هذه المذكرة على ما ذكره الموكل، دون إيراد رقم مادة، لأن المدونة المحفوظة لم تعرض نصًا مطابقًا.",
-      "لا يورد هذا المقام رقم مادة، إذ لم يُحفظ نص نظامي يطابق الوقائع المعروضة.",
-    ]));
-  } else {
-    for (const article of packet.articles) lines.push(quoteBlock(article, seed));
-  }
-  if (procedural.length) {
-    lines.push("", "الأسانيد الإجرائية");
-    for (const article of procedural) lines.push(quoteBlock(article, `${seed}:p`));
-  }
-  lines.push("", "ثالثًا: الأسانيد الشرعية");
-  if (packet.sharia.length === 0) {
-    lines.push(pick(`${seed}:sharia`, [
-      "ولا يورد هذا المقام نصًا شرعيًا برقم، إذ لم يُحفظ نص مطابق لما سلف.",
-      "ويكتفى بما تقدم من الوقائع دون إيراد آية أو حديث برقم.",
-    ]));
-  } else {
-    for (const row of packet.sharia) {
-      const lead = pick(`${seed}:${row.id}`, ["ويستأنس بما ورد في", "ويؤيد ذلك ما جاء في", "ومن ذلك ما ورد في"]);
-      lines.push(`${lead} ${row.reference}: «${row.textAr}».`);
-    }
-  }
-  for (const row of packet.judgments || []) {
-    const lead = pick(`${seed}:${row.id}`, ["ومن السوابق، الحكم رقم", "ويُستأنس بالحكم رقم", "وقد سبق أن صدر الحكم رقم"]);
-    lines.push("", `${lead} ${row.judgmentNo} الصادر من ${row.court} في ${row.city}: «${row.fullText}».`);
-  }
-  lines.push("", "رابعًا: الطلبات", packet.slots.requests, "", pick(`${seed}:close`, closings), "", "والله الموفق.");
-  const body = lines.filter((line, index, all) => line !== "" || all[index - 1] !== "").join("\n");
+  lines.push("", ...parties(packet), ...numbered(sectionsOf(packet, seed)), "", "والله الموفق.");
+  const body = renumberSections(lines.filter((line, index, all) => line !== "" || all[index - 1] !== "").join("\n"));
   return { title, body, citations: citationsUsed(body, packet) };
 }
 
 export function draftPrompt(packet: DraftPacket): string {
   const sources = allSources(packet).map((row) => `مرجع ${row.mention || row.id}\n${row.text}`).join("\n\n");
+  const shape: Record<MemoType, string> = {
+    lawsuit: "صحيفة دعوى من المدّعي: الوقائع، ثم الأسانيد، ثم الطلبات. رقّم الأقسام أولًا ثم ثانيًا دون قفز.",
+    defense: "مذكرة دفاع من المدّعى عليه: الدفوع الشكلية، ثم الدفوع الموضوعية، ثم طلب رد الدعوى. لا تطلب إلزام المدّعى عليه.",
+    reply: "مذكرة جوابية ترد على مذكرة الخصم بندًا بندًا، ثم الأسانيد، ثم الطلبات.",
+    appeal: "لائحة اعتراضية إلى محكمة الاستئناف: رقم الحكم وتاريخه إن وردا في الوقائع، ثم أوجه الاعتراض، ثم طلب نقض الحكم.",
+  };
   return [
-    `اكتب ${packet.title || "المذكرة"} بعبارة محامٍ سعودي أمام ${packet.courtHeading || "المحكمة"}.`,
+    `اكتب ${packet.title || "المذكرة"} بعبارة محامٍ سعودي أمام ${packet.memoType === "appeal" ? APPEAL_HEADING : packet.courtHeading || "المحكمة"}.`,
+    shape[packet.memoType],
     "أعد صياغة الوقائع في سرد متصل، وأبق كل واقعة مذكورة، ولا تضف واقعة أو تاريخًا أو مبلغًا أو اسمًا.",
     "اربط الوقائع بالنصوص المعطاة تسبيبًا، وضع النص النظامي أو الشرعي بين «» كما أُعطي حرفيًا.",
     "لا تذكر رابطًا ولا رقم إصدار، ولا تكتب بالإنجليزية، ولا تستخدم نجوم التنسيق.",

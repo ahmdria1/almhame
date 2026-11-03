@@ -10,7 +10,7 @@ import { jurisdictionOf, priceForMemoType, type CourtType as Court, type MemoTyp
 import { CorpusService } from "./corpus.service";
 import { InfectedUpload, scanInstream } from "./domain/clamd";
 import { knownArticle, textHash, validateCitations, type CitationRef } from "./domain/citations";
-import { readSlots } from "./domain/draft";
+import { COURT_HEADING, readSlots } from "./domain/draft";
 import { draftPrompt, humanMemo, reviewModelDraft, type DraftPacket } from "./domain/draft-guard";
 import { decryptBytes, encryptBytes } from "./domain/envelope";
 import { halalasToSar, nextInvoiceNumber, splitVatInclusive, zatcaQrBase64 } from "./domain/invoice";
@@ -317,7 +317,7 @@ export class WorkService {
       notice: retrieved.notice,
       letterhead,
       title: template.titleAr,
-      courtHeading,
+      courtHeading: chat.memoType === "appeal" ? COURT_HEADING.appeal : courtHeading,
     };
     let draftBody = humanMemo(packet);
     const prompt = draftPrompt(packet);
