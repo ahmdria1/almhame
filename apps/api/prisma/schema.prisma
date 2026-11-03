@@ -76,6 +76,8 @@ model User {
   orgId           String?
   orgRole         String?
   notifyHearings  Boolean   @default(true)
+  mfaEnabled      Boolean   @default(false)
+  referralCode    String    @unique @default(cuid())
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -515,6 +517,45 @@ model PlanSetting {
   country       Jurisdiction @relation(fields: [jurisdiction], references: [code])
 
   @@id([jurisdiction, code])
+}
+
+model SearchBlind {
+  id        String   @id @default(cuid())
+  userId    String
+  kind      String
+  entityId  String
+  token     String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, kind, entityId, token])
+  @@index([userId, token])
+}
+
+model Referral {
+  id             String   @id @default(cuid())
+  referrerId     String
+  referredUserId String   @unique
+  createdAt      DateTime @default(now())
+}
+
+model ProblemReport {
+  id         String   @id @default(cuid())
+  userId     String
+  messageEnc String
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+}
+
+model PendingUpdate {
+  id        String   @id @default(cuid())
+  lawKey    String
+  sourceUrl String
+  note      String
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+
+  @@index([status])
 }
 
 model TokenLedger {

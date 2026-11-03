@@ -1,6 +1,8 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { Queue, Worker } from "bullmq";
+import { smsProviderFor } from "./domain/sms-provider";
 import { Kernel } from "./kernel";
+import { sendAuthMail } from "./mail";
 
 @Injectable()
 export class ReminderService implements OnModuleInit, OnModuleDestroy {
@@ -51,6 +53,14 @@ export class ReminderService implements OnModuleInit, OnModuleDestroy {
     });
     if (updated.count === 0) return;
     await this.kernel.prisma.notification.create({ data: { userId: hearing.userId, hearingId } });
+    await sendAuthMail(this.kernel.config, {
+      to: user.email,
+      code: "",
+      purpose: "hearing",
+      link: "موعد محفوظ اقترب.",
+    }).catch(() => undefined);
+    const sms = smsProviderFor(this.kernel.config);
+    if (sms) await sms.send(user.phone, "موعد محفوظ اقترب.").catch(() => undefined);
   }
 
   async sweep() {

@@ -2,7 +2,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { LOCALES, PUBLISHED_PLANS, type Locale } from "@elawyer/types";
+import { COURTS, LOCALES, PUBLISHED_PLANS, type Locale } from "@elawyer/types";
 import { ArticlePage, SearchView } from "../src/components/article-page";
 import { HomeView } from "../src/components/home-view";
 import {
@@ -44,7 +44,7 @@ describe("public SEO", () => {
   test("slug table and locale copy are complete", () => {
     expect(slugProblems()).toEqual([]);
     expect(localeCoverage()).toEqual([]);
-    expect(publicPages()).toHaveLength(21);
+    expect(publicPages()).toHaveLength(1 + 7 + 4 + COURTS.length);
   });
 
   test("SITE_URL is the configured origin", () => {

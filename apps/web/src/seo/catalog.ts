@@ -33,6 +33,7 @@ const SLUGS: Record<SlugId, Record<Locale, string>> = {
   objection: { ar: "لائحة-اعتراضية", en: "objection", ur: "اعتراض", hi: "आपत्ति", pa: "اعتراض", si: "විරෝධය", bn: "আপত্তি", ne: "आपत्ति", fil: "tutol", tr: "itiraz", am: "ተቃውሞ" },
   general: { ar: "عامة", en: "general", ur: "عام", hi: "सामान्य", pa: "عام", si: "සාමාන්‍ය", bn: "সাধারণ", ne: "सामान्य", fil: "pangkalahatan", tr: "genel", am: "አጠቃላይ" },
   criminal: { ar: "جزائية", en: "criminal", ur: "فوجداری", hi: "आपराधिक", pa: "فوجداری", si: "අපරාධ", bn: "ফৌজদারি", ne: "फौजदारी", fil: "kriminal", tr: "ceza", am: "ወንጀል" },
+  traffic: { ar: "مرورية", en: "traffic", ur: "ٹریفک", hi: "यातायात", pa: "ٹریفک", si: "රථවාහන", bn: "ট্রাফিক", ne: "यातायात", fil: "trapiko", tr: "trafik", am: "ትራፊክ" },
   personal_status: { ar: "أحوال-شخصية", en: "personal-status", ur: "احوال-شخصیہ", hi: "पारिवारिक", pa: "احوال", si: "පවුල", bn: "পারিবারিক", ne: "पारिवारिक", fil: "pampamilya", tr: "aile", am: "ቤተሰብ" },
   labor: { ar: "عمالية", en: "labor", ur: "لیبر", hi: "श्रम", pa: "مزدور", si: "කම්කරු", bn: "শ্রম", ne: "श्रम", fil: "paggawa", tr: "iş", am: "ሥራ" },
   commercial: { ar: "تجارية", en: "commercial", ur: "تجارتی", hi: "वाणिज्य", pa: "تجارتی", si: "වාණිජ", bn: "বাণিজ্য", ne: "वाणिज्य", fil: "komersiyo", tr: "ticaret", am: "ንግድ" },

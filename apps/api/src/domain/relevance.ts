@@ -60,6 +60,7 @@ const SUBJECTS: Record<CourtType, { keys: string[]; nameAr: string }> = {
     nameAr: "الأنظمة التجارية",
   },
   criminal: { keys: CRIMINAL_KEYS, nameAr: "الأنظمة الجزائية" },
+  traffic: { keys: ["traffic"], nameAr: "نظام المرور" },
   personal_status: { keys: ["personal-status"], nameAr: "نظام الأحوال الشخصية" },
   enforcement: { keys: ["enforcement"], nameAr: "نظام التنفيذ" },
   administrative: { keys: ["bog-procedure"], nameAr: "نظام المرافعات أمام ديوان المظالم" },

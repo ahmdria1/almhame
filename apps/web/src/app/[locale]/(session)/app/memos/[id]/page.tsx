@@ -4,6 +4,8 @@ import type { MemoView } from "@elawyer/types";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { DiffView } from "@/components/diff-view";
+import { PdfPreview } from "@/components/pdf-preview";
 import { Button } from "@/components/ui";
 import { useApp } from "@/lib/providers";
 
@@ -14,13 +16,27 @@ export default function MemoEditorPage() {
   const [body, setBody] = useState("");
   const [filter, setFilter] = useState("all");
   const [message, setMessage] = useState("");
+  const [savedBody, setSavedBody] = useState("");
+  const [showDiff, setShowDiff] = useState(false);
+  const [showPdf, setShowPdf] = useState(false);
 
   useEffect(() => {
     client.memo(id).then((result) => {
+      const local = window.localStorage.getItem(`memo:${id}`);
       setMemo(result.memo);
-      setBody(result.memo.body);
+      setSavedBody(result.memo.body);
+      setBody(local || result.memo.body);
     }).catch(() => setMemo(null));
   }, [client, id]);
+
+  useEffect(() => {
+    if (!body) return;
+    const timer = window.setTimeout(() => {
+      window.localStorage.setItem(`memo:${id}`, body);
+      setMessage(t("memo.autosaved"));
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [body, id, t]);
 
   async function save() {
     const result = await client.updateMemo(id, { body });
@@ -62,7 +78,7 @@ export default function MemoEditorPage() {
         </div>
         <div className="grid gap-2">
           {citations.map((item) => (
-            <a key={item.id} href={item.sourceUrl} target="_blank" rel="noreferrer" className="rounded-2xl border border-ink-200 bg-white p-3 text-sm dark:border-white/10 dark:bg-navy-800">
+            <a key={item.id} href={item.sourceUrl} title={t("memo.sourceTip")} target="_blank" rel="noreferrer" className="rounded-2xl border border-ink-200 bg-white p-3 text-sm dark:border-white/10 dark:bg-navy-800">
               <span className="font-semibold">{item.kind === "article" ? item.number : item.title}</span>
               <p className="mt-1 line-clamp-3 text-ink-500">{item.excerpt}</p>
               {item.isSample ? <span className="mt-2 inline-block rounded-full bg-warning-soft px-2 py-0.5 text-xs text-warning">{t("common.sample")}</span> : null}
@@ -80,10 +96,14 @@ export default function MemoEditorPage() {
             <Button data-testid="save-memo" variant="secondary" onClick={() => void save()}>{t("memo.saveDraft")}</Button>
             <Button data-testid="export-word" variant="secondary" onClick={() => void download("docx")}>{t("memo.exportWord")}</Button>
             <Button data-testid="export-pdf" onClick={() => void download("pdf")}>{t("memo.exportPdf")}</Button>
+            <Button variant="secondary" type="button" onClick={() => setShowPdf((value) => !value)}>{t("memo.preview")}</Button>
+            <Button variant="secondary" type="button" onClick={() => setShowDiff((value) => !value)}>{t("memo.diff")}</Button>
           </div>
         </div>
         {message ? <p className="mb-2 text-sm text-teal-700">{message}</p> : null}
         <textarea data-testid="memo-body" value={body} onChange={(event) => setBody(event.target.value)} className="paper min-h-[70vh] w-full rounded-3xl border border-ink-200 p-8 text-base leading-8 shadow-card outline-none dark:border-white/10" />
+        {showDiff ? <DiffView before={savedBody} after={body} /> : null}
+        {showPdf ? <PdfPreview memoId={id} /> : null}
         <p className="mt-2 text-xs text-ink-500">{t("editor.checkSource")}</p>
       </section>
     </div>

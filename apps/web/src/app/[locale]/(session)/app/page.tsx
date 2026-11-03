@@ -66,6 +66,31 @@ export default function WorkspacePage() {
     }
   }
 
+  async function recordVoice() {
+    if (!active || !navigator.mediaDevices?.getUserMedia) {
+      setError(t("errors.busy"));
+      return;
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const recorder = new MediaRecorder(stream);
+    const chunks: Blob[] = [];
+    recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
+    recorder.onstop = () => {
+      stream.getTracks().forEach((track) => track.stop());
+      const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+      const url = URL.createObjectURL(blob);
+      const audio = document.createElement("audio");
+      audio.src = url;
+      audio.controls = true;
+      document.getElementById("voice-slot")?.replaceChildren(audio);
+      void client.sendMessage(active, t("memo.voice")).then((result) => {
+        setMessages((current) => [...current, result.user, result.counsel]);
+      }).catch(() => setError(t("errors.busy")));
+    };
+    recorder.start();
+    window.setTimeout(() => { if (recorder.state !== "inactive") recorder.stop(); }, 4000);
+  }
+
   async function send() {
     if (!active || !text.trim()) return;
     const value = text;
@@ -85,7 +110,7 @@ export default function WorkspacePage() {
       if (active) await openChat(active);
     } catch (err) {
       const key = err instanceof ApiError ? uploadErrorKey(err.code) : null;
-      setError(key ? t(key) : err instanceof ApiError ? err.message : t("common.error"));
+      setError(err instanceof ApiError && err.code === "BUSY" ? t("errors.busy") : key ? t(key) : err instanceof ApiError ? err.message : t("common.error"));
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -126,7 +151,16 @@ export default function WorkspacePage() {
               <p className="text-xs text-ink-400">{Math.ceil(doc.byteSize / 1024)} KB</p>
             </div>
           ))}
-          <label className="cursor-pointer rounded-xl border border-dashed border-ink-300 px-3 py-2 text-center text-sm text-ink-500">
+          <label
+            className="cursor-pointer rounded-xl border border-dashed border-ink-300 px-3 py-2 text-center text-sm text-ink-500"
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => {
+              event.preventDefault();
+              const file = event.dataTransfer.files?.[0];
+              if (file) void attach(file);
+            }}
+          >
+            {t("memo.drop")}
             {uploading ? t("workspace.uploading") : t("workspace.attachments")}
             <input ref={fileRef} data-testid="file-input" className="hidden" type="file" accept="application/pdf,image/png,image/jpeg,image/webp" onChange={(event) => {
               const file = event.target.files?.[0];
@@ -173,9 +207,11 @@ export default function WorkspacePage() {
           <div className="flex gap-2">
             <input data-testid="chat-input" value={text} onChange={(event) => setText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void send(); }} placeholder={t("workspace.placeholder")} className="h-12 flex-1 rounded-2xl border border-ink-200 bg-white px-4 outline-none dark:border-white/10 dark:bg-navy-800" />
             <button aria-label={t("workspace.attach")} className="text-ink-400 disabled:opacity-40" type="button" disabled={uploading || !caseId} onClick={() => fileRef.current?.click()}><Paperclip size={18} /></button>
+            <button aria-label={t("memo.voice")} className="text-ink-400" type="button" onClick={() => void recordVoice()}>{t("memo.voice")}</button>
             <button data-testid="chat-send" className="grid h-12 w-12 place-items-center rounded-full bg-navy-700 text-white" type="button" onClick={() => void send()}><Send size={18} /></button>
           </div>
           {uploading ? <p className="mt-2 text-xs text-ink-500">{t("workspace.uploading")}</p> : null}
+          <div id="voice-slot" className="mt-2" />
         </div>
       </section>
       <aside className="border-ink-200 p-4 lg:border-s dark:border-white/10">

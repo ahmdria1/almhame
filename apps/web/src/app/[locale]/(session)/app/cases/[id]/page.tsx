@@ -19,10 +19,13 @@ export default function CasePage() {
   const { t, client, user } = useApp();
   const [detail, setDetail] = useState<Detail | null>(null);
   const [error, setError] = useState("");
+  const [health, setHealth] = useState<{ score: number; hearings: number } | null>(null);
 
   async function load() {
     const result = await client.caseFile(id);
     setDetail(result.caseFile as Detail);
+    const score = await client.caseHealth(id).catch(() => null);
+    setHealth(score);
   }
   useEffect(() => { load().catch(() => setDetail(null)); }, [id]);
 
@@ -47,6 +50,12 @@ export default function CasePage() {
     <main className="mx-auto max-w-4xl px-4 py-8">
       <h1 className="text-3xl font-bold text-navy-700 dark:text-white">{detail.title}</h1>
       <p className="text-ink-500">{t(`courts.${detail.court}`)}</p>
+      {health ? (
+        <p className="mt-2 text-sm text-ink-700">
+          {t("cases.health", { score: health.score })}
+          <span className="mt-1 block text-xs text-ink-500">{t("cases.healthNote")}</span>
+        </p>
+      ) : null}
       <div className="mt-6 grid gap-4 md:grid-cols-2">
         <section className="rounded-3xl border border-ink-200 p-4 dark:border-white/10">
           <h2 className="font-semibold">{t("cases.docs")}</h2>
@@ -57,7 +66,11 @@ export default function CasePage() {
         <section className="rounded-3xl border border-ink-200 p-4 dark:border-white/10">
           <h2 className="font-semibold">{t("cases.hearings")}</h2>
           {detail.hearings.map((hearing) => (
-            <p key={hearing.id} className="mt-2 text-sm">{hearing.title} · {new Date(hearing.occursAt).toLocaleString()}</p>
+            <p key={hearing.id} className="mt-2 text-sm">
+              {hearing.title} · {new Date(hearing.occursAt).toLocaleString()}
+              {" · "}
+              {t("cases.countdown", { days: Math.max(0, Math.ceil((new Date(hearing.occursAt).getTime() - Date.now()) / 86400000)) })}
+            </p>
           ))}
           {user?.features.caseManagement ? (
             <form className="mt-4 grid gap-2" onSubmit={add}>

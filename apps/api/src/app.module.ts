@@ -13,6 +13,14 @@ import { AuditInterceptor, ApiExceptionFilter } from "./interceptors";
 import { Kernel } from "./kernel";
 import { PrismaService } from "./prisma.service";
 import { ReminderService } from "./reminders.service";
+import { CacheService } from "./cache.service";
+import { CaseService } from "./case.service";
+import { ChatService } from "./chat.service";
+import { MemoService } from "./memo.service";
+import { ReferralService } from "./referral.service";
+import { ScoutService } from "./scout.service";
+import { SearchService } from "./search.service";
+import { WeeklyService } from "./weekly.service";
 import { WorkService } from "./work.service";
 
 @Module({
@@ -42,6 +50,14 @@ import { WorkService } from "./work.service";
     CorpusService,
     BillingService,
     WorkService,
+    CacheService,
+    SearchService,
+    ChatService,
+    MemoService,
+    CaseService,
+    ReferralService,
+    ScoutService,
+    WeeklyService,
     ReminderService,
     AdminService,
     BootstrapService,

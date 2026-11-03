@@ -1,6 +1,6 @@
 import { execFile } from "child_process";
 import { randomUUID, timingSafeEqual } from "crypto";
-import { mkdir, readFile, rm, writeFile } from "fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
 import { promisify } from "util";
@@ -14,11 +14,18 @@ import { composeDraft, readSlots } from "./domain/draft";
 import { decryptBytes, encryptBytes } from "./domain/envelope";
 import { halalasToSar, nextInvoiceNumber, splitVatInclusive, zatcaQrBase64 } from "./domain/invoice";
 import { estimateTokens, readGeneric, routeModel, writeGeneric, type RouteDecision } from "./domain/model-route";
+import { verifierModel } from "./domain/sms-provider";
 import { chatQuota, chatsCounted, courtAllowed, memoQuota } from "./domain/plans";
 import { signSandbox } from "./domain/payments";
 import { inspectPdf, kindFromMime, MAX_UPLOAD_BYTES, reencodeImage, sanitizeFilename, sniffUpload, takeUploadSlot } from "./domain/uploads";
 import { fail } from "./http-error";
+import { CacheService } from "./cache.service";
+import { CaseService } from "./case.service";
+import { ChatService } from "./chat.service";
 import { Kernel } from "./kernel";
+import { MemoService } from "./memo.service";
+import { ReferralService } from "./referral.service";
+import { SearchService } from "./search.service";
 import { presentUser } from "./present";
 import { ReminderService } from "./reminders.service";
 import { fontFile, renderDocx, renderPdf } from "./render";
@@ -33,11 +40,21 @@ export class WorkService {
     private readonly kernel: Kernel,
     private readonly corpus: CorpusService,
     private readonly reminders: ReminderService,
+    private readonly cache: CacheService,
+    private readonly searchIndex: SearchService,
+    private readonly chats: ChatService,
+    private readonly memos: MemoService,
+    private readonly cases: CaseService,
+    private readonly referrals: ReferralService,
   ) {}
 
   async account(userId: string) {
+    const cached = await this.cache.get(userId);
+    if (cached) return JSON.parse(cached) as ReturnType<typeof presentUser>;
     const user = await this.fresh(userId);
-    return presentUser(user, await this.kernel.plan(user.planCode, jurisdictionOf(user.jurisdiction).code));
+    const view = presentUser(user, await this.kernel.plan(user.planCode, jurisdictionOf(user.jurisdiction).code));
+    await this.cache.set(userId, JSON.stringify(view));
+    return view;
   }
 
   async updateAccount(userId: string, input: { name?: string; locale?: string; theme?: string; notifyHearings?: boolean }) {
@@ -47,6 +64,7 @@ export class WorkService {
     if (input.theme === "light" || input.theme === "dark") data.theme = input.theme;
     if (typeof input.notifyHearings === "boolean") data.notifyHearings = input.notifyHearings;
     const user = await this.kernel.prisma.user.update({ where: { id: userId }, data });
+    await this.cache.drop(userId);
     return presentUser(user, await this.kernel.plan(user.planCode, jurisdictionOf(user.jurisdiction).code));
   }
 
@@ -101,11 +119,9 @@ export class WorkService {
     return { deleted: true };
   }
 
-  async listChats(userId: string) {
+  async listChats(userId: string, page?: string, take?: string) {
     const user = await this.fresh(userId);
-    const dek = this.kernel.dekOf(user.wrappedDataKey);
-    const chats = await this.kernel.prisma.chat.findMany({ where: { userId }, orderBy: { updatedAt: "desc" } });
-    return chats.map((chat) => this.presentChat(chat, dek));
+    return this.chats.list(userId, this.kernel.dekOf(user.wrappedDataKey), page, take);
   }
 
   async createChat(userId: string, input: { court: Court; memoType: MemoKind; title?: string }) {
@@ -138,7 +154,10 @@ export class WorkService {
       });
     });
     const user = await this.fresh(userId);
-    return this.presentChat(chat, this.kernel.dekOf(user.wrappedDataKey));
+    const dek = this.kernel.dekOf(user.wrappedDataKey);
+    const view = this.presentChat(chat, dek);
+    await this.searchIndex.index(userId, dek, "chat", view.id, view.title);
+    return view;
   }
 
   async updateChat(userId: string, chatId: string, input: { court?: Court; memoType?: MemoKind }) {
@@ -337,6 +356,7 @@ export class WorkService {
           memoType: chat.memoType,
           titleEnc: this.kernel.enc(dek, draftBody.title),
           bodyEnc: this.kernel.enc(dek, draftBody.body),
+          flagged: !(await this.verifyDraft(draftBody.body)),
           citations: {
             create: draftBody.citations.map((citation) =>
               citation.kind === "article" ? { articleId: citation.id } : { shariaId: citation.id },
@@ -346,6 +366,7 @@ export class WorkService {
       });
       return created;
     });
+    await this.searchIndex.index(userId, dek, "memo", memo.id, draftBody.title);
     await this.noteUsage(
       userId,
       user.planCode,
@@ -357,23 +378,9 @@ export class WorkService {
     return this.getMemo(userId, memo.id);
   }
 
-  async listMemos(userId: string) {
+  async listMemos(userId: string, page?: string, take?: string) {
     const user = await this.fresh(userId);
-    const dek = this.kernel.dekOf(user.wrappedDataKey);
-    const memos = await this.kernel.prisma.memo.findMany({ where: { userId }, orderBy: { updatedAt: "desc" } });
-    return memos.map((memo) => ({
-      id: memo.id,
-      title: this.kernel.dec(dek, memo.titleEnc),
-      court: memo.court,
-      memoType: memo.memoType,
-      body: "",
-      status: memo.status,
-      flagged: memo.flagged,
-      caseId: memo.caseId,
-      chatId: memo.chatId,
-      updatedAt: memo.updatedAt.toISOString(),
-      citations: [],
-    }));
+    return this.memos.list(userId, this.kernel.dekOf(user.wrappedDataKey), page, take);
   }
 
   async getMemo(userId: string, memoId: string) {
@@ -541,15 +548,22 @@ export class WorkService {
     const query = q.trim().slice(0, 80);
     const user = await this.fresh(userId);
     const dek = this.kernel.dekOf(user.wrappedDataKey);
-    const chats = await this.kernel.prisma.chat.findMany({ where: { userId }, take: 100 });
-    const memos = await this.kernel.prisma.memo.findMany({ where: { userId }, take: 100 });
+    if (!query) {
+      const chats = await this.chats.list(userId, dek, "1", "20");
+      const memos = await this.memos.list(userId, dek, "1", "20");
+      return { chats: chats.chats, memos: memos.memos.map((memo) => ({ id: memo.id, title: memo.title })) };
+    }
+    const chatIds = (await this.searchIndex.findIds(userId, dek, query, "chat")) || [];
+    const memoIds = (await this.searchIndex.findIds(userId, dek, query, "memo")) || [];
+    const chats = chatIds.length
+      ? await this.kernel.prisma.chat.findMany({ where: { userId, id: { in: chatIds } } })
+      : [];
+    const memos = memoIds.length
+      ? await this.kernel.prisma.memo.findMany({ where: { userId, id: { in: memoIds } } })
+      : [];
     return {
-      chats: chats
-        .map((chat) => this.presentChat(chat, dek))
-        .filter((chat) => !query || chat.title.includes(query)),
-      memos: memos
-        .map((memo) => ({ id: memo.id, title: this.kernel.dec(dek, memo.titleEnc) }))
-        .filter((memo) => !query || memo.title.includes(query)),
+      chats: chats.map((chat) => this.presentChat(chat, dek)),
+      memos: memos.map((memo) => ({ id: memo.id, title: this.kernel.dec(dek, memo.titleEnc) })),
     };
   }
 
@@ -574,17 +588,55 @@ export class WorkService {
     return { ok: true };
   }
 
-  async listCases(userId: string) {
+  async listCases(userId: string, page?: string, take?: string) {
+    const user = await this.fresh(userId);
+    return this.cases.list(userId, this.kernel.dekOf(user.wrappedDataKey), page, take);
+  }
+
+  async caseHealth(userId: string, caseId: string) {
+    const user = await this.fresh(userId);
+    return this.cases.health(userId, this.kernel.dekOf(user.wrappedDataKey), caseId);
+  }
+
+  documents(userId: string) {
+    return this.cases.documents(userId);
+  }
+
+  referral(userId: string) {
+    return this.referrals.mine(userId);
+  }
+
+  claimReferral(userId: string, code: string) {
+    return this.referrals.claim(userId, code);
+  }
+
+  async report(userId: string, message: string) {
     const user = await this.fresh(userId);
     const dek = this.kernel.dekOf(user.wrappedDataKey);
-    const cases = await this.kernel.prisma.caseFile.findMany({ where: { userId }, orderBy: { updatedAt: "desc" } });
-    return cases.map((row) => ({
-      id: row.id,
-      title: this.kernel.dec(dek, row.titleEnc),
-      court: row.court,
-      status: row.status,
-      updatedAt: row.updatedAt.toISOString(),
-    }));
+    await this.kernel.prisma.problemReport.create({
+      data: { userId, messageEnc: this.kernel.enc(dek, message.trim().slice(0, 1000)) },
+    });
+    return { ok: true };
+  }
+
+  async acceptChunk(
+    userId: string,
+    caseId: string,
+    chunk: { uploadId: string; index: number; total: number; name: string; mime: string; data: Buffer },
+  ) {
+    if (chunk.total < 1 || chunk.total > 32 || chunk.index < 0 || chunk.index >= chunk.total) fail("VALIDATION", 400, "Chunk is invalid");
+    const dir = path.join(this.kernel.config.storageDir, "chunks", userId, chunk.uploadId);
+    await mkdir(dir, { recursive: true });
+    await writeFile(path.join(dir, String(chunk.index)), chunk.data);
+    const names = await readdir(dir);
+    if (names.length < chunk.total) return { received: names.length, total: chunk.total, done: false };
+    const parts = await Promise.all(
+      Array.from({ length: chunk.total }, (_, index) => readFile(path.join(dir, String(index)))),
+    );
+    const buffer = Buffer.concat(parts);
+    await rm(dir, { recursive: true, force: true });
+    const saved = await this.upload(userId, caseId, { buffer, mimetype: chunk.mime, originalname: chunk.name, size: buffer.length });
+    return { received: chunk.total, total: chunk.total, done: true, document: saved };
   }
 
   async getCase(userId: string, caseId: string) {
@@ -917,8 +969,18 @@ export class WorkService {
     };
   }
 
+  private modelPressure(userId: string) {
+    const now = Date.now();
+    const hits = (this.modelHits.get(userId) || []).filter((stamp) => now - stamp < 60000);
+    hits.push(now);
+    this.modelHits.set(userId, hits);
+    return hits.length > 12;
+  }
+
+  private readonly modelHits = new Map<string, number[]>();
+
   private async routeFor(userId: string, planCode: string, purpose: "chat" | "draft", turns: { role: "user" | "assistant"; text: string }[], articleCount: number) {
-    const used = await this.monthTokens(userId);
+    const used = (await this.monthTokens(userId)) + (this.modelPressure(userId) ? 1_000_000 : 0);
     return routeModel({
       purpose,
       plan: (planCode === "basic" || planCode === "pro" ? planCode : "free") as PlanCode,
@@ -985,6 +1047,31 @@ export class WorkService {
     }
   }
 
+  private async verifyDraft(body: string): Promise<boolean> {
+    const model = verifierModel(this.kernel.config.draftModel, this.kernel.config.verifierModel);
+    if (!model || this.kernel.config.llmProvider !== "remote" || !this.kernel.config.modelBaseUrl || !this.kernel.config.modelApiKey) return true;
+    try {
+      const response = await fetch(`${this.kernel.config.modelBaseUrl.replace(/\/$/, "")}/chat/completions`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${this.kernel.config.modelApiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model,
+          temperature: 0,
+          messages: [
+            { role: "system", content: "Check that every article number in the memo was supplied. Reply ok or reject." },
+            { role: "user", content: body.slice(0, 4000) },
+          ],
+        }),
+      });
+      if (!response.ok) return true;
+      const payload = (await response.json()) as { choices?: { message?: { content?: string } }[] };
+      const text = payload.choices?.[0]?.message?.content || "";
+      return !/reject|مرفوض/i.test(text);
+    } catch {
+      return true;
+    }
+  }
+
   private async maybeRewriteFacts(facts: string, allowedNumbers: string[], decision: RouteDecision) {
     if (this.kernel.config.llmProvider !== "remote") return facts;
     if (!this.kernel.config.modelBaseUrl || !this.kernel.config.modelApiKey) {
@@ -1010,13 +1097,17 @@ export class WorkService {
         ],
       }),
     });
-    if (!response.ok) fail("MODEL_FAILED", 502, "The draft model did not respond");
+    if (!response.ok) return facts;
     const payload = (await response.json()) as { choices?: { message?: { content?: string } }[] };
     const text = payload.choices?.[0]?.message?.content || "";
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) return facts;
-    const parsed = JSON.parse(match[0]) as { facts?: string };
-    return parsed.facts?.trim() ? parsed.facts.trim() : facts;
+    try {
+      const parsed = JSON.parse(match[0]) as { facts?: string };
+      return parsed.facts?.trim() ? parsed.facts.trim() : facts;
+    } catch {
+      return facts;
+    }
   }
 
   private providerConfigured(provider: string) {

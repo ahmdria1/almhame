@@ -7,6 +7,7 @@ import { generateDek, wrapKey } from "./domain/envelope";
 import { generateOtpCode, hashOtp, isPhone, normalizePhone, otpMatches } from "./domain/otp";
 import { debugCodeResponseEnabled } from "./config";
 import { fail } from "./http-error";
+import { smsProviderFor } from "./domain/sms-provider";
 import { Kernel } from "./kernel";
 import { sendAuthMail } from "./mail";
 import { presentUser } from "./present";
@@ -52,14 +53,35 @@ export class AuthService {
     return this.issueEmail(user.id, null, email, "email_verify");
   }
 
-  async login(emailRaw: string, password: string) {
+  async login(emailRaw: string, password: string, otp?: string, challengeId?: string) {
     const email = emailRaw.trim().toLowerCase();
     const user = await this.kernel.prisma.user.findUnique({ where: { email } });
     if (!user?.passwordHash || !(await bcrypt.compare(password, user.passwordHash))) {
       fail("UNAUTHENTICATED", 401, "Email or password is wrong");
     }
     if (!user.emailVerifiedAt) fail("EMAIL_UNVERIFIED", 403, "Confirm the email before signing in");
+    if (user.mfaEnabled) {
+      if (!otp || !challengeId) {
+        const challenge = await this.issueSms(user.id, user.phone);
+        return { mfaRequired: true as const, challengeId: challenge.challengeId };
+      }
+      const challenge = await this.consume(challengeId, otp, "mfa");
+      if (challenge.userId !== user.id) fail("OTP_INVALID", 400, "The code is wrong or expired");
+    }
     return this.tokensFor(user.id);
+  }
+
+  async startMfa(userId: string) {
+    const user = await this.kernel.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) fail("NOT_FOUND", 404, "Account was not found");
+    return this.issueSms(user.id, user.phone);
+  }
+
+  async confirmMfa(userId: string, challengeId: string, code: string) {
+    const challenge = await this.consume(challengeId, code, "mfa");
+    if (challenge.userId !== userId) fail("OTP_INVALID", 400, "The code is wrong or expired");
+    await this.kernel.prisma.user.update({ where: { id: userId }, data: { mfaEnabled: true } });
+    return { ok: true };
   }
 
   async forgot(emailRaw: string) {
@@ -168,6 +190,23 @@ export class AuthService {
     });
     const accessToken = await this.jwt.signAsync({ sub: userId, role: "user" }, { expiresIn: "12h" });
     return { accessToken, refreshToken, user: presentUser(user, plan) };
+  }
+
+  private async issueSms(userId: string, phone: string) {
+    const provider = smsProviderFor(this.kernel.config);
+    if (!provider) fail("SMS_UNAVAILABLE", 503, "The message provider is not configured");
+    const code = generateOtpCode();
+    const challenge = await this.kernel.prisma.otpChallenge.create({
+      data: {
+        userId,
+        purpose: "mfa",
+        target: phone,
+        codeHash: hashOtp(code, this.kernel.config.otpPepper),
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      },
+    });
+    await provider.send(phone, `رمز الدخول ${code}`);
+    return { challengeId: challenge.id };
   }
 
   private async issueEmail(userId: string | null, adminId: string | null, target: string, purpose: string) {

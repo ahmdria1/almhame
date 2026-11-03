@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { AppHeader } from "@/components/chrome";
+import { CommandPalette } from "@/components/command-palette";
+import { ReportButton } from "@/components/report-button";
 import { useApp } from "@/lib/providers";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -15,6 +17,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-canvas dark:bg-navy-900">
       <AppHeader />
+      <CommandPalette />
+      <ReportButton />
       {children}
     </div>
   );

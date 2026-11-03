@@ -56,6 +56,14 @@ export class LoginDto {
   @IsString()
   @Length(8, 72)
   password!: string;
+
+  @IsOptional()
+  @IsString()
+  otp?: string;
+
+  @IsOptional()
+  @IsString()
+  challengeId?: string;
 }
 
 export class EmailDto {
@@ -181,7 +189,8 @@ export class AuthController {
   @Post("login")
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   async login(@Body() body: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const result = await this.auth.login(body.email, body.password);
+    const result = await this.auth.login(body.email, body.password, body.otp, body.challengeId);
+    if ("mfaRequired" in result) return result;
     const { secure, domain } = cookieSettings(this.kernel.config);
     setAccessCookie(res, result.accessToken, secure, domain);
     setRefreshCookie(res, result.refreshToken, secure, domain);
@@ -238,6 +247,7 @@ export class ProductController {
   constructor(
     private readonly work: WorkService,
     private readonly billing: BillingService,
+    private readonly auth: AuthService,
     private readonly jwt: JwtService,
   ) {}
 
@@ -278,8 +288,8 @@ export class ProductController {
   }
 
   @Get("chats")
-  async chats(@Req() req: Request) {
-    return { chats: await this.work.listChats(await userIdFrom(this.jwt, req)) };
+  async chats(@Req() req: Request, @Query("page") page?: string, @Query("take") take?: string) {
+    return this.work.listChats(await userIdFrom(this.jwt, req), page, take);
   }
 
   @Post("chats")
@@ -324,7 +334,7 @@ export class ProductController {
 
   @Get("memos")
   async memos(@Req() req: Request) {
-    return { memos: await this.work.listMemos(await userIdFrom(this.jwt, req)) };
+    return this.work.listMemos(await userIdFrom(this.jwt, req), req.query.page as string | undefined, req.query.take as string | undefined);
   }
 
   @Get("memos/:id")
@@ -381,8 +391,59 @@ export class ProductController {
   }
 
   @Get("cases")
-  async cases(@Req() req: Request) {
-    return { cases: await this.work.listCases(await userIdFrom(this.jwt, req)) };
+  async cases(@Req() req: Request, @Query("page") page?: string, @Query("take") take?: string) {
+    return this.work.listCases(await userIdFrom(this.jwt, req), page, take);
+  }
+
+  @Get("cases/:id/health")
+  async caseHealth(@Req() req: Request, @Param("id") id: string) {
+    return this.work.caseHealth(await userIdFrom(this.jwt, req), id);
+  }
+
+  @Get("documents")
+  async documents(@Req() req: Request) {
+    return this.work.documents(await userIdFrom(this.jwt, req));
+  }
+
+  @Post("cases/:id/chunks")
+  async chunk(@Req() req: Request, @Param("id") id: string, @Body() body: { uploadId?: string; index?: number; total?: number; name?: string; mime?: string; data?: string }) {
+    if (!body.uploadId || body.index == null || !body.total || !body.data || !body.name || !body.mime) fail("VALIDATION", 400, "Chunk is incomplete");
+    return this.work.acceptChunk(await userIdFrom(this.jwt, req), id, {
+      uploadId: body.uploadId,
+      index: Number(body.index),
+      total: Number(body.total),
+      name: body.name,
+      mime: body.mime,
+      data: Buffer.from(body.data, "base64"),
+    });
+  }
+
+  @Get("referrals")
+  async referral(@Req() req: Request) {
+    return this.work.referral(await userIdFrom(this.jwt, req));
+  }
+
+  @Post("referrals")
+  async claimReferral(@Req() req: Request, @Body() body: { code?: string }) {
+    if (!body.code) fail("VALIDATION", 400, "Code is required");
+    return this.work.claimReferral(await userIdFrom(this.jwt, req), body.code);
+  }
+
+  @Post("reports")
+  async report(@Req() req: Request, @Body() body: { message?: string }) {
+    if (!body.message || body.message.trim().length < 4) fail("VALIDATION", 400, "Describe the problem");
+    return this.work.report(await userIdFrom(this.jwt, req), body.message);
+  }
+
+  @Post("me/mfa/start")
+  async startMfa(@Req() req: Request) {
+    return this.auth.startMfa(await userIdFrom(this.jwt, req));
+  }
+
+  @Post("me/mfa/confirm")
+  async confirmMfa(@Req() req: Request, @Body() body: { challengeId?: string; code?: string }) {
+    if (!body.challengeId || !body.code) fail("VALIDATION", 400, "Code is required");
+    return this.auth.confirmMfa(await userIdFrom(this.jwt, req), body.challengeId, body.code);
   }
 
   @Get("cases/:id")
@@ -582,6 +643,25 @@ export class AdminController {
   async costs(@Req() req: Request) {
     await adminIdFrom(this.jwt, req);
     return this.admin.costs();
+  }
+
+  @Get("operations")
+  async operations(@Req() req: Request) {
+    await adminIdFrom(this.jwt, req);
+    return this.admin.operations();
+  }
+
+  @Get("pending-updates")
+  async pending(@Req() req: Request) {
+    await adminIdFrom(this.jwt, req);
+    return this.admin.pending();
+  }
+
+  @Post("pending-updates/scan")
+  async scanPending(@Req() req: Request, @Body() body: { lawKey?: string }) {
+    await adminIdFrom(this.jwt, req);
+    if (!body.lawKey) fail("VALIDATION", 400, "Law key is required");
+    return this.admin.scanPending(body.lawKey);
   }
 
   @Get("settings")

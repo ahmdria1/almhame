@@ -12,7 +12,13 @@ export async function sendAuthMail(
       ? "إعادة تعيين كلمة المرور"
       : input.purpose === "admin_activate"
         ? "تفعيل حساب الإدارة"
-        : "تأكيد البريد";
+        : input.purpose === "hearing"
+          ? "تذكير بموعد"
+          : input.purpose === "weekly_digest"
+            ? "ملخص الأسبوع"
+            : input.purpose === "mfa"
+              ? "رمز التحقق"
+              : "تأكيد البريد";
   const text = [`الرمز: ${input.code}`, input.link, "ينتهي الرمز خلال ثلاثين دقيقة."].join("\n");
   const outbox = config.outboxDir || path.resolve(config.storageDir, "../outbox");
   if (config.nodeEnv !== "production") {

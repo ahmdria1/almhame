@@ -11,6 +11,7 @@ import {
 } from "@elawyer/types";
 import { PlanCode } from "@prisma/client";
 import { CorpusService } from "./corpus.service";
+import { ScoutService } from "./scout.service";
 import { shapeCostReport } from "./domain/model-route";
 import { fail } from "./http-error";
 import { Kernel } from "./kernel";
@@ -20,6 +21,7 @@ export class AdminService {
   constructor(
     private readonly kernel: Kernel,
     private readonly corpus: CorpusService,
+    private readonly scout: ScoutService,
   ) {}
 
   async stats() {
@@ -163,6 +165,23 @@ export class AdminService {
       createdAt: row.createdAt.toISOString(),
       ip: row.ip,
     }));
+  }
+
+  async operations() {
+    const [reports, exports, pending] = await Promise.all([
+      this.kernel.prisma.problemReport.count(),
+      this.kernel.prisma.exportJob.count(),
+      this.kernel.prisma.pendingUpdate.count({ where: { status: "pending" } }),
+    ]);
+    return { reports, exports, pending };
+  }
+
+  pending() {
+    return this.scout.list();
+  }
+
+  scanPending(lawKey: string) {
+    return this.scout.scan(lawKey);
   }
 
   async costs() {

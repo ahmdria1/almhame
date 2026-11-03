@@ -17,7 +17,7 @@ describe("arabic pdf", () => {
     const text = execFileSync("pdftotext", ["-enc", "UTF-8", file, "-"], { encoding: "utf8" });
     expect(text).toContain("صحيفة دعوى");
     expect(text).toContain("أحمد العمراني");
-    expect(text).toContain("بسم الله");
+    expect(text.split("بسم الله الرحمن الرحيم").length - 1).toBe(1);
     expect(text).toContain("ثانيًا");
     const meta = await PDFDocument.load(bytes);
     expect(meta.getAuthor()).toBe("Ahmed Alamrani");

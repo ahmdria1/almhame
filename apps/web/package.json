@@ -25,6 +25,7 @@
     "clsx": "2.1.1",
     "lucide-react": "0.525.0",
     "next": "15.5.28",
+    "posthog-js": "1.364.6",
     "react": "19.1.1",
     "react-dom": "19.1.1",
     "tailwind-merge": "3.3.1"

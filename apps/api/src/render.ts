@@ -26,7 +26,9 @@ async function stampLogicalText(document: PDFDocument, fontPath: string, title: 
   const face = await document.embedFont(readFileSync(fontPath), { subset: true });
   const pages = document.getPages();
   if (!pages.length) return;
-  const lines = [title, ...body.split("\n")].flatMap((line) => {
+  const lines = [title, ...body.split("\n")]
+    .filter((line) => line.trim() !== "بسم الله الرحمن الرحيم")
+    .flatMap((line) => {
     const value = line || " ";
     const chunks: string[] = [];
     for (let index = 0; index < value.length; index += 180) chunks.push(value.slice(index, index + 180));

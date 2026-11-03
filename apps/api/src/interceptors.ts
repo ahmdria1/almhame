@@ -36,7 +36,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
       response.status(status).json({ error: { code: status === 400 ? "VALIDATION" : `HTTP_${status}`, message } });
       return;
     }
-    response.status(500).json({ error: { code: "INTERNAL", message: "Unexpected error" } });
+    response.status(503).json({ error: { code: "BUSY", message: "The service is busy. Try again." } });
   }
 }
 

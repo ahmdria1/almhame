@@ -141,8 +141,8 @@ export class ElawyerClient {
     }>;
   }
 
-  chats() {
-    return this.request("/chats") as Promise<{ chats: ChatSummary[] }>;
+  chats(page = 1) {
+    return this.request(`/chats?page=${page}`) as Promise<{ chats: ChatSummary[]; total: number; page: number; totalPages: number }>;
   }
 
   createChat(input: { court: CourtType; memoType: MemoType; title?: string }) {
@@ -175,8 +175,28 @@ export class ElawyerClient {
     }) as Promise<{ memo: MemoView }>;
   }
 
-  memos() {
-    return this.request("/memos") as Promise<{ memos: MemoView[] }>;
+  memos(page = 1) {
+    return this.request(`/memos?page=${page}`) as Promise<{ memos: MemoView[]; total: number; page: number; totalPages: number }>;
+  }
+
+  documents() {
+    return this.request("/documents") as Promise<{ documents: { id: string; filename: string; byteSize: number; mime: string; caseId: string; createdAt: string }[] }>;
+  }
+
+  caseHealth(id: string) {
+    return this.request(`/cases/${id}/health`) as Promise<{ score: number; hearings: number }>;
+  }
+
+  referral() {
+    return this.request("/referrals") as Promise<{ code: string }>;
+  }
+
+  claimReferral(code: string) {
+    return this.request("/referrals", { method: "POST", body: JSON.stringify({ code }) }) as Promise<{ ok: boolean }>;
+  }
+
+  reportProblem(message: string) {
+    return this.request("/reports", { method: "POST", body: JSON.stringify({ message }) }) as Promise<{ ok: boolean }>;
   }
 
   memo(id: string) {
@@ -247,9 +267,12 @@ export class ElawyerClient {
     }>;
   }
 
-  cases() {
-    return this.request("/cases") as Promise<{
+  cases(page = 1) {
+    return this.request(`/cases?page=${page}`) as Promise<{
       cases: { id: string; title: string; court: CourtType; status: string; updatedAt: string }[];
+      total: number;
+      page: number;
+      totalPages: number;
     }>;
   }
 

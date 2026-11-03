@@ -4,6 +4,7 @@ export const RELEASE_MARK = "AALMR-ELW-7F3C";
 export const COURTS = [
   "general",
   "criminal",
+  "traffic",
   "personal_status",
   "labor",
   "commercial",

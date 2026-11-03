@@ -36,6 +36,7 @@ export interface DraftSlots {
 export const COURT_HEADING: Record<CourtType, string> = {
   general: "فضيلة رئيس المحكمة العامة",
   criminal: "فضيلة رئيس المحكمة الجزائية",
+  traffic: "فضيلة رئيس المحكمة المرورية",
   personal_status: "فضيلة رئيس محكمة الأحوال الشخصية",
   labor: "فضيلة رئيس الدائرة العمالية بالمحكمة العمالية",
   commercial: "فضيلة رئيس المحكمة التجارية",
