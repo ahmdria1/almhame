@@ -13,7 +13,7 @@ export default async function SecurityPage({ params }: { params: Promise<{ local
   return (
     <div className="bg-canvas">
       <PublicHeader locale={safe} page={page} />
-      <main className="mx-auto max-w-3xl px-4 py-16">
+      <main id="content" tabIndex={-1} className="mx-auto max-w-3xl px-4 py-16 outline-none">
         <h1 className="text-4xl font-bold text-navy-700">{translate(safe, "security.title")}</h1>
         <p className="mt-6 text-lg leading-8 text-ink-700">{translate(safe, "security.body")}</p>
       </main>

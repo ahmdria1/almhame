@@ -43,5 +43,5 @@ const styles = StyleSheet.create({
   card: { marginTop: 10, backgroundColor: "white", borderRadius: 16, padding: 14 },
   cardTitle: { fontWeight: "700", color: colors.navy700 },
   row: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 20 },
-  link: { color: colors.teal700, fontWeight: "700" },
+  link: { color: colors.teal700, fontWeight: "700", minHeight: 48, textAlignVertical: "center" },
 });

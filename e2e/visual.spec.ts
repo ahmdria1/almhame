@@ -1,7 +1,9 @@
-import { readFileSync } from "fs";
+import { mkdirSync, readFileSync } from "fs";
 import { expect, test, type Page } from "@playwright/test";
 
 const keys = Object.keys(JSON.parse(readFileSync("packages/i18n/src/locales/ar.json", "utf8")) as Record<string, string>);
+const shots = process.env.SHOT_DIR || "/tmp/elawyer-shots";
+mkdirSync(shots, { recursive: true });
 const locales = ["ar", "en", "ur", "fil", "tr"] as const;
 const widths = [1440, 390] as const;
 
@@ -36,7 +38,7 @@ for (const locale of locales) {
       expect(metrics.wraps).toBe(false);
       const leaked = keys.filter((key) => metrics.text.includes(key));
       expect(leaked).toEqual([]);
-      await page.screenshot({ path: `/opt/cursor/artifacts/ui-after-home-${locale}-${width}.png`, fullPage: false });
+      await page.screenshot({ path: `${shots}/ui-after-home-${locale}-${width}.png`, fullPage: false });
       await page.goto(loginPath(locale));
       const login = await page.evaluate(() => ({
         scroll: document.documentElement.scrollWidth,
@@ -45,7 +47,7 @@ for (const locale of locales) {
       }));
       expect(login.scroll).toBeLessThanOrEqual(login.client + 1);
       expect(keys.filter((key) => login.text.includes(key))).toEqual([]);
-      await page.screenshot({ path: `/opt/cursor/artifacts/ui-after-login-${locale}-${width}.png`, fullPage: false });
+      await page.screenshot({ path: `${shots}/ui-after-login-${locale}-${width}.png`, fullPage: false });
     });
   }
 }
@@ -77,12 +79,12 @@ test("workspace uses tabs at 390 and columns at 1440", async ({ page }) => {
   await expect(page.getByTestId("new-chat")).toBeHidden();
   const narrow = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
   expect(narrow).toBe(true);
-  await page.screenshot({ path: "/opt/cursor/artifacts/ui-after-chat-390.png", fullPage: false });
+  await page.screenshot({ path: `${shots}/ui-after-chat-390.png`, fullPage: false });
   await page.getByRole("button", { name: "المحادثات" }).click();
   await expect(page.getByTestId("new-chat")).toBeVisible();
-  await page.screenshot({ path: "/opt/cursor/artifacts/ui-after-chat-drawer-390.png", fullPage: false });
+  await page.screenshot({ path: `${shots}/ui-after-chat-drawer-390.png`, fullPage: false });
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(page.getByTestId("new-chat")).toBeVisible();
   await expect(page.getByTestId("draft-button")).toBeVisible();
-  await page.screenshot({ path: "/opt/cursor/artifacts/ui-after-chat-1440.png", fullPage: false });
+  await page.screenshot({ path: `${shots}/ui-after-chat-1440.png`, fullPage: false });
 });

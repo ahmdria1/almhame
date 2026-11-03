@@ -1,4 +1,5 @@
 {
+  "analytics.allow": "Ziyaretleri say",
   "app.name": "Gelişmiş E-Avukat",
   "app.platformBadge": "Hukuki yazım için Suudi bir platform",
   "auth.consent": "Dosyalarımı yazmak ve saklamak için verilerimin işlenmesini kabul ediyorum; hesabı daha sonra dışa aktarabilir veya silebilirim.",
