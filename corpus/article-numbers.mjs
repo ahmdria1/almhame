@@ -109,6 +109,10 @@ function parseUnder100(tokens) {
     if (TENS.has(tokens[0])) return TENS.get(tokens[0]);
     if (TEENS.has(tokens[0])) return 10;
     if (HUNDREDS.has(tokens[0])) return HUNDREDS.get(tokens[0]);
+    for (const [unit, unitValue] of UNITS) {
+      const rest = tokens[0].slice(unit.length);
+      if (tokens[0].startsWith(unit) && rest.startsWith("و") && TENS.has(rest.slice(1))) return unitValue + TENS.get(rest.slice(1));
+    }
     return null;
   }
   if (tokens.length === 2 && TEENS.has(tokens[1]) && UNITS.has(tokens[0])) return UNITS.get(tokens[0]) + 10;

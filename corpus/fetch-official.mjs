@@ -17,7 +17,10 @@ export const LAWS = [
   { key: "labor", nameAr: "نظام العمل", courts: ["labor", "appeal"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/08381293-6388-48e2-8ad2-a9a700f2aa94/1" },
   { key: "criminal-procedure", nameAr: "نظام الإجراءات الجزائية", courts: ["criminal", "appeal", "supreme"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/8f1b7079-a5f0-425d-b5e0-a9a700f26b2d/1" },
   { key: "commercial-courts", nameAr: "نظام المحاكم التجارية", courts: ["commercial", "appeal"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/38334008-3b70-4c6c-b3af-aba3016a8061/1" },
-  { key: "enforcement", nameAr: "نظام التنفيذ", courts: ["enforcement"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/c81ba2f1-1bf1-443b-9b1c-a9a700f27110/1" },
+  { key: "enforcement", nameAr: "نظام التنفيذ ١٤٤٧هـ", courts: ["enforcement"], url: "https://laws.moj.gov.sa/ar/legislation/Cl5QbqZSJlZ1EfYkT6d83A", serial: "Cl5QbqZSJlZ1EfYkT6d83A" },
+  { key: "enforcement-regulation", nameAr: "اللائحة التنفيذية لنظام التنفيذ ١٤٤٨هـ", courts: ["enforcement"], url: "https://laws.moj.gov.sa/ar/legislation/x_FJkA-Ltfan7NZMbMf60Q", serial: "x_FJkA-Ltfan7NZMbMf60Q" },
+  { key: "evidence-procedure", nameAr: "الأدلة الإجرائية لنظام الإثبات", courts: ["general", "commercial", "personal_status", "labor", "criminal"], url: "https://laws.moj.gov.sa/ar/legislation/ZNMI0PpA1fSRgK60lVLGEw", serial: "ZNMI0PpA1fSRgK60lVLGEw" },
+  { key: "bankruptcy-regulation", nameAr: "اللائحة التنفيذية لنظام الإفلاس", courts: ["commercial"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/a748e485-620c-45c4-8ca8-a9f40166406d/1", serial: "aGx3rOE4CvQArw0oIGZqHA" },
   { key: "bog-procedure", nameAr: "نظام المرافعات أمام ديوان المظالم", courts: ["administrative", "appeal", "supreme"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/f2f7b465-b576-4f47-a8e7-a9a700f27202/1" },
   { key: "judiciary", nameAr: "نظام القضاء", courts: ["general", "appeal", "supreme"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/ea1765a3-dec3-41a0-a32f-a9a700f26d58/1" },
   { key: "companies", nameAr: "نظام الشركات", courts: ["commercial"], url: "https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/a8376aea-1bc3-49d4-9027-aed900b555af/1" },
@@ -222,7 +225,7 @@ export async function searchStatute(name) {
 }
 
 async function fetchMoj(law) {
-  const hit = await searchStatute(law.nameAr);
+  const hit = law.serial ? { serial: law.serial } : await searchStatute(law.nameAr);
   if (!hit?.serial) throw new Error(`MOJ search returned no statute for ${law.nameAr}`);
   const response = await fetch(`${GATEWAY}/statute/get-Statute-gateway-Detail?Serial=${encodeURIComponent(hit.serial)}`, {
     headers: { Accept: "application/json" },
@@ -303,7 +306,7 @@ async function fetchQuran() {
 }
 
 async function fetchHadith() {
-  const dir = path.join(outDir, "hadith");
+  const dir = path.join(root, "corpus", "non-official", "hadith");
   await mkdir(dir, { recursive: true });
   const summary = [];
   for (const [key, edition, nameAr] of HADITH) {
@@ -320,6 +323,8 @@ async function fetchHadith() {
       key,
       edition,
       nameAr,
+      official: false,
+      excludedFromCitations: true,
       count: hadiths.length,
       sourceUrl: url,
       gradeField: Array.isArray(sample.grades),

@@ -2,7 +2,7 @@ import { createHash } from "crypto";
 import { citationLabel } from "./article-numbers";
 
 export interface CitationRef {
-  kind: "article" | "sharia";
+  kind: "article" | "sharia" | "judgment";
   id: string;
   number?: string;
 }
@@ -52,7 +52,7 @@ function quotedAfter(text: string, tokenIndex: number, row: KnownArticle): strin
 export function validateCitations(
   text: string,
   citations: CitationRef[],
-  known: { articles: Map<string, KnownArticle>; sharia: Map<string, KnownSharia> },
+  known: { articles: Map<string, KnownArticle>; sharia: Map<string, KnownSharia>; judgments?: Map<string, { textHash: string; number: string }> },
 ): { ok: boolean; unknown: string[] } {
   const unknown: string[] = [];
   const citedArticles: KnownArticle[] = [];
@@ -64,6 +64,10 @@ export function validateCitations(
         citedArticles.push(row);
         if (citation.number && citation.number !== row.number && citation.number !== row.label) unknown.push(`mismatch:${citation.id}`);
       }
+    } else if (citation.kind === "judgment") {
+      const row = known.judgments?.get(citation.id);
+      if (!row) unknown.push(citation.id);
+      else if (citation.number && citation.number !== row.number) unknown.push(`mismatch:${citation.id}`);
     } else {
       const row = known.sharia.get(citation.id);
       if (!row) unknown.push(citation.id);

@@ -56,15 +56,15 @@ const EXTRA_TOPICS: { key: string; nameAr: string; pattern: RegExp; courts: stri
 const SUBJECTS: Record<CourtType, { keys: string[]; nameAr: string }> = {
   labor: { keys: ["labor"], nameAr: "نظام العمل" },
   commercial: {
-    keys: ["companies", "commercial-papers", "bankruptcy", "commercial-fraud", "civil-transactions"],
+    keys: ["companies", "commercial-papers", "bankruptcy", "bankruptcy-regulation", "commercial-fraud", "civil-transactions"],
     nameAr: "الأنظمة التجارية",
   },
   criminal: { keys: CRIMINAL_KEYS, nameAr: "الأنظمة الجزائية" },
   traffic: { keys: ["traffic"], nameAr: "نظام المرور" },
   personal_status: { keys: ["personal-status"], nameAr: "نظام الأحوال الشخصية" },
-  enforcement: { keys: ["enforcement"], nameAr: "نظام التنفيذ" },
+  enforcement: { keys: ["enforcement", "enforcement-regulation"], nameAr: "نظام التنفيذ" },
   administrative: { keys: ["bog-procedure"], nameAr: "نظام المرافعات أمام ديوان المظالم" },
-  general: { keys: ["civil-transactions"], nameAr: "نظام المعاملات المدنية" },
+  general: { keys: ["civil-transactions", "civil-maxims", "rental-provisions"], nameAr: "نظام المعاملات المدنية" },
   appeal: { keys: ["sharia-procedure"], nameAr: "نظام المرافعات الشرعية" },
   supreme: { keys: ["sharia-procedure"], nameAr: "نظام المرافعات الشرعية" },
 };
@@ -77,6 +77,7 @@ export const PROCEDURAL_KEYS = [
   "criminal-procedure-regulation",
   "commercial-courts",
   "commercial-courts-regulation",
+  "evidence-procedure",
 ] as const;
 
 const PROCEDURAL = new Set<string>(PROCEDURAL_KEYS);

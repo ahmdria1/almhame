@@ -21,8 +21,9 @@ interface LawInput {
   nameEn: string;
   sourceUrl: string;
   version: string;
-  effectiveDate: string;
+  effectiveDate: string | null;
   isSample: boolean;
+  citeable?: boolean;
   courts: string[];
   articles: { number: string; textAr: string; textEn: string; sourceUrl: string; isSample?: boolean }[];
 }
@@ -83,8 +84,9 @@ export class CorpusService {
           nameEn: law.nameEn,
           sourceUrl: law.sourceUrl,
           version: law.version,
-          effectiveDate: new Date(law.effectiveDate),
+          effectiveDate: law.effectiveDate ? new Date(law.effectiveDate) : null,
           isSample: law.isSample,
+          citeable: law.citeable !== false,
           courts: law.courts,
         },
         update: {
@@ -92,8 +94,9 @@ export class CorpusService {
           nameEn: law.nameEn,
           sourceUrl: law.sourceUrl,
           version: law.version,
-          effectiveDate: new Date(law.effectiveDate),
+          effectiveDate: law.effectiveDate ? new Date(law.effectiveDate) : null,
           isSample: law.isSample,
+          citeable: law.citeable !== false,
           courts: law.courts,
         },
       });
@@ -223,7 +226,7 @@ export class CorpusService {
     const articles = await this.rankArticles(jurisdiction, subjectKeys, query, vector);
     const procedural = proceduralContext(query, memoType) ? await this.rankArticles(jurisdiction, [...PROCEDURAL_KEYS], query, vector) : [];
     const sharia = await this.rankSharia(jurisdiction, court, query, vector);
-    return selectGrounds({
+    const decision = selectGrounds({
       court,
       memoType,
       facts: query,
@@ -231,6 +234,44 @@ export class CorpusService {
       sharia,
       presentLawKeys: presentRows.map((row) => row.key),
     });
+    const judgments = await this.rankJudgments(query, vector);
+    return { ...decision, judgments };
+  }
+
+  private async rankJudgments(query: string, vector: string) {
+    const stems = searchStems(query).slice(0, 6).map((stem) => stem.replace(/[%_]/g, ""));
+    if (!stems.length) return [];
+    const keyword = await this.kernel.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+      SELECT id FROM "Judgment"
+      WHERE "isSample" = false
+        AND "verbatimStatus" = 'ok'
+        AND (${Prisma.join(stems.map((stem) => Prisma.sql`"fullText" ILIKE ${"%" + stem + "%"}`), " OR ")})
+      LIMIT 4
+    `);
+    const vectorIds = await this.kernel.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+      SELECT j.id
+      FROM "Judgment" j
+      JOIN "CorpusEmbedding" e ON e."targetId" = j.id AND e."targetType" = 'judgment'
+      WHERE j."isSample" = false AND j."verbatimStatus" = 'ok'
+      ORDER BY e.embedding <=> CAST(${vector} AS vector)
+      LIMIT 2
+    `);
+    const ids = [...new Set([...keyword.map((row) => row.id), ...vectorIds.map((row) => row.id)])].slice(0, 2);
+    if (!ids.length) return [];
+    const rows = await this.kernel.prisma.judgment.findMany({ where: { id: { in: ids } } });
+    return rows.map((row) => ({
+      id: row.id,
+      judgmentNo: row.judgmentNo,
+      court: row.court,
+      city: row.city,
+      caseNo: row.caseNo,
+      judgmentDateHijri: row.judgmentDateHijri,
+      judgmentDateGregorian: row.judgmentDateGregorian,
+      title: row.title,
+      fullText: row.fullText,
+      sourceUrl: row.sourceUrl,
+      isSample: row.isSample,
+    }));
   }
 
   async counts() {
@@ -257,7 +298,7 @@ export class CorpusService {
         articles: row._count.articles,
         sourceUrl: row.sourceUrl,
         issuedHijri: row.issuedHijri,
-        effectiveDate: row.effectiveDate.toISOString().slice(0, 10),
+        effectiveDate: row.effectiveDate ? row.effectiveDate.toISOString().slice(0, 10) : "",
         statusLabel: row.statusLabel,
         isSample: row.isSample,
       })),
@@ -284,8 +325,11 @@ export class CorpusService {
         issuedHijri?: string;
         publishedHijri?: string;
         statusLabel?: string;
+        citeable?: boolean;
+        effectiveDate: string | null;
       };
       parsed.isSample = false;
+      parsed.citeable = parsed.citeable !== false;
       parsed.articles = parsed.articles.map((article) => ({ ...article, isSample: false, textEn: article.textEn || "" }));
       laws.push(parsed);
       await this.importRecords({ laws: [parsed], sharia: [], confirmOfficial: true });
@@ -303,6 +347,35 @@ export class CorpusService {
         });
       }
     }
+    const maximsPath = path.join(root, "maxims", "civil-720.json");
+    const maximsRaw = await readFile(maximsPath, "utf8").catch(() => "");
+    if (maximsRaw) {
+      const maxims = JSON.parse(maximsRaw) as {
+        key: string;
+        nameAr: string;
+        sourceUrl: string;
+        preamble: string;
+        rules: { number: string; textAr: string; sourceUrl: string }[];
+      };
+      const maximLaw: LawInput & { issuedHijri?: string; publishedHijri?: string; statusLabel?: string } = {
+        key: maxims.key,
+        nameAr: maxims.nameAr,
+        nameEn: maxims.nameAr,
+        sourceUrl: maxims.sourceUrl,
+        version: "المادة العشرون بعد السبعمائة",
+        effectiveDate: null,
+        isSample: false,
+        citeable: true,
+        courts: ["general"],
+        articles: [
+          { number: "صدر المادة", textAr: maxims.preamble, textEn: "", sourceUrl: maxims.sourceUrl, isSample: false },
+          ...maxims.rules.map((rule) => ({ number: rule.number, textAr: rule.textAr, textEn: "", sourceUrl: rule.sourceUrl, isSample: false })),
+        ],
+      };
+      laws.push(maximLaw);
+      await this.importRecords({ laws: [maximLaw], sharia: [], confirmOfficial: true });
+    }
+    await this.importJudgments(path.join(root, "judgements"));
     const sharia = await this.readSharia(root);
     let shariaCount = 0;
     for (let offset = 0; offset < sharia.length; offset += 200) {
@@ -363,34 +436,86 @@ export class CorpusService {
         courts: ["general", "personal_status", "criminal", "labor", "commercial", "appeal", "supreme"],
       });
     }
-    const hadithDir = path.join(root, "hadith");
-    const files = (await readdir(hadithDir).catch(() => [] as string[])).filter((name) => name.endsWith(".min.json"));
-    for (const file of files) {
-      const parsed = JSON.parse(await readFile(path.join(hadithDir, file), "utf8")) as {
-        metadata?: { name?: string; sections?: Record<string, string> };
-        hadiths?: { hadithnumber?: number; text?: string; grades?: { grade?: string }[]; reference?: { book?: number; hadith?: number } }[];
-      };
-      const edition = file.replace(".min.json", "");
-      const sections = parsed.metadata?.sections || {};
-      for (const hadith of parsed.hadiths || []) {
-        if (!hadith.text || hadith.hadithnumber == null) continue;
-        const book = hadith.reference?.book ?? 0;
-        const number = hadith.reference?.hadith ?? hadith.hadithnumber;
-        const grade = (hadith.grades || []).map((item) => item.grade).filter(Boolean).join("؛ ");
-        const bookName = sections[String(book)] || "";
-        rows.push({
-          key: `hadith:${edition}:${hadith.hadithnumber}`,
-          kind: "hadith",
-          reference: [parsed.metadata?.name || edition, bookName, `${book}/${number}`, `رقم ${hadith.hadithnumber}`, grade].filter(Boolean).join(" — "),
-          textAr: hadith.text,
-          textEn: "",
-          sourceUrl: `https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/${file}`,
-          isSample: false,
-          courts: ["general", "personal_status", "criminal", "labor", "commercial"],
-        });
-      }
-    }
+    // The fawazahmed0 files under corpus/non-official/hadith are not an official edition and are excluded from citations.
     return rows;
+  }
+
+  private async importJudgments(dir: string) {
+    const names = (await readdir(dir).catch(() => [] as string[])).filter((name) => name.endsWith(".json"));
+    for (const name of names) {
+      const row = JSON.parse(await readFile(path.join(dir, name), "utf8")) as {
+        source: string;
+        sourceRecordId: string;
+        court: string;
+        courtType: string;
+        circuit: string;
+        city: string;
+        caseNo: string;
+        judgmentNo: string;
+        appealNo: string;
+        judgmentDateHijri: string;
+        judgmentDateGregorian: string;
+        appealDateHijri: string;
+        isAppeal: boolean;
+        title: string;
+        facts: string;
+        reasons: string;
+        ruling: string;
+        fullText: string;
+        rawHtml: string;
+        principleNo: string;
+        principleText: string;
+        statutesCited: unknown;
+        sourceUrl: string;
+        fetchedAt: string;
+        sha256: string;
+        isSample: boolean;
+        verbatimStatus: string;
+        blockedReason: string;
+      };
+      if (row.isSample || row.verbatimStatus !== "ok" || !row.fullText || !row.sourceUrl) continue;
+      const saved = await this.kernel.prisma.judgment.upsert({
+        where: { sourceRecordId: row.sourceRecordId },
+        create: {
+          source: row.source,
+          sourceRecordId: row.sourceRecordId,
+          court: row.court,
+          courtType: row.courtType,
+          circuit: row.circuit || "",
+          city: row.city,
+          caseNo: row.caseNo,
+          judgmentNo: row.judgmentNo,
+          appealNo: row.appealNo || "",
+          judgmentDateHijri: row.judgmentDateHijri,
+          judgmentDateGregorian: row.judgmentDateGregorian,
+          appealDateHijri: row.appealDateHijri || "",
+          isAppeal: row.isAppeal,
+          title: row.title,
+          facts: row.facts || "",
+          reasons: row.reasons || "",
+          ruling: row.ruling || "",
+          fullText: row.fullText,
+          rawHtml: row.rawHtml || "",
+          principleNo: row.principleNo || "",
+          principleText: row.principleText || "",
+          statutesCited: (row.statutesCited ?? undefined) as Prisma.InputJsonValue | undefined,
+          sourceUrl: row.sourceUrl,
+          fetchedAt: new Date(row.fetchedAt),
+          sha256: row.sha256,
+          isSample: false,
+          verbatimStatus: row.verbatimStatus,
+          blockedReason: row.blockedReason || "",
+        },
+        update: {
+          fullText: row.fullText,
+          rawHtml: row.rawHtml || "",
+          sourceUrl: row.sourceUrl,
+          sha256: row.sha256,
+          fetchedAt: new Date(row.fetchedAt),
+        },
+      });
+      await this.storeVector("judgment", saved.id, `${row.court} ${row.judgmentNo} ${row.fullText}`);
+    }
   }
 
   private assertRecord(isSample: boolean, sourceUrl: string, confirmOfficial: boolean) {
@@ -420,6 +545,7 @@ export class CorpusService {
           JOIN "Law" l ON l.id = a."lawId"
           WHERE l.jurisdiction = ${jurisdiction}
             AND l.key IN (${keys})
+            AND l.citeable = true
             AND (${Prisma.join(stems.map((stem) => Prisma.sql`a."textAr" ILIKE ${"%" + stem + "%"}`), " OR ")})
           LIMIT 12
         `)
@@ -431,6 +557,7 @@ export class CorpusService {
       JOIN "CorpusEmbedding" e ON e."targetId" = a.id AND e."targetType" = 'article'
       WHERE l.jurisdiction = ${jurisdiction}
         AND l.key IN (${keys})
+        AND l.citeable = true
       ORDER BY e.embedding <=> CAST(${vector} AS vector)
       LIMIT 8
     `);
@@ -450,6 +577,7 @@ export class CorpusService {
           SELECT id FROM "ShariaSource"
           WHERE jurisdiction = ${jurisdiction}
             AND ${court} = ANY(courts)
+            AND kind <> 'hadith'
             AND reference <> '1:1'
             AND (${Prisma.join(stems.map((stem) => Prisma.sql`"textAr" ILIKE ${"%" + stem + "%"}`), " OR ")})
           LIMIT 8
@@ -461,6 +589,7 @@ export class CorpusService {
       JOIN "CorpusEmbedding" e ON e."targetId" = s.id AND e."targetType" = 'sharia'
       WHERE s.jurisdiction = ${jurisdiction}
         AND ${court} = ANY(s.courts)
+        AND s.kind <> 'hadith'
         AND s.reference <> '1:1'
       ORDER BY e.embedding <=> CAST(${vector} AS vector)
       LIMIT 4
@@ -486,7 +615,7 @@ export class CorpusService {
     textEn: string;
     sourceUrl: string;
     isSample: boolean;
-    law: { key: string; nameAr: string; nameEn: string; version: string; effectiveDate: Date };
+    law: { key: string; nameAr: string; nameEn: string; version: string; effectiveDate: Date | null };
   }) {
     return {
       id: row.id,
@@ -499,7 +628,7 @@ export class CorpusService {
       sourceUrl: row.sourceUrl,
       isSample: row.isSample,
       version: row.law.version,
-      effectiveDate: row.law.effectiveDate.toISOString().slice(0, 10),
+      effectiveDate: row.law.effectiveDate ? row.law.effectiveDate.toISOString().slice(0, 10) : "",
     };
   }
 }

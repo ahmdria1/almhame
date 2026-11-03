@@ -1,0 +1,9 @@
+{
+  "nextPage": 3,
+  "judgmentNos": [
+    "4530838530",
+    "4630444976"
+  ],
+  "totalCount": 55159,
+  "note": "Fetched 2 judgments with text. One later detail had no judgment text and was not stored. The list reported totalCount 55159."
+}

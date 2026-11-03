@@ -312,6 +312,7 @@ export class WorkService {
       articles: substantive,
       procedural,
       sharia: retrieved.sharia,
+      judgments: retrieved.judgments,
       notice: retrieved.notice,
       letterhead,
       title: template.titleAr,
@@ -359,7 +360,7 @@ export class WorkService {
           flagged: !(await this.verifyDraft(draftBody.body)),
           citations: {
             create: draftBody.citations.map((citation) =>
-              citation.kind === "article" ? { articleId: citation.id } : { shariaId: citation.id },
+              citation.kind === "article" ? { articleId: citation.id } : citation.kind === "judgment" ? { judgmentId: citation.id } : { shariaId: citation.id },
             ),
           },
         },
@@ -388,7 +389,7 @@ export class WorkService {
     const dek = this.kernel.dekOf(user.wrappedDataKey);
     const memo = await this.kernel.prisma.memo.findFirst({
       where: { id: memoId, userId },
-      include: { citations: { include: { article: { include: { law: true } }, sharia: true } } },
+      include: { citations: { include: { article: { include: { law: true } }, sharia: true, judgment: true } } },
     });
     if (!memo) fail("NOT_FOUND", 404, "Memo was not found");
     return {
@@ -413,8 +414,19 @@ export class WorkService {
             sourceUrl: link.article.sourceUrl,
             isSample: link.article.isSample,
             version: link.article.law.version,
-            effectiveDate: link.article.law.effectiveDate.toISOString().slice(0, 10),
+            effectiveDate: link.article.law.effectiveDate ? link.article.law.effectiveDate.toISOString().slice(0, 10) : "",
             lawName: link.article.law.nameAr,
+          };
+        }
+        if (link.judgment) {
+          return {
+            kind: "judgment" as const,
+            id: link.judgment.id,
+            number: link.judgment.judgmentNo,
+            title: link.judgment.title,
+            excerpt: link.judgment.fullText,
+            sourceUrl: link.judgment.sourceUrl,
+            isSample: link.judgment.isSample,
           };
         }
         return {
@@ -434,13 +446,14 @@ export class WorkService {
     const dek = this.kernel.dekOf(user.wrappedDataKey);
     const memo = await this.kernel.prisma.memo.findFirst({
       where: { id: memoId, userId },
-      include: { citations: { include: { article: true, sharia: true } } },
+      include: { citations: { include: { article: true, sharia: true, judgment: true } } },
     });
     if (!memo) fail("NOT_FOUND", 404, "Memo was not found");
     const body = input.body ?? this.kernel.dec(dek, memo.bodyEnc);
     const citations = memo.citations.flatMap((link): CitationRef[] => {
       if (link.article) return [{ kind: "article", id: link.article.id, number: link.article.number }];
       if (link.sharia) return [{ kind: "sharia", id: link.sharia.id }];
+      if (link.judgment) return [{ kind: "judgment", id: link.judgment.id, number: link.judgment.judgmentNo }];
       return [];
     });
     const verdict = validateCitations(body, citations, await this.knownSet(citations));
@@ -962,10 +975,13 @@ export class WorkService {
       where: { id: { in: articleIds } },
       include: { law: { select: { nameAr: true } } },
     });
+    const judgmentIds = citations.filter((item) => item.kind === "judgment").map((item) => item.id);
     const sharia = await this.kernel.prisma.shariaSource.findMany({ where: { id: { in: shariaIds } } });
+    const judgments = await this.kernel.prisma.judgment.findMany({ where: { id: { in: judgmentIds } } });
     return {
       articles: new Map(articles.map((row) => [row.id, knownArticle(row.number, row.law.nameAr, row.textAr)])),
       sharia: new Map(sharia.map((row) => [row.id, { textHash: textHash(row.textAr), reference: row.reference }])),
+      judgments: new Map(judgments.map((row) => [row.id, { textHash: textHash(row.fullText), number: row.judgmentNo }])),
     };
   }
 

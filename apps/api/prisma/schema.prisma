@@ -242,13 +242,51 @@ model Memo {
 }
 
 model MemoCitation {
-  id        String         @id @default(cuid())
-  memoId    String
-  articleId String?
-  shariaId  String?
-  memo      Memo           @relation(fields: [memoId], references: [id], onDelete: Cascade)
-  article   Article?       @relation(fields: [articleId], references: [id])
-  sharia    ShariaSource?  @relation(fields: [shariaId], references: [id])
+  id          String         @id @default(cuid())
+  memoId      String
+  articleId   String?
+  shariaId    String?
+  judgmentId  String?
+  memo        Memo           @relation(fields: [memoId], references: [id], onDelete: Cascade)
+  article     Article?       @relation(fields: [articleId], references: [id])
+  sharia      ShariaSource?  @relation(fields: [shariaId], references: [id])
+  judgment    Judgment?      @relation(fields: [judgmentId], references: [id])
+}
+
+model Judgment {
+  id                      String   @id @default(cuid())
+  source                  String
+  sourceRecordId          String   @unique
+  court                   String   @default("")
+  courtType               String   @default("")
+  circuit                 String   @default("")
+  city                    String   @default("")
+  caseNo                  String   @default("")
+  judgmentNo              String
+  appealNo                String   @default("")
+  judgmentDateHijri       String   @default("")
+  judgmentDateGregorian   String   @default("")
+  appealDateHijri         String   @default("")
+  isAppeal                Boolean  @default(false)
+  title                   String   @default("")
+  facts                   String   @default("")
+  reasons                 String   @default("")
+  ruling                  String   @default("")
+  fullText                String
+  rawHtml                 String   @default("")
+  principleNo             String   @default("")
+  principleText           String   @default("")
+  statutesCited           Json?
+  sourceUrl               String
+  fetchedAt               DateTime
+  sha256                  String
+  isSample                Boolean  @default(false)
+  verbatimStatus          String
+  blockedReason           String   @default("")
+  citations               MemoCitation[]
+
+  @@index([judgmentNo])
+  @@index([court])
 }
 
 model SavedItem {
@@ -272,11 +310,12 @@ model Law {
   nameEn        String
   sourceUrl     String
   version        String
-  effectiveDate  DateTime
   issuedHijri    String     @default("")
   publishedHijri String     @default("")
   statusLabel    String     @default("")
   isSample       Boolean    @default(false)
+  citeable       Boolean    @default(true)
+  effectiveDate  DateTime?
   jurisdiction   String     @default("SA")
   courts         String[]
   createdAt     DateTime   @default(now())

@@ -320,20 +320,30 @@ async function auditStatute(law, byKey) {
     }
     structural.duplicates = [...labels.entries()].filter(([, count]) => count > 1).map(([label, count]) => `${label} x${count}`);
   }
+  if (Array.isArray(law.officialDuplicateHeadings)) {
+    const allowed = new Set(law.officialDuplicateHeadings.map(String));
+    structural.order = structural.order.filter((item) => !allowed.has(String(item.match(/parsed (\d+)/)?.[1] || "")));
+  }
   const bleed = headingBleed(articles);
   const defects = [];
   if (structural.duplicates.length) defects.push(`duplicate labels: ${structural.duplicates.join(", ")}`);
   if (structural.order.length) defects.push(`out of order: ${structural.order.join("; ")}`);
-  if (structural.unparsed.length) defects.push(`unparsed headings: ${structural.unparsed.join(" | ")}`);
+  if (law.numbering !== "band" && structural.unparsed.length) defects.push(`unparsed headings: ${structural.unparsed.join(" | ")}`);
   if (structural.blank.length) defects.push(`blank articles: ${structural.blank.join(", ")}`);
   if (bleed.length) defects.push(`heading bleed: ${bleed.slice(0, 5).join(" | ")}`);
 
   let official = null;
   let officialError = "";
-  try {
-    official = await officialArticles(law);
-  } catch (error) {
-    officialError = error instanceof Error ? error.message : String(error);
+  if (law.skipLiveAudit) {
+    officialError = "historical text kept beside its successor and excluded from drafting";
+  } else if (law.numbering === "band") {
+    officialError = "clause text is checked against the stored official headings";
+  } else {
+    try {
+      official = await officialArticles(law);
+    } catch (error) {
+      officialError = error instanceof Error ? error.message : String(error);
+    }
   }
 
   const row = {
@@ -471,12 +481,13 @@ async function auditQuran() {
 }
 
 async function auditHadith() {
-  const summary = JSON.parse(await readFile(path.join(root, "corpus", "official", "hadith", "summary.json"), "utf8"));
-  const files = (await readdir(path.join(root, "corpus", "official", "hadith"))).filter((name) => name.endsWith(".min.json"));
+  const dir = path.join(root, "corpus", "non-official", "hadith");
+  const summary = JSON.parse(await readFile(path.join(dir, "summary.json"), "utf8"));
+  const files = (await readdir(dir)).filter((name) => name.endsWith(".min.json"));
   const books = [];
   const defects = [];
   for (const file of files.sort()) {
-    const parsed = JSON.parse(await readFile(path.join(root, "corpus", "official", "hadith", file), "utf8"));
+    const parsed = JSON.parse(await readFile(path.join(dir, file), "utf8"));
     const edition = file.replace(".min.json", "");
     const listed = summary.find((item) => item.edition === edition);
     const hadiths = parsed.hadiths || [];
@@ -509,6 +520,7 @@ async function auditHadith() {
   }
   for (const item of summary) {
     if (!files.includes(`${item.edition}.min.json`)) defects.push(`summary edition missing on disk: ${item.edition}`);
+    if (item.official !== false || item.excludedFromCitations !== true) defects.push(`${item.edition} is not marked non-official`);
   }
   return { books, defects };
 }
@@ -537,7 +549,18 @@ async function main() {
   const laws = [];
   for (const name of names) laws.push(JSON.parse(await readFile(path.join(boeDir, name), "utf8")));
   const byKey = new Map(laws.map((law) => [law.key, law]));
-  if (laws.length !== 50) fixtureDefects.push(`expected 50 statutes, found ${laws.length}`);
+  if (laws.length !== 55) fixtureDefects.push(`expected 55 statutes, found ${laws.length}`);
+  const repealed = byKey.get("enforcement-1433");
+  if (!repealed || repealed.citeable !== false || (repealed.articles || []).length !== 98) fixtureDefects.push("the 1433 enforcement text must stay stored, marked repealed, and excluded from drafting");
+  const currentEnforcement = byKey.get("enforcement");
+  if (!currentEnforcement || (currentEnforcement.articles || []).length !== 65) fixtureDefects.push("enforcement must be the 65-article 1447 text");
+  if (currentEnforcement?.effectiveDateStatus !== "unverified") fixtureDefects.push("the 1447 enforcement effective date is not verified against the gazette");
+  for (const [key, count] of [["enforcement-regulation", 54], ["evidence-procedure", 135], ["bankruptcy-regulation", 98], ["rental-provisions", 12]]) {
+    const law = byKey.get(key);
+    if (!law || (law.articles || []).length !== count) fixtureDefects.push(`${key} must store ${count} official items`);
+  }
+  const rental = byKey.get("rental-provisions");
+  if (rental && JSON.stringify(rental).includes("الدوائر المختصة بمنازعات الإيجار")) fixtureDefects.push("rental court name was not on the official REGA page");
   const labor = byKey.get("labor");
   if (!labor) fixtureDefects.push("labor statute missing");
   else {
@@ -572,6 +595,16 @@ async function main() {
     const row = await auditStatute(law, byKey);
     rows.push(row);
     if (fix && row.fixed > 0) await writeFile(path.join(boeDir, `${law.key}.json`), JSON.stringify(law));
+  }
+  const sampleQuran = await readFile(path.join(root, "corpus", "official", "quran-sample.json"), "utf8").then(() => true).catch(() => false);
+  if (sampleQuran) fixtureDefects.push("quran-sample.json must not be stored");
+  const maxims = JSON.parse(await readFile(path.join(root, "corpus", "official", "maxims", "civil-720.json"), "utf8"));
+  const parent = (byKey.get("civil-transactions").articles || []).find((article) => article.number === "المادة العشرون بعد السبعمائة");
+  if (!parent || maxims.rules.length !== 41) fixtureDefects.push("article 720 must be split into 41 official maxims");
+  else {
+    for (const rule of maxims.rules) {
+      if (!parent.textAr.includes(rule.number) || !parent.textAr.includes(rule.textAr)) fixtureDefects.push(`maxim is not verbatim: ${rule.number}`);
+    }
   }
   const quran = await auditQuran();
   const hadith = await auditHadith();
@@ -618,8 +651,8 @@ async function main() {
   console.log(`\nquran rows ${quran.rows} surahs ${quran.surahs}`);
   if (quran.defects.length) console.log(`quran defects: ${quran.defects.join(" || ")}`);
   const importer = await readFile(path.join(root, "apps", "api", "src", "corpus.service.ts"), "utf8");
-  if (!importer.includes("hadith:${edition}:${hadith.hadithnumber}")) hadith.defects.push("importer key does not use the unique hadithnumber");
-  if (!importer.includes("hadith.hadithnumber")) hadith.defects.push("importer reference does not keep the unique hadithnumber");
+  if (!importer.includes("excluded from citations")) hadith.defects.push("importer must exclude the non-official hadith set");
+  if (importer.includes("hadith:${edition}:${hadith.hadithnumber}")) hadith.defects.push("importer still cites the non-official hadith set");
   for (const book of hadith.books) {
     console.log(`hadith ${book.edition} ${book.count} books ${book.books} emptyText ${book.missingText} repeatedInBookNumbers ${book.repeatedInBook}`);
   }

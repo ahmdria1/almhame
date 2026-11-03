@@ -10,7 +10,10 @@
     "sampleRef": {
       "book": 1,
       "hadith": 1
-    }
+    },
+    "official": false,
+    "excludedFromCitations": true,
+    "note": "Community dataset fawazahmed0/hadith-api. Not an official licensed edition. Excluded from citations."
   },
   {
     "key": "muslim",
@@ -23,7 +26,10 @@
     "sampleRef": {
       "book": 0,
       "hadith": 1
-    }
+    },
+    "official": false,
+    "excludedFromCitations": true,
+    "note": "Community dataset fawazahmed0/hadith-api. Not an official licensed edition. Excluded from citations."
   },
   {
     "key": "abudawud",
@@ -53,7 +59,10 @@
     "sampleRef": {
       "book": 1,
       "hadith": 1
-    }
+    },
+    "official": false,
+    "excludedFromCitations": true,
+    "note": "Community dataset fawazahmed0/hadith-api. Not an official licensed edition. Excluded from citations."
   },
   {
     "key": "tirmidhi",
@@ -79,7 +88,10 @@
     "sampleRef": {
       "book": 1,
       "hadith": 1
-    }
+    },
+    "official": false,
+    "excludedFromCitations": true,
+    "note": "Community dataset fawazahmed0/hadith-api. Not an official licensed edition. Excluded from citations."
   },
   {
     "key": "nasai",
@@ -105,7 +117,10 @@
     "sampleRef": {
       "book": 1,
       "hadith": 1
-    }
+    },
+    "official": false,
+    "excludedFromCitations": true,
+    "note": "Community dataset fawazahmed0/hadith-api. Not an official licensed edition. Excluded from citations."
   },
   {
     "key": "ibnmajah",
@@ -135,7 +150,10 @@
     "sampleRef": {
       "book": 0,
       "hadith": 1
-    }
+    },
+    "official": false,
+    "excludedFromCitations": true,
+    "note": "Community dataset fawazahmed0/hadith-api. Not an official licensed edition. Excluded from citations."
   },
   {
     "key": "malik",
@@ -153,6 +171,9 @@
     "sampleRef": {
       "book": 1,
       "hadith": 1
-    }
+    },
+    "official": false,
+    "excludedFromCitations": true,
+    "note": "Community dataset fawazahmed0/hadith-api. Not an official licensed edition. Excluded from citations."
   }
 ]
