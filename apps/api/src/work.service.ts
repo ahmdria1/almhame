@@ -6,14 +6,13 @@ import path from "path";
 import { promisify } from "util";
 import { Injectable } from "@nestjs/common";
 import { IntegrationProvider, MemoType, Prisma, User } from "@prisma/client";
-import { jurisdictionOf, type CourtType as Court, type MemoType as MemoKind } from "@elawyer/types";
+import { jurisdictionOf, priceForMemoType, type CourtType as Court, type MemoType as MemoKind } from "@elawyer/types";
 import { CorpusService } from "./corpus.service";
 import { InfectedUpload, scanInstream } from "./domain/clamd";
 import { knownArticle, textHash, validateCitations, type CitationRef } from "./domain/citations";
 import { composeDraft, readSlots } from "./domain/draft";
-import { decryptBytes, encryptBytes, generateDek, wrapKey } from "./domain/envelope";
+import { decryptBytes, encryptBytes } from "./domain/envelope";
 import { halalasToSar, nextInvoiceNumber, splitVatInclusive, zatcaQrBase64 } from "./domain/invoice";
-import { isPhone, normalizePhone } from "./domain/otp";
 import { chatQuota, chatsCounted, courtAllowed, memoQuota } from "./domain/plans";
 import { signSandbox } from "./domain/payments";
 import { inspectPdf, kindFromMime, MAX_UPLOAD_BYTES, reencodeImage, sanitizeFilename, sniffUpload, takeUploadSlot } from "./domain/uploads";
@@ -117,7 +116,7 @@ export class WorkService {
       const known = await tx.court.findUnique({ where: { jurisdiction_code: { jurisdiction: place.code, code: input.court } } });
       if (!known) fail("VALIDATION", 400, "Unknown court");
       const plan = await this.kernel.plan(user.planCode, place.code);
-      const quota = chatQuota(plan, chatsCounted(plan, user.chatCount, user.chatCountPeriod));
+      const quota = chatQuota(plan, chatsCounted(plan, user.chatCount, user.chatCountPeriod), user.chatCredits);
       if (!quota.ok) fail("QUOTA_CHATS", 402, "The free chat limit has been reached");
       if (!courtAllowed(plan, input.court)) fail("PLAN_COURT", 403, "This court is not included in the current plan");
       const dek = this.kernel.dekOf(user.wrappedDataKey);
@@ -126,6 +125,7 @@ export class WorkService {
         where: { id: userId },
         data: {
           chatCount: { increment: 1 },
+          ...(quota.spendCredit ? { chatCredits: { decrement: 1 } } : {}),
           ...(user.planCode === "free" ? {} : { chatCountPeriod: { increment: 1 } }),
         },
       });
@@ -284,7 +284,7 @@ export class WorkService {
       const quota = memoQuota(await this.kernel.plan(current.planCode, jurisdictionOf(current.jurisdiction).code), current.memoCountPeriod);
       if (!quota.ok) {
         if (!payPerMemo) fail("QUOTA_MEMOS", 402, "The memo quota has been reached");
-        const price = this.kernel.config.payPerMemoHalalas;
+        const price = priceForMemoType(chat.memoType);
         const wallet = await tx.wallet.update({
           where: { userId },
           data: { balanceHalalas: { decrement: price } },
@@ -825,8 +825,8 @@ export class WorkService {
 
   async updateOrg(userId: string, input: { name?: string; letterheadName?: string }) {
     const user = await this.fresh(userId);
-    if (user.orgRole !== "owner" || !user.orgId) fail("FORBIDDEN", 403, "Only the chamber owner can edit this");
-    if (!(await this.kernel.plan(user.planCode, jurisdictionOf(user.jurisdiction).code)).letterhead && input.letterheadName) fail("FEATURE_CASES", 402, "Letterhead is part of the chambers plan");
+    if (user.orgRole !== "owner" || !user.orgId) fail("FORBIDDEN", 403, "Only the owner can edit this");
+    if (!(await this.kernel.plan(user.planCode, jurisdictionOf(user.jurisdiction).code)).letterhead && input.letterheadName) fail("FEATURE_CASES", 402, "Letterhead is not included in this plan");
     const org = await this.kernel.prisma.organization.update({
       where: { id: user.orgId },
       data: {
@@ -837,34 +837,9 @@ export class WorkService {
     return { id: org.id, letterheadName: org.letterheadName, name: org.name };
   }
 
-  async addMember(userId: string, input: { name: string; phone: string; email: string; consent: boolean }) {
+  async addMember(_userId: string, input: { name: string; phone: string; email: string; consent: boolean }) {
     if (input.consent !== true) fail("CONSENT_REQUIRED", 400, "The member's consent is required");
-    const owner = await this.fresh(userId);
-    if (owner.planCode !== "office" || !owner.orgId) fail("FEATURE_CASES", 402, "Seats are part of the chambers plan");
-    const used = await this.kernel.prisma.user.count({ where: { orgId: owner.orgId } });
-    const org = await this.kernel.prisma.organization.findUnique({ where: { id: owner.orgId } });
-    if (!org || used >= org.seatLimit) fail("SEATS_FULL", 402, "No seats are left");
-    const phone = normalizePhone(input.phone);
-    if (!isPhone(phone)) fail("VALIDATION", 400, "Enter a valid mobile number");
-    const email = input.email.trim().toLowerCase();
-    const dek = generateDek();
-    const member = await this.kernel.prisma.user.create({
-      data: {
-        name: input.name.trim(),
-        phone,
-        email,
-        consentAt: new Date(),
-        consentVersion: this.kernel.config.consentVersion,
-        wrappedDataKey: wrapKey(dek, this.kernel.master),
-        planCode: "office",
-        orgId: org.id,
-        orgRole: "member",
-        jurisdiction: owner.jurisdiction,
-        planRenewsAt: owner.planRenewsAt,
-        wallet: { create: { balanceHalalas: 0, currency: jurisdictionOf(owner.jurisdiction).currency } },
-      },
-    });
-    return { id: member.id };
+    fail("FEATURE_CASES", 402, "Extra seats are not offered");
   }
 
   private async fresh(userId: string) {

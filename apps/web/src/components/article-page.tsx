@@ -1,5 +1,5 @@
 import { translate } from "@elawyer/i18n";
-import { COURTS, PAY_PER_MEMO_HALALAS, PLAN_CODES, PUBLISHED_PLANS, type Locale } from "@elawyer/types";
+import { COURTS, PLAN_CODES, PUBLISHED_PLANS, SERVICE_CODES, SERVICE_PRICES_HALALAS, type Locale, type ServiceCode } from "@elawyer/types";
 import { JsonLd } from "@/components/json-ld";
 import { PublicFooter, PublicHeader } from "@/components/public-chrome";
 import { DOC_IDS, authPath, pagePath, type PageRef } from "@/seo/catalog";
@@ -12,8 +12,15 @@ function sar(halalas: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }
 
-const PLAN_KEY = { free: "plans.freeName", basic: "plans.basicName", pro: "plans.proName", office: "plans.officeName" } as const;
-const PLAN_DESC = { free: "plans.freeDesc", basic: "plans.basicDesc", pro: "plans.proDesc", office: "plans.officeDesc" } as const;
+const PLAN_KEY = { free: "plans.freeName", basic: "plans.basicName", pro: "plans.proName" } as const;
+const PLAN_DESC = { free: "plans.freeDesc", basic: "plans.basicDesc", pro: "plans.proDesc" } as const;
+const SERVICE_KEY: Record<ServiceCode, string> = {
+  review: "plans.serviceReview",
+  defense: "plans.serviceDefense",
+  lawsuit: "plans.serviceClaim",
+  objection: "plans.serviceObjection",
+  chat_pack: "plans.serviceChatPack",
+};
 
 export function ArticlePage({ locale, page }: { locale: Locale; page: Exclude<PageRef, { kind: "home" }> }) {
   const copy = pageCopy(locale, page);
@@ -104,11 +111,15 @@ function PlanList({ locale }: { locale: Locale }) {
             <p className="mt-2 text-sm leading-7 text-ink-700">{t(PLAN_DESC[code])}</p>
             <p className="mt-2 text-sm text-ink-700">{t("plans.memos", { count: plan.memoLimit })}</p>
             <p className="text-sm text-ink-700">{plan.chatLimit == null ? COPY.unlimited[locale] : t("plans.chats", { count: plan.chatLimit })}</p>
-            {plan.seats > 1 ? <p className="text-sm text-ink-700">{COPY.seats[locale].replaceAll("{count}", String(plan.seats))}</p> : null}
           </section>
         );
       })}
-      <p className="text-sm text-ink-700">{t("plans.payg", { price: sar(PAY_PER_MEMO_HALALAS) })}</p>
+      <ul className="space-y-1 text-sm text-ink-700">
+        <li>{t("plans.payg")}</li>
+        {SERVICE_CODES.map((code) => (
+          <li key={code}>{t(SERVICE_KEY[code], { price: sar(SERVICE_PRICES_HALALAS[code]) })}</li>
+        ))}
+      </ul>
     </div>
   );
 }

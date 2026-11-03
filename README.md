@@ -145,7 +145,7 @@ Also set `KMS_MASTER_KEY`, `JWT_SECRET`, `OTP_PEPPER`, real `LLM_PROVIDER`, `EMB
 
 ## Plans
 
-Free: 5 chats, 5 memos, general and labor courts, PDF. Basic: 99 SAR, 30 memos. Professional: 249 SAR, 100 memos, every court, case dates, Word. Office: 599 SAR, 5 seats, letterhead. A single extra memo is 29 SAR when the wallet can cover it (`PAY_PER_MEMO_HALALAS`). Prices are inclusive of 15% VAT.
+Free: 5 chats, 5 memos, general and labor courts, PDF. Basic: 99 SAR, 30 memos. Professional: 249 SAR, 100 memos, every court, case dates, Word. Pay per service, VAT included: review 29 SAR, defense or response memo 49 SAR, statement of claim 59 SAR, objection memo 69 SAR, pack of 50 questions 19 SAR. Prices are inclusive of 15% VAT and the gateway fee.
 
 ## Privacy
 

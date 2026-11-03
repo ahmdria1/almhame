@@ -1,5 +1,5 @@
 import { translate } from "@elawyer/i18n";
-import { COURTS, PAY_PER_MEMO_HALALAS, PLAN_CODES, PUBLISHED_PLANS, type Locale } from "@elawyer/types";
+import { COURTS, PLAN_CODES, PUBLISHED_PLANS, SERVICE_CODES, SERVICE_PRICES_HALALAS, type Locale, type ServiceCode } from "@elawyer/types";
 import { JsonLd } from "@/components/json-ld";
 import { Logo } from "@/components/logo";
 import { PublicFooter, PublicHeader } from "@/components/public-chrome";
@@ -10,8 +10,15 @@ import { jsonLdFor } from "@/seo/jsonld";
 const FEATURES = ["f1", "f2", "f3", "f4", "f5", "f6"] as const;
 const STEPS = ["s1", "s2", "s3", "s4"] as const;
 const FAQ = ["1", "2", "3", "4"] as const;
-const PLAN_KEY = { free: "plans.freeName", basic: "plans.basicName", pro: "plans.proName", office: "plans.officeName" } as const;
-const PLAN_DESC = { free: "plans.freeDesc", basic: "plans.basicDesc", pro: "plans.proDesc", office: "plans.officeDesc" } as const;
+const PLAN_KEY = { free: "plans.freeName", basic: "plans.basicName", pro: "plans.proName" } as const;
+const PLAN_DESC = { free: "plans.freeDesc", basic: "plans.basicDesc", pro: "plans.proDesc" } as const;
+const SERVICE_KEY: Record<ServiceCode, string> = {
+  review: "plans.serviceReview",
+  defense: "plans.serviceDefense",
+  lawsuit: "plans.serviceClaim",
+  objection: "plans.serviceObjection",
+  chat_pack: "plans.serviceChatPack",
+};
 
 function sar(halalas: number): string {
   const value = halalas / 100;
@@ -98,7 +105,7 @@ export function HomeView({ locale }: { locale: Locale }) {
             <h2 className="text-3xl font-bold text-navy-700">{t("landing.plansTitle")}</h2>
             <p className="mt-2 text-ink-700">{t("landing.plansSubtitle")}</p>
             <p className="mt-2 text-sm text-ink-700">{COPY.vat[locale]}</p>
-            <div className="mt-8 grid gap-4 md:grid-cols-4">
+            <div className="mt-8 grid gap-4 md:grid-cols-3">
               {PLAN_CODES.map((code) => {
                 const plan = PUBLISHED_PLANS[code];
                 const featured = code === "pro";
@@ -119,7 +126,12 @@ export function HomeView({ locale }: { locale: Locale }) {
                 );
               })}
             </div>
-            <p className="mt-6 text-sm text-ink-700">{t("plans.payg", { price: sar(PAY_PER_MEMO_HALALAS) })}</p>
+            <ul className="mt-6 space-y-1 text-sm text-ink-700">
+              <li>{t("plans.payg")}</li>
+              {SERVICE_CODES.map((code) => (
+                <li key={code}>{t(SERVICE_KEY[code], { price: sar(SERVICE_PRICES_HALALAS[code]) })}</li>
+              ))}
+            </ul>
             <p className="mt-2 text-sm font-semibold">
               <a href={pagePath(locale, { kind: "top", id: "pricing" })} className="text-teal-700">{COPY.pricing[locale]}</a>
             </p>

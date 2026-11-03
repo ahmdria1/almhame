@@ -1,5 +1,3 @@
-import { PAY_PER_MEMO_HALALAS } from "@elawyer/types";
-
 export interface AppConfig {
   databaseUrl: string;
   jwtSecret: string;
@@ -26,7 +24,6 @@ export interface AppConfig {
   alrajhiHostedUrl: string;
   alrajhiResponseUrl: string;
   alrajhiErrorUrl: string;
-  payPerMemoHalalas: number;
   sellerName: string;
   sellerVat: string;
   sellerAddress: string;
@@ -108,7 +105,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     alrajhiHostedUrl: env.ALRAJHI_HOSTED_URL || "https://securepayments.alrajhibank.com.sa/pg/payment/hosted.htm",
     alrajhiResponseUrl: env.ALRAJHI_RESPONSE_URL || "",
     alrajhiErrorUrl: env.ALRAJHI_ERROR_URL || "",
-    payPerMemoHalalas: Number(env.PAY_PER_MEMO_HALALAS || PAY_PER_MEMO_HALALAS),
     sellerName: env.SELLER_NAME || "المحامي الإلكتروني المتقدم",
     sellerVat: env.SELLER_VAT_NUMBER || "300000000000003",
     sellerAddress: env.SELLER_ADDRESS || "Riyadh, SA",

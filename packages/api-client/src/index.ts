@@ -6,6 +6,7 @@ import type {
   MemoView,
   PlanCode,
   PlanOffer,
+  ServiceCode,
   SessionUser,
 } from "@elawyer/types";
 
@@ -134,7 +135,10 @@ export class ElawyerClient {
   }
 
   plans() {
-    return this.request("/plans") as Promise<{ plans: PlanOffer[]; payPerMemoHalalas: number }>;
+    return this.request("/plans") as Promise<{
+      plans: PlanOffer[];
+      services: { code: ServiceCode; priceHalalas: number; questions: number | null }[];
+    }>;
   }
 
   chats() {
@@ -191,7 +195,13 @@ export class ElawyerClient {
     }>;
   }
 
-  checkout(input: { purpose: "topup" | "subscription"; amountHalalas?: number; planCode?: PlanCode; cycle?: "monthly" | "yearly" }) {
+  checkout(input: {
+    purpose: "topup" | "subscription" | "service";
+    amountHalalas?: number;
+    planCode?: PlanCode;
+    serviceCode?: ServiceCode;
+    cycle?: "monthly" | "yearly";
+  }) {
     return this.request("/billing/checkout", { method: "POST", body: JSON.stringify(input) }) as Promise<{
       intentId: string;
       redirectUrl: string;

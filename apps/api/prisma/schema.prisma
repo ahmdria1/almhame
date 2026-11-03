@@ -18,7 +18,6 @@ enum PlanCode {
   free
   basic
   pro
-  office
 }
 
 enum PaymentStatus {
@@ -71,6 +70,7 @@ model User {
   chatCount       Int       @default(0)
   chatCountPeriod Int       @default(0)
   memoCountPeriod Int       @default(0)
+  chatCredits     Int       @default(0)
   periodStartedAt DateTime  @default(now())
   wrappedDataKey  String
   orgId           String?
@@ -376,6 +376,7 @@ model PaymentIntent {
   userId         String
   purpose        String
   planCode       PlanCode?
+  serviceCode    String?
   cycle          String?
   amountHalalas  Int
   jurisdiction   String        @default("SA")

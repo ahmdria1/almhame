@@ -1,18 +1,31 @@
 import { colors } from "@elawyer/tokens";
-import { useQuery } from "@tanstack/react-query";
+import { PUBLISHED_PLANS, SERVICE_CODES, SERVICE_PRICES_HALALAS, PLAN_CODES } from "@elawyer/types";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { client } from "../src/api";
 import { formatSar } from "../src/format";
 
+const SERVICE_LABEL = {
+  review: "مراجعة أو تدقيق",
+  defense: "مذكرة دفاع أو جوابية",
+  lawsuit: "صحيفة دعوى",
+  objection: "لائحة اعتراضية",
+  chat_pack: "حزمة 50 سؤالاً",
+} as const;
+
 export default function Plans() {
-  const query = useQuery({ queryKey: ["plans"], queryFn: () => client().plans() });
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ padding: 20 }}>
       <Text style={styles.title}>الباقات</Text>
-      {(query.data?.plans || []).map((plan) => (
-        <View key={plan.code} style={styles.card}>
-          <Text style={styles.name}>{plan.code}</Text>
-          <Text style={styles.price}>{formatSar(plan.priceHalalas)} ر.س</Text>
+      {PLAN_CODES.map((code) => (
+        <View key={code} style={styles.card}>
+          <Text style={styles.name}>{code}</Text>
+          <Text style={styles.price}>{formatSar(PUBLISHED_PLANS[code].priceHalalas)} ر.س</Text>
+        </View>
+      ))}
+      <Text style={styles.title}>الخدمة</Text>
+      {SERVICE_CODES.map((code) => (
+        <View key={code} style={styles.card}>
+          <Text style={styles.name}>{SERVICE_LABEL[code]}</Text>
+          <Text style={styles.price}>{formatSar(SERVICE_PRICES_HALALAS[code])} ر.س</Text>
         </View>
       ))}
     </ScrollView>

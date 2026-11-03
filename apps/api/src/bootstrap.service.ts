@@ -32,7 +32,7 @@ export class BootstrapService implements OnModuleInit {
     for (const plan of Object.values(PLAN_DEFS)) {
       await this.kernel.prisma.planSetting.upsert({
         where: { jurisdiction_code: { jurisdiction: plan.jurisdiction, code: plan.code } },
-        update: {},
+        update: { priceHalalas: plan.priceHalalas, currency: plan.currency },
         create: {
           jurisdiction: plan.jurisdiction,
           code: plan.code,

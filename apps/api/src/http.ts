@@ -19,7 +19,7 @@ import { Throttle } from "@nestjs/throttler";
 import { Equals, IsEmail, IsIn, IsOptional, IsString, Length } from "class-validator";
 import type { Request, Response } from "express";
 import { PlanCode } from "@prisma/client";
-import { COURTS, MEMO_TYPES, PLAN_CODES } from "@elawyer/types";
+import { COURTS, MEMO_TYPES, PLAN_CODES, SERVICE_CODES, type ServiceCode } from "@elawyer/types";
 import { AdminService } from "./admin.service";
 import { AuthService } from "./auth.service";
 import { BillingService } from "./billing.service";
@@ -97,8 +97,8 @@ export class DraftDto {
 }
 
 export class CheckoutDto {
-  @IsIn(["topup", "subscription"])
-  purpose!: "topup" | "subscription";
+  @IsIn(["topup", "subscription", "service"])
+  purpose!: "topup" | "subscription" | "service";
 
   @IsOptional()
   amountHalalas?: number;
@@ -106,6 +106,10 @@ export class CheckoutDto {
   @IsOptional()
   @IsIn(PLAN_CODES)
   planCode?: PlanCode;
+
+  @IsOptional()
+  @IsIn(SERVICE_CODES)
+  serviceCode?: ServiceCode;
 
   @IsOptional()
   @IsIn(["monthly", "yearly"])

@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { createHash, randomUUID } from "crypto";
-import { JURISDICTION_CATALOG, jurisdictionOf } from "@elawyer/types";
+import { CHAT_PACK_QUESTIONS, JURISDICTION_CATALOG, SERVICE_CODES, SERVICE_PRICES_HALALAS, jurisdictionOf, type ServiceCode } from "@elawyer/types";
 import { PlanCode } from "@prisma/client";
 import { buildTrandata, decryptTrandata, encryptTrandata } from "./domain/alrajhi";
 import { PLAN_DEFS, yearlyHalalas } from "./domain/plans";
@@ -14,7 +14,6 @@ export class BillingService {
   constructor(private readonly kernel: Kernel) {}
 
   async plans() {
-    const pay = this.kernel.config.payPerMemoHalalas;
     const plans = await Promise.all(
       (Object.keys(PLAN_DEFS) as PlanCode[]).map(async (code) => {
         const plan = await this.kernel.plan(code);
@@ -31,17 +30,22 @@ export class BillingService {
           caseManagement: plan.caseManagement,
           letterhead: plan.letterhead,
           seats: plan.seats,
-          payPerMemoHalalas: pay,
         };
       }),
     );
-    return { payPerMemoHalalas: pay, plans };
+    const services = SERVICE_CODES.map((code) => ({
+      code,
+      priceHalalas: SERVICE_PRICES_HALALAS[code],
+      questions: code === "chat_pack" ? CHAT_PACK_QUESTIONS : null,
+    }));
+    return { services, plans };
   }
 
   async checkout(userId: string, input: {
-    purpose: "topup" | "subscription";
+    purpose: "topup" | "subscription" | "service";
     amountHalalas?: number;
     planCode?: PlanCode;
+    serviceCode?: ServiceCode;
     cycle?: "monthly" | "yearly";
     idempotencyKey?: string;
   }) {
@@ -53,12 +57,17 @@ export class BillingService {
     if (existing) return this.redirectFor(existing.id, existing.amountHalalas);
     let amount = input.amountHalalas || 0;
     let planCode: PlanCode | null = null;
+    let serviceCode: string | null = null;
     const cycle = input.cycle || "monthly";
     if (input.purpose === "subscription") {
       if (!input.planCode || input.planCode === "free") fail("VALIDATION", 400, "Choose a paid plan");
       const plan = await this.kernel.plan(input.planCode, place.code);
       amount = cycle === "yearly" ? yearlyHalalas(plan.priceHalalas) : plan.priceHalalas;
       planCode = input.planCode;
+    } else if (input.purpose === "service") {
+      if (!input.serviceCode || !SERVICE_CODES.includes(input.serviceCode)) fail("VALIDATION", 400, "Choose a service");
+      amount = SERVICE_PRICES_HALALAS[input.serviceCode];
+      serviceCode = input.serviceCode;
     }
     if (!Number.isInteger(amount) || amount < 100) fail("VALIDATION", 400, "Amount is too small");
     const intent = await this.kernel.prisma.paymentIntent.create({
@@ -66,6 +75,7 @@ export class BillingService {
         userId,
         purpose: input.purpose,
         planCode: planCode ?? undefined,
+        serviceCode,
         cycle,
         amountHalalas: amount,
         jurisdiction: place.code,
@@ -176,7 +186,11 @@ export class BillingService {
         });
         const issued = new Date();
         const number = nextInvoiceNumber(issued.getUTCFullYear(), seq.value);
-        const description = intent.purpose === "subscription" ? `Plan ${intent.planCode}` : "Wallet top-up";
+        const description = intent.purpose === "subscription"
+          ? `Plan ${intent.planCode}`
+          : intent.purpose === "service"
+            ? `Service ${intent.serviceCode}`
+            : "Wallet top-up";
         await tx.invoice.create({
           data: {
             userId: user.id,
@@ -233,18 +247,22 @@ export class BillingService {
               description: `Plan ${intent.planCode}`,
             },
           });
-          if (intent.planCode === "office") {
-            const seats = PLAN_DEFS.office.seats;
-            const org = await tx.organization.findUnique({ where: { ownerId: user.id } });
-            if (!org) {
-              const created = await tx.organization.create({
-                data: { name: user.name, ownerId: user.id, seatLimit: seats, letterheadName: "" },
-              });
-              await tx.user.update({ where: { id: user.id }, data: { orgId: created.id, orgRole: "owner" } });
-            } else {
-              await tx.organization.update({ where: { id: org.id }, data: { seatLimit: seats } });
-            }
+        } else if (intent.purpose === "service") {
+          if (intent.serviceCode === "chat_pack") {
+            await tx.user.update({
+              where: { id: user.id },
+              data: { chatCredits: { increment: CHAT_PACK_QUESTIONS } },
+            });
           }
+          await tx.walletTransaction.create({
+            data: {
+              userId: user.id,
+              type: "memo_purchase",
+              amountHalalas: intent.amountHalalas,
+              idempotencyKey: eventKey,
+              description: `Service ${intent.serviceCode}`,
+            },
+          });
         }
       });
     } catch (error) {

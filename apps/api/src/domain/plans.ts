@@ -29,7 +29,7 @@ export const PLAN_DEFS: Record<PlanCode, PlanDef> = {
     word: false,
     caseManagement: false,
     letterhead: false,
-    seats: PUBLISHED_PLANS.free.seats,
+    seats: 1,
   },
   basic: {
     code: "basic",
@@ -42,7 +42,7 @@ export const PLAN_DEFS: Record<PlanCode, PlanDef> = {
     word: false,
     caseManagement: false,
     letterhead: false,
-    seats: PUBLISHED_PLANS.basic.seats,
+    seats: 1,
   },
   pro: {
     code: "pro",
@@ -55,20 +55,7 @@ export const PLAN_DEFS: Record<PlanCode, PlanDef> = {
     word: true,
     caseManagement: true,
     letterhead: false,
-    seats: PUBLISHED_PLANS.pro.seats,
-  },
-  office: {
-    code: "office",
-    jurisdiction: DEFAULT_JURISDICTION,
-    currency: SA.currency,
-    priceHalalas: PUBLISHED_PLANS.office.priceHalalas,
-    memoLimit: PUBLISHED_PLANS.office.memoLimit,
-    chatLimit: PUBLISHED_PLANS.office.chatLimit,
-    courts: [...COURTS],
-    word: true,
-    caseManagement: true,
-    letterhead: true,
-    seats: PUBLISHED_PLANS.office.seats,
+    seats: 1,
   },
 };
 
@@ -84,7 +71,6 @@ export function resolvePlan(
   if (!override) return base;
   return {
     ...base,
-    priceHalalas: override.priceHalalas,
     memoLimit: override.memoLimit,
     chatLimit: override.chatLimit,
     currency: override.currency || base.currency,
@@ -96,9 +82,14 @@ export function chatsCounted(plan: PlanDef, lifetime: number, period: number): n
   return plan.code === "free" ? lifetime : period;
 }
 
-export function chatQuota(plan: PlanDef, chatCount: number): { ok: true } | { ok: false; code: "QUOTA_CHATS" } {
-  if (plan.chatLimit != null && chatCount >= plan.chatLimit) return { ok: false, code: "QUOTA_CHATS" };
-  return { ok: true };
+export function chatQuota(
+  plan: PlanDef,
+  chatCount: number,
+  extraCredits = 0,
+): { ok: true; spendCredit: boolean } | { ok: false; code: "QUOTA_CHATS" } {
+  if (plan.chatLimit == null || chatCount < plan.chatLimit) return { ok: true, spendCredit: false };
+  if (extraCredits > 0) return { ok: true, spendCredit: true };
+  return { ok: false, code: "QUOTA_CHATS" };
 }
 
 export function memoQuota(plan: PlanDef, used: number): { ok: true } | { ok: false; code: "QUOTA_MEMOS" } {

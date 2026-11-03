@@ -1,8 +1,16 @@
 "use client";
 
-import type { PlanOffer } from "@elawyer/types";
+import { SERVICE_CODES, SERVICE_PRICES_HALALAS, type PlanOffer, type ServiceCode } from "@elawyer/types";
 import { useEffect, useState } from "react";
 import { useApp } from "@/lib/providers";
+
+const SERVICE_KEY: Record<ServiceCode, string> = {
+  review: "plans.serviceReview",
+  defense: "plans.serviceDefense",
+  lawsuit: "plans.serviceClaim",
+  objection: "plans.serviceObjection",
+  chat_pack: "plans.serviceChatPack",
+};
 
 export default function PlansPage() {
   const { t, client, user } = useApp();
@@ -25,7 +33,7 @@ export default function PlansPage() {
           <button type="button" className={`rounded-full px-3 py-1 ${yearly ? "bg-white dark:bg-navy-700" : ""}`} onClick={() => setYearly(true)}>{t("plans.yearly")}</button>
         </div>
       </div>
-      <div className="mt-6 grid gap-4 md:grid-cols-4">
+      <div className="mt-6 grid gap-4 md:grid-cols-3">
         {plans.map((plan) => {
           const price = yearly ? plan.yearlyHalalas : plan.priceHalalas;
           const current = user?.planCode === plan.code;
@@ -43,7 +51,27 @@ export default function PlansPage() {
           );
         })}
       </div>
-      <p className="mt-6 text-sm text-ink-500">{t("plans.payg", { price: 29 })}</p>
+      <ul className="mt-6 space-y-2 text-sm text-ink-500">
+        <li>{t("plans.payg")}</li>
+        {SERVICE_CODES.map((code) => (
+          <li key={code} className="flex items-center justify-between gap-3">
+            <span>{t(SERVICE_KEY[code], { price: (SERVICE_PRICES_HALALAS[code] / 100).toFixed(0) })}</span>
+            {code === "review" || code === "chat_pack" ? (
+              <button
+                type="button"
+                className="rounded-xl bg-navy-700 px-3 py-2 text-xs font-semibold text-white"
+                onClick={() => {
+                  void client.checkout({ purpose: "service", serviceCode: code }).then((result) => {
+                    window.location.href = result.redirectUrl;
+                  });
+                }}
+              >
+                {t("plans.choose")}
+              </button>
+            ) : null}
+          </li>
+        ))}
+      </ul>
     </main>
   );
 }

@@ -18,7 +18,7 @@ export type CourtType = (typeof COURTS)[number];
 export const MEMO_TYPES = ["lawsuit", "defense", "reply", "appeal"] as const;
 export type MemoType = (typeof MEMO_TYPES)[number];
 
-export const PLAN_CODES = ["free", "basic", "pro", "office"] as const;
+export const PLAN_CODES = ["free", "basic", "pro"] as const;
 export type PlanCode = (typeof PLAN_CODES)[number];
 
 export const DEFAULT_JURISDICTION = "SA" as const;
@@ -34,16 +34,46 @@ export function jurisdictionOf(code: string | null | undefined) {
   return JURISDICTION_CATALOG[DEFAULT_JURISDICTION];
 }
 
-export const PAY_PER_MEMO_HALALAS = 2900;
+/** Displayed prices already include VAT and the gateway fee. */
+export const VAT_RATE = 0.15;
+export const GATEWAY_FEE_RATE = 0.025;
+export const GATEWAY_FEE_FIXED_HALALAS = 100;
+export const FREE_CHAT_LIMIT = 5;
+export const CHAT_PACK_QUESTIONS = 50;
+
+export const SERVICE_CODES = ["review", "defense", "lawsuit", "objection", "chat_pack"] as const;
+export type ServiceCode = (typeof SERVICE_CODES)[number];
+
+export const SERVICE_PRICES_HALALAS: Record<ServiceCode, number> = {
+  review: 2900,
+  defense: 4900,
+  lawsuit: 5900,
+  objection: 6900,
+  chat_pack: 1900,
+};
+
+export function priceForMemoType(memoType: MemoType): number {
+  if (memoType === "lawsuit") return SERVICE_PRICES_HALALAS.lawsuit;
+  if (memoType === "appeal") return SERVICE_PRICES_HALALAS.objection;
+  return SERVICE_PRICES_HALALAS.defense;
+}
+
+export function ownerNetHalalas(
+  priceHalalas: number,
+  vatRate = VAT_RATE,
+  feeRate = GATEWAY_FEE_RATE,
+  feeFixedHalalas = GATEWAY_FEE_FIXED_HALALAS,
+): number {
+  return Math.round(priceHalalas * (1 / (1 + vatRate) - feeRate) - feeFixedHalalas);
+}
 
 export const PUBLISHED_PLANS: Record<
   PlanCode,
-  { priceHalalas: number; memoLimit: number; chatLimit: number | null; seats: number }
+  { priceHalalas: number; memoLimit: number; chatLimit: number | null }
 > = {
-  free: { priceHalalas: 0, memoLimit: 5, chatLimit: 5, seats: 1 },
-  basic: { priceHalalas: 9900, memoLimit: 30, chatLimit: null, seats: 1 },
-  pro: { priceHalalas: 24900, memoLimit: 100, chatLimit: null, seats: 1 },
-  office: { priceHalalas: 59900, memoLimit: 100, chatLimit: null, seats: 5 },
+  free: { priceHalalas: 0, memoLimit: 5, chatLimit: FREE_CHAT_LIMIT },
+  basic: { priceHalalas: 9900, memoLimit: 30, chatLimit: null },
+  pro: { priceHalalas: 24900, memoLimit: 100, chatLimit: null },
 };
 
 export const LOCALES = [
@@ -102,7 +132,6 @@ export interface PlanOffer {
   caseManagement: boolean;
   letterhead: boolean;
   seats: number;
-  payPerMemoHalalas: number;
 }
 
 export interface CitationView {

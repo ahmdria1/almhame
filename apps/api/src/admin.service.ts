@@ -1,5 +1,14 @@
 import { Injectable } from "@nestjs/common";
-import { DEFAULT_JURISDICTION, PLAN_CODES } from "@elawyer/types";
+import {
+  DEFAULT_JURISDICTION,
+  GATEWAY_FEE_FIXED_HALALAS,
+  GATEWAY_FEE_RATE,
+  PLAN_CODES,
+  PUBLISHED_PLANS,
+  SERVICE_PRICES_HALALAS,
+  VAT_RATE,
+  ownerNetHalalas,
+} from "@elawyer/types";
 import { PlanCode } from "@prisma/client";
 import { CorpusService } from "./corpus.service";
 import { fail } from "./http-error";
@@ -68,17 +77,21 @@ export class AdminService {
 
   async plans() {
     const rows = await this.kernel.prisma.planSetting.findMany({ orderBy: { code: "asc" } });
-    return rows;
+    return rows
+      .filter((row) => (PLAN_CODES as readonly string[]).includes(row.code))
+      .map((row) => {
+        const priceHalalas = PUBLISHED_PLANS[row.code].priceHalalas;
+        return { ...row, priceHalalas, netHalalas: ownerNetHalalas(priceHalalas) };
+      });
   }
 
   async updatePlan(code: string, input: { priceHalalas?: number; memoLimit?: number; chatLimit?: number | null }) {
     if (!PLAN_CODES.includes(code as PlanCode)) fail("VALIDATION", 400, "Unknown plan");
-    const priceHalalas = Number(input.priceHalalas);
     const memoLimit = Number(input.memoLimit);
-    if (!Number.isInteger(priceHalalas) || priceHalalas < 0) fail("VALIDATION", 400, "Price is invalid");
     if (!Number.isInteger(memoLimit) || memoLimit < 0) fail("VALIDATION", 400, "Quota is invalid");
     const chatLimit = input.chatLimit == null || input.chatLimit === ("" as unknown) ? null : Number(input.chatLimit);
     if (chatLimit != null && (!Number.isInteger(chatLimit) || chatLimit < 0)) fail("VALIDATION", 400, "Chat quota is invalid");
+    const priceHalalas = PUBLISHED_PLANS[code as PlanCode].priceHalalas;
     return this.kernel.prisma.planSetting.update({
       where: { jurisdiction_code: { jurisdiction: DEFAULT_JURISDICTION, code: code as PlanCode } },
       data: { priceHalalas, memoLimit, chatLimit },
@@ -153,6 +166,15 @@ export class AdminService {
 
   settings() {
     const cfg = this.kernel.config;
+    const items = [
+      { code: "basic", label: "الباقة الأساسية", priceHalalas: PUBLISHED_PLANS.basic.priceHalalas },
+      { code: "pro", label: "الباقة الاحترافية", priceHalalas: PUBLISHED_PLANS.pro.priceHalalas },
+      { code: "review", label: "مراجعة أو تدقيق", priceHalalas: SERVICE_PRICES_HALALAS.review },
+      { code: "defense", label: "مذكرة دفاع أو جوابية", priceHalalas: SERVICE_PRICES_HALALAS.defense },
+      { code: "lawsuit", label: "صحيفة دعوى", priceHalalas: SERVICE_PRICES_HALALAS.lawsuit },
+      { code: "objection", label: "لائحة اعتراضية", priceHalalas: SERVICE_PRICES_HALALAS.objection },
+      { code: "chat_pack", label: "حزمة خمسين سؤالاً", priceHalalas: SERVICE_PRICES_HALALAS.chat_pack },
+    ];
     return {
       nodeEnv: cfg.nodeEnv,
       llmProvider: cfg.llmProvider,
@@ -161,6 +183,15 @@ export class AdminService {
       smsProvider: cfg.smsProvider,
       smtpConfigured: Boolean(cfg.smtpHost && cfg.smtpFrom),
       emailDebug: cfg.emailDebug,
+      vatRate: VAT_RATE,
+      gatewayFeeRate: GATEWAY_FEE_RATE,
+      gatewayFeeFixedHalalas: GATEWAY_FEE_FIXED_HALALAS,
+      nets: items.map((item) => ({
+        code: item.code,
+        label: item.label,
+        priceHalalas: item.priceHalalas,
+        netHalalas: ownerNetHalalas(item.priceHalalas),
+      })),
     };
   }
 }

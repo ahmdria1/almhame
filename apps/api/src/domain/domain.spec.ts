@@ -1,6 +1,6 @@
 import { readFileSync } from "fs";
 import { join } from "path";
-import { DEFAULT_JURISDICTION, JURISDICTION_CATALOG } from "@elawyer/types";
+import { DEFAULT_JURISDICTION, JURISDICTION_CATALOG, SERVICE_PRICES_HALALAS, ownerNetHalalas, priceForMemoType } from "@elawyer/types";
 import { knownArticle, textHash, validateCitations } from "./citations";
 import { citationLabel } from "./article-numbers";
 import { composeDraft, readSlots } from "./draft";
@@ -45,13 +45,22 @@ describe("plans and vat", () => {
   it("enforces free chat and memo quotas", () => {
     expect(chatQuota(PLAN_DEFS.free, 4).ok).toBe(true);
     expect(chatQuota(PLAN_DEFS.free, 5)).toEqual({ ok: false, code: "QUOTA_CHATS" });
+    expect(chatQuota(PLAN_DEFS.free, 5, 3)).toEqual({ ok: true, spendCredit: true });
+    expect(priceForMemoType("lawsuit")).toBe(5900);
+    expect(priceForMemoType("defense")).toBe(4900);
+    expect(priceForMemoType("reply")).toBe(4900);
+    expect(priceForMemoType("appeal")).toBe(6900);
+    expect(SERVICE_PRICES_HALALAS.review).toBe(2900);
+    expect(SERVICE_PRICES_HALALAS.chat_pack).toBe(1900);
+    expect(ownerNetHalalas(9900)).toBe(Math.round(9900 * (1 / 1.15 - 0.025) - 100));
     expect(chatsCounted(PLAN_DEFS.free, 5, 0)).toBe(5);
     expect(chatsCounted(PLAN_DEFS.basic, 5, 0)).toBe(0);
     expect(chatQuota(PLAN_DEFS.basic, chatsCounted(PLAN_DEFS.basic, 5, 0)).ok).toBe(true);
     expect(memoQuota(PLAN_DEFS.basic, 30)).toEqual({ ok: false, code: "QUOTA_MEMOS" });
     expect(PLAN_DEFS.basic.priceHalalas).toBe(9900);
     expect(PLAN_DEFS.pro.priceHalalas).toBe(24900);
-    expect(PLAN_DEFS.office.priceHalalas).toBe(59900);
+    expect(PLAN_DEFS.free.chatLimit).toBe(5);
+    expect("office" in PLAN_DEFS).toBe(false);
     expect(PLAN_DEFS.pro.word).toBe(true);
     expect(PLAN_DEFS.basic.word).toBe(false);
   });
@@ -514,7 +523,8 @@ describe("remaining domain branches", () => {
     expect(otpMatches("123456", "abcd", "pepper-value")).toBe(false);
     expect(yearlyHalalas(9900)).toBe(118800);
     const overridden = resolvePlan("basic", { priceHalalas: 1000, memoLimit: 2, chatLimit: 3 });
-    expect(overridden.priceHalalas).toBe(1000);
+    expect(overridden.priceHalalas).toBe(9900);
+    expect(overridden.memoLimit).toBe(2);
     expect(resolvePlan("pro", null).code).toBe("pro");
     expect(overridden.jurisdiction).toBe(DEFAULT_JURISDICTION);
     expect(overridden.currency).toBe(JURISDICTION_CATALOG.SA.currency);
