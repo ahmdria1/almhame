@@ -428,6 +428,30 @@ describe("draft guard", () => {
     })).body).toContain("تاريخ الحكم سابق");
   });
 
+  it("signs the memo as the party who presents it", () => {
+    const tail = (memoType: MemoType) => humanMemo(packet(memoType)).body.split("مقدم المذكرة").pop() || "";
+    expect(tail("lawsuit")).toContain("خالد بن سامي");
+    expect(tail("lawsuit")).toContain("المدّعي");
+    expect(tail("lawsuit")).not.toContain("شركة أفق");
+    expect(tail("defense")).toContain("شركة أفق");
+    expect(tail("defense")).toContain("المدّعى عليه");
+    expect(tail("defense")).not.toContain("خالد");
+    expect(tail("reply")).toContain("خالد بن سامي");
+    expect(tail("reply")).toContain("مقدم الجواب");
+    expect(tail("appeal")).toContain("خالد بن سامي");
+    expect(tail("appeal")).toContain("المعترض");
+    for (const memoType of MEMO_TYPES) {
+      const body = humanMemo(packet(memoType)).body;
+      expect(body.split("والله الموفق").length - 1).toBe(1);
+      expect(body.split("مقدم المذكرة").length - 1).toBe(1);
+      expect(body.indexOf("الطلبات")).toBeLessThan(body.indexOf("مقدم المذكرة"));
+    }
+    const reviewed = reviewModelDraft(mocked("lawsuit"), packet("lawsuit"));
+    expect(reviewed.ok).toBe(true);
+    if (!reviewed.ok) return;
+    expect(reviewed.draft.body.split("مقدم المذكرة").pop()).toContain("خالد بن سامي");
+  });
+
   it("rejects the stock phrases that do not answer the case", () => {
     const phrases = [
       "لا يقوم دفع شكلي على نص محفوظ مطابق",

@@ -452,6 +452,18 @@ function asksToChargeDefendant(text: string): boolean {
   return text.includes("إلزام المدّعى عليه") || text.includes("إلزام المدعى عليه");
 }
 
+function signatureLines(packet: DraftPacket): string[] {
+  const signer = packet.memoType === "defense" ? packet.slots.defendant : packet.slots.plaintiff;
+  const role = packet.memoType === "defense" ? "المدّعى عليه" : packet.memoType === "appeal" ? "المعترض" : packet.memoType === "reply" ? "مقدم الجواب" : "المدّعي";
+  return ["والله الموفق،،", "", "مقدم المذكرة", signer, role];
+}
+
+function ensureSignature(packet: DraftPacket, body: string): string {
+  if (body.includes("مقدم المذكرة")) return body;
+  const trimmed = body.replace(/\n*والله الموفق[،.\s]*$/u, "").trimEnd();
+  return `${trimmed}\n\n${signatureLines(packet).join("\n")}`;
+}
+
 function finishDraft(packet: DraftPacket, body: string, citations: CitationRef[]): SettledDraft {
   const title = packet.title || "";
   const heading = packet.courtHeading || "";
@@ -459,7 +471,7 @@ function finishDraft(packet: DraftPacket, body: string, citations: CitationRef[]
   if (packet.letterhead && !text.includes(packet.letterhead)) text = text.replace("بسم الله الرحمن الرحيم", `بسم الله الرحمن الرحيم\n\n${packet.letterhead}`);
   if (title && !text.includes(title)) text = text.replace("بسم الله الرحمن الرحيم", `بسم الله الرحمن الرحيم\n\n${title}`);
   if (heading && title && !text.includes(heading)) text = text.replace(title, `${title}\n\n${heading}`);
-  return { title, body: text.trim(), citations };
+  return { title, body: ensureSignature(packet, text.trim()), citations };
 }
 
 function quoteBlock(article: RetrievedArticle, seed: string, reason: string): string {
@@ -654,8 +666,8 @@ export function humanMemo(packet: DraftPacket): SettledDraft {
   const seed = `${packet.memoType}:${packet.slots.facts}`;
   const lines = ["بسم الله الرحمن الرحيم", "", title, "", heading];
   if (packet.letterhead) lines.push(packet.letterhead);
-  lines.push("", ...parties(packet), ...numbered(sectionsOf(packet, seed)), "", "والله الموفق.");
-  const body = applySectionNumbers(lines.filter((line, index, all) => line !== "" || all[index - 1] !== "").join("\n"));
+  lines.push("", ...parties(packet), ...numbered(sectionsOf(packet, seed)));
+  const body = ensureSignature(packet, applySectionNumbers(lines.filter((line, index, all) => line !== "" || all[index - 1] !== "").join("\n")));
   return { title, body, citations: citationsUsed(body, packet) };
 }
 
