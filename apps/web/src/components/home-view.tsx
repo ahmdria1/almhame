@@ -105,7 +105,7 @@ export function HomeView({ locale }: { locale: Locale }) {
             <h2 className="text-3xl font-bold text-navy-700">{t("landing.plansTitle")}</h2>
             <p className="mt-2 text-ink-700">{t("landing.plansSubtitle")}</p>
             <p className="mt-2 text-sm text-ink-700">{COPY.vat[locale]}</p>
-            <div className="mt-8 grid gap-4 md:grid-cols-3">
+            <div className="mx-auto mt-8 grid max-w-5xl gap-4 md:grid-cols-3">
               {PLAN_CODES.map((code) => {
                 const plan = PUBLISHED_PLANS[code];
                 const featured = code === "pro";

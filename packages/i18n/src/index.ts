@@ -75,6 +75,30 @@ export function translate(
   return text;
 }
 
+export function pluralCategory(locale: string, count: number): "one" | "two" | "few" | "many" {
+  const n = Math.abs(Math.trunc(count));
+  if (locale === "ar") {
+    if (n === 1) return "one";
+    if (n === 2) return "two";
+    const mod = n % 100;
+    if (mod >= 3 && mod <= 10) return "few";
+    return "many";
+  }
+  return n === 1 ? "one" : "many";
+}
+
+export function memoCountPhrase(locale: string, count: number): string {
+  const category = pluralCategory(locale, count);
+  const key = category === "one"
+    ? "plans.memoOne"
+    : category === "two"
+      ? "plans.memoTwo"
+      : category === "few"
+        ? "plans.memoFew"
+        : "plans.memoMany";
+  return translate(locale, key, { count });
+}
+
 export function flattenKeys(dict: Dictionary): string[] {
   return Object.keys(dict).sort();
 }

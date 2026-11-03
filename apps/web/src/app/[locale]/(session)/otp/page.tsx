@@ -1,10 +1,10 @@
 "use client";
 
-import { ApiError } from "@elawyer/api-client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useState } from "react";
 import { AuthShell } from "@/components/auth-shell";
 import { Button, Input } from "@/components/ui";
+import { userFacingError } from "@/lib/errors";
 import { useApp } from "@/lib/providers";
 
 function OtpForm() {
@@ -24,7 +24,7 @@ function OtpForm() {
       setSession(result.user);
       router.push("/app");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t("common.error"));
+      setError(userFacingError(err, t));
     }
   }
 
@@ -46,7 +46,7 @@ function OtpForm() {
             const result = await client.resend({ email });
             router.replace(`/otp?challenge=${result.challengeId}&email=${encodeURIComponent(email)}`);
           } catch (err) {
-            setError(err instanceof ApiError ? err.message : t("common.error"));
+            setError(userFacingError(err, t));
           }
         }}
       >

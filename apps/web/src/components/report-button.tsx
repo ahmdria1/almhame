@@ -9,7 +9,7 @@ export function ReportButton() {
   const [note, setNote] = useState("");
   return (
     <>
-      <button type="button" className="fixed bottom-4 end-4 z-30 rounded-full bg-navy-700 px-4 py-2 text-sm font-semibold text-white" onClick={() => setOpen(true)}>
+      <button type="button" className="fixed bottom-36 end-4 z-30 inline-flex min-h-11 items-center rounded-full bg-navy-700 px-4 text-sm font-semibold text-white lg:bottom-4" onClick={() => setOpen(true)}>
         {t("report.label")}
       </button>
       {open ? (

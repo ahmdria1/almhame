@@ -1,11 +1,11 @@
 "use client";
 
-import { ApiError } from "@elawyer/api-client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { AuthShell } from "@/components/auth-shell";
 import { Button, Input } from "@/components/ui";
+import { userFacingError } from "@/lib/errors";
 import { useApp } from "@/lib/providers";
 
 export default function LoginPage() {
@@ -25,7 +25,7 @@ export default function LoginPage() {
       setSession(result.user);
       router.push("/app");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t("common.error"));
+      setError(userFacingError(err, t));
     }
   }
 

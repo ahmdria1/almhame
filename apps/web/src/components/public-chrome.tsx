@@ -25,10 +25,10 @@ export function PublicHeader({ locale, page }: { locale: Locale; page: PageRef }
       <a href="#content" className="sr-only focus:not-sr-only focus:fixed focus:start-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-navy-700 focus:px-4 focus:py-2 focus:text-white">
         {COPY.skip[locale]}
       </a>
-      <div className="mx-auto flex min-h-16 max-w-6xl items-center gap-4 px-4 py-2">
-        <a href={home} className="flex items-center gap-2">
+      <div data-testid="public-header" className="mx-auto flex h-16 max-w-6xl flex-nowrap items-center gap-3 px-4">
+        <a href={home} className="flex min-w-0 items-center gap-2">
           <Image src="/brand/node-scale.svg" alt="" width={34} height={34} priority unoptimized />
-          <span className="text-[15px] font-bold text-navy-700">{name}</span>
+          <span className="hidden truncate text-[15px] font-bold text-navy-700 sm:inline sm:max-w-[10rem] lg:max-w-none">{name}</span>
         </a>
         <nav aria-label={COPY.menu[locale]} className="hidden flex-1 items-center justify-center gap-6 text-sm font-semibold text-ink-700 lg:flex">
           {links.map(([path, key]) => (
@@ -38,22 +38,29 @@ export function PublicHeader({ locale, page }: { locale: Locale; page: PageRef }
           ))}
         </nav>
         <details className="relative lg:hidden">
-          <summary className="min-h-12 cursor-pointer list-none rounded-full border border-ink-200 px-3 py-2 text-sm font-semibold text-navy-700">
-            {COPY.menu[locale]}
+          <summary aria-label={COPY.menu[locale]} className="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-full border border-ink-200 text-navy-700">
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
           </summary>
-          <div className="absolute end-0 z-50 mt-2 w-52 rounded-2xl border border-ink-200 bg-white p-2 shadow-card">
+          <div className="absolute end-0 z-50 mt-2 w-56 rounded-2xl border border-ink-200 bg-white p-2 shadow-card">
             {links.map(([path, key]) => (
-              <a key={key} href={path} className="block rounded-xl px-3 py-2 text-sm font-semibold text-navy-700">
+              <a key={key} href={path} className="block min-h-11 rounded-xl px-3 py-2 text-sm font-semibold text-navy-700">
                 {label(locale, key)}
               </a>
             ))}
+            <a href={authPath(locale, "/login")} className="block min-h-11 rounded-xl px-3 py-2 text-sm font-semibold text-navy-700">{label(locale, "nav.login")}</a>
+            <a href={authPath(locale, "/signup")} className="mt-1 block min-h-11 rounded-xl bg-navy-700 px-3 py-2 text-center text-sm font-semibold text-white">{label(locale, "nav.startFree")}</a>
           </div>
         </details>
         <div className="ms-auto flex items-center gap-2">
           <details className="relative">
-            <summary data-testid="lang-switch" className="flex min-h-12 cursor-pointer list-none items-center gap-1 rounded-full border border-ink-200 px-3 py-2 text-sm font-semibold text-navy-700">
-              <span aria-hidden="true">🌐</span>
-              <span className="hidden sm:inline">{COPY.language[locale]}</span>
+            <summary data-testid="lang-switch" className="flex min-h-11 min-w-11 cursor-pointer list-none items-center gap-1 rounded-full border border-ink-200 px-3 text-sm font-semibold text-navy-700">
+              <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M3 12h18M12 3c2.5 2.8 3.8 5.8 3.8 9s-1.3 6.2-3.8 9c-2.5-2.8-3.8-5.8-3.8-9s1.3-6.2 3.8-9z" />
+              </svg>
+              <span className="hidden lg:inline">{COPY.language[locale]}</span>
             </summary>
             <div className="absolute end-0 z-50 mt-2 w-44 rounded-2xl border border-ink-200 bg-white p-1 shadow-card">
               {LOCALES.map((code) => (
@@ -74,7 +81,7 @@ export function PublicHeader({ locale, page }: { locale: Locale; page: PageRef }
           <a href={authPath(locale, "/login")} className="hidden min-h-12 items-center px-3 text-sm font-semibold text-navy-700 sm:inline-flex">
             {label(locale, "nav.login")}
           </a>
-          <a href={authPath(locale, "/signup")} data-testid="start-free" className="inline-flex min-h-12 items-center rounded-xl bg-navy-700 px-3 text-sm font-semibold text-white">
+          <a href={authPath(locale, "/signup")} data-testid="start-free" className="hidden min-h-11 items-center whitespace-nowrap rounded-xl bg-navy-700 px-3 text-sm font-semibold text-white md:inline-flex">
             {label(locale, "nav.startFree")}
           </a>
         </div>

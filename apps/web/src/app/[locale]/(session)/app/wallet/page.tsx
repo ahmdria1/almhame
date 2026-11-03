@@ -8,11 +8,18 @@ const AMOUNTS = [10000, 25000, 50000, 100000];
 export default function WalletPage() {
   const { t, client } = useApp();
   const [data, setData] = useState<{ balanceHalalas: number; transactions: { id: string; type: string; amountHalalas: number; description: string; createdAt: string }[]; invoices: { id: string; number: string; totalHalalas: number; vatHalalas: number; issuedAt: string; lineDescription: string }[] } | null>(null);
+  const [failed, setFailed] = useState(false);
 
   async function load() {
-    setData(await client.wallet());
+    try {
+      setData(await client.wallet());
+      setFailed(false);
+    } catch {
+      setData(null);
+      setFailed(true);
+    }
   }
-  useEffect(() => { load().catch(() => undefined); }, []);
+  useEffect(() => { void load(); }, []);
 
   async function topup(amountHalalas: number) {
     const result = await client.checkout({ purpose: "topup", amountHalalas });
@@ -25,10 +32,17 @@ export default function WalletPage() {
       <p className="text-ink-500">{t("wallet.subtitle")}</p>
       <section className="mt-6 rounded-3xl bg-navy-700 p-6 text-white">
         <p className="text-sm text-white/70">{t("wallet.balance")}</p>
-        <p className="mt-2 text-4xl font-bold">{((data?.balanceHalalas || 0) / 100).toFixed(2)} {t("common.sar")}</p>
+        {failed || !data ? (
+          <div className="mt-3">
+            <p>{failed ? t("common.error") : t("common.loading")}</p>
+            {failed ? <button type="button" className="mt-3 inline-flex min-h-11 items-center rounded-xl bg-white px-4 text-sm font-semibold text-navy-700" onClick={() => void load()}>{t("common.retry")}</button> : null}
+          </div>
+        ) : (
+          <p className="mt-2 text-4xl font-bold">{(data.balanceHalalas / 100).toFixed(2)} {t("common.sar")}</p>
+        )}
         <div className="mt-4 flex flex-wrap gap-2">
           {AMOUNTS.map((amount) => (
-            <button key={amount} data-testid={`topup-${amount / 100}`} className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold" type="button" onClick={() => void topup(amount)}>
+            <button key={amount} data-testid={`topup-${amount / 100}`} className="inline-flex min-h-11 items-center rounded-xl bg-white/10 px-4 text-sm font-semibold" type="button" onClick={() => void topup(amount)}>
               {amount / 100} {t("common.sar")}
             </button>
           ))}

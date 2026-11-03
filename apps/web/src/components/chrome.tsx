@@ -1,6 +1,6 @@
 "use client";
 
-import { LANGUAGE_NAMES } from "@elawyer/i18n";
+import { LANGUAGE_NAMES, memoCountPhrase } from "@elawyer/i18n";
 import type { Locale } from "@elawyer/types";
 import {
   Bell,
@@ -26,7 +26,7 @@ export function LanguageMenu() {
   const [open, setOpen] = useState(false);
   return (
     <div className="relative">
-      <button data-testid="lang-switch" className="flex items-center gap-1 rounded-full border border-ink-200 px-3 py-1.5 text-sm font-semibold text-navy-700 dark:border-white/10 dark:text-white" onClick={() => setOpen((value) => !value)} type="button">
+      <button data-testid="lang-switch" className="flex min-h-11 min-w-11 items-center gap-1 rounded-full border border-ink-200 px-3 text-sm font-semibold text-navy-700 dark:border-white/10 dark:text-white" onClick={() => setOpen((value) => !value)} type="button">
         <Globe size={16} />
         <span className="hidden sm:inline">{languages[locale]}</span>
       </button>
@@ -53,7 +53,7 @@ export function LanguageMenu() {
 }
 
 export function AccountMenu() {
-  const { t, user, logout } = useApp();
+  const { t, user, logout, locale } = useApp();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [notes, setNotes] = useState<{ id: string; title: string }[]>([]);
@@ -74,7 +74,7 @@ export function AccountMenu() {
   ] as const;
   return (
     <div className="flex items-center gap-2">
-      <button aria-label={t("bell.label")} className="rounded-full p-2 text-ink-500" type="button" onClick={() => setShowNotes((value) => !value)}>
+      <button aria-label={t("bell.label")} className="grid min-h-11 min-w-11 place-items-center rounded-full text-ink-500" type="button" onClick={() => setShowNotes((value) => !value)}>
         <Bell size={18} />
       </button>
       {showNotes ? (
@@ -92,7 +92,7 @@ export function AccountMenu() {
           <div className="px-3 py-2">
             <p className="font-semibold">{user.name}</p>
             <p className="text-xs text-ink-500">{user.email}</p>
-            <p className="mt-2 text-sm text-teal-700">{t("menu.memosLeft", { count: user.memoRemaining })}</p>
+            <p className="mt-2 text-sm text-teal-700">{t("menu.memosLeft", { phrase: memoCountPhrase(locale, user.memoRemaining) })}</p>
           </div>
           {items.map(([href, key, Icon]) => (
             <Link key={key} href={href} data-testid={`menu-${key.split(".")[1]}`} className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold hover:bg-ink-100 dark:hover:bg-white/5" onClick={() => setOpen(false)}>

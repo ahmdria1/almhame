@@ -1,5 +1,5 @@
 import { LOCALES } from "@elawyer/types";
-import { dictionaries, dirFor, translate, uploadErrorKey } from "../src";
+import { dictionaries, dirFor, memoCountPhrase, translate, uploadErrorKey } from "../src";
 
 describe("locales", () => {
   const arKeys = Object.keys(dictionaries.ar).sort();
@@ -23,7 +23,7 @@ describe("locales", () => {
   });
 
   it("keeps the same keys in every locale and does not copy English except proper nouns", () => {
-    const proper = new Set(["Google Drive", "OneDrive", "SAR", "Ahmed Alamrani"]);
+    const proper = new Set(["Google Drive", "OneDrive", "SAR", "ر.س", "Ahmed Alamrani"]);
     for (const locale of LOCALES) {
       expect(Object.keys(dictionaries[locale]).sort()).toEqual(arKeys);
       if (locale === "en") continue;
@@ -45,5 +45,12 @@ describe("locales", () => {
     expect(uploadErrorKey("FILE_INFECTED")).toBe("upload.infected");
     expect(uploadErrorKey("PDF_UNSAFE")).toBe("upload.unsupported");
     expect(translate("ur", uploadErrorKey("SCANNER_UNAVAILABLE") || "")).not.toBe("upload.scanner");
+    expect(memoCountPhrase("ar", 1)).toBe("مذكرة واحدة");
+    expect(memoCountPhrase("ar", 2)).toBe("مذكرتان");
+    expect(memoCountPhrase("ar", 5)).toBe("5 مذكرات");
+    expect(memoCountPhrase("ar", 11)).toBe("11 مذكرة");
+    expect(memoCountPhrase("en", 1)).toBe("1 memo");
+    expect(memoCountPhrase("en", 5)).toBe("5 memos");
+    for (const locale of LOCALES) expect(dictionaries[locale]["common.sar"]).toBe("ر.س");
   });
 });

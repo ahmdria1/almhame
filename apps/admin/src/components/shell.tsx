@@ -26,11 +26,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <p className="text-xs text-teal-100">المحامي الإلكتروني</p>
           <h1 className="text-lg font-bold">لوحة الإدارة</h1>
         </div>
-        <nav className="flex gap-2 overflow-x-auto px-3 pb-4 md:block md:px-3">
+        <nav className="flex flex-wrap gap-2 px-3 pb-4 md:block md:px-3">
           {LINKS.map(([href, label]) => {
             const active = path === href;
             return (
-              <Link key={href} href={href} className={`mb-1 block whitespace-nowrap rounded-xl px-3 py-2 text-sm ${active ? "bg-white text-navy-800" : "text-white/90"}`}>
+              <Link key={href} href={href} className={`mb-1 flex min-h-11 items-center whitespace-nowrap rounded-xl px-3 text-sm ${active ? "bg-white text-navy-800" : "text-white/90"}`}>
                 {label}
               </Link>
             );
@@ -38,7 +38,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </nav>
         <button
           type="button"
-          className="m-3 text-sm text-white/80"
+          className="m-3 inline-flex min-h-11 items-center text-sm text-white/80"
           onClick={() => {
             void adminFetch("/admin/logout", { method: "POST" }).finally(() => {
               window.location.href = "/";

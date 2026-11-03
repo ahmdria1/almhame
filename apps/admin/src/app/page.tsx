@@ -24,8 +24,12 @@ export default function AdminLogin() {
       <form onSubmit={onSubmit} className="w-full max-w-sm rounded-3xl border border-ink-200 bg-white p-6 shadow-sm">
         <p className="text-sm font-semibold text-teal-600">الإدارة</p>
         <h1 className="mt-1 text-2xl font-bold text-navy-700">دخول الإدارة</h1>
-        <input data-testid="admin-email" name="email" className="mt-4 h-12 w-full rounded-xl border px-3" placeholder="البريد" />
-        <input data-testid="admin-password" name="password" type="password" className="mt-3 h-12 w-full rounded-xl border px-3" placeholder="كلمة المرور" />
+        <label className="mt-4 block text-sm font-semibold">البريد
+          <input data-testid="admin-email" name="email" className="mt-1 h-12 w-full rounded-xl border px-3" />
+        </label>
+        <label className="mt-3 block text-sm font-semibold">كلمة المرور
+          <input data-testid="admin-password" name="password" type="password" className="mt-1 h-12 w-full rounded-xl border px-3" />
+        </label>
         {error ? <p className="mt-2 text-sm text-red-700">{error}</p> : null}
         <button className="mt-4 h-12 w-full rounded-xl bg-navy-700 font-semibold text-white" type="submit">دخول</button>
         <p className="mt-3 text-xs text-ink-500">أول مسؤول يُنشأ بأمر لمرة واحدة، ثم يُفعَّل من رابط البريد. هذه اللوحة لا تعرض محتوى القضايا.</p>

@@ -2,6 +2,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { dictionaries } from "@elawyer/i18n";
 import { COURTS, LOCALES, PUBLISHED_PLANS, type Locale } from "@elawyer/types";
 import { ArticlePage, SearchView } from "../src/components/article-page";
 import { HomeView } from "../src/components/home-view";
@@ -219,6 +220,8 @@ describe("public SEO", () => {
               ? createElement(SearchView, { locale, query: "" })
               : createElement(ArticlePage, { locale, page });
         const html = renderToStaticMarkup(element);
+        const raw = Object.keys(dictionaries.ar).filter((key) => html.includes(key));
+        expect(raw).toEqual([]);
         expect(html.match(/<h1[\s>]/g)).toHaveLength(1);
         expect(html).not.toContain("<html");
         const scripts = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((match) => match[1]);

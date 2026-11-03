@@ -1,4 +1,4 @@
-import { translate } from "@elawyer/i18n";
+import { memoCountPhrase, translate } from "@elawyer/i18n";
 import { COURTS, PLAN_CODES, PUBLISHED_PLANS, SERVICE_CODES, SERVICE_PRICES_HALALAS, type Locale, type ServiceCode } from "@elawyer/types";
 import { JsonLd } from "@/components/json-ld";
 import { PublicFooter, PublicHeader } from "@/components/public-chrome";
@@ -109,7 +109,7 @@ function PlanList({ locale }: { locale: Locale }) {
             <h2 className="text-xl font-semibold text-navy-700">{t(PLAN_KEY[code])}</h2>
             <p className="mt-2 text-3xl font-bold text-navy-700">{sar(plan.priceHalalas)} {t("common.sar")}</p>
             <p className="mt-2 text-sm leading-7 text-ink-700">{t(PLAN_DESC[code])}</p>
-            <p className="mt-2 text-sm text-ink-700">{t("plans.memos", { count: plan.memoLimit })}</p>
+            <p className="mt-2 text-sm text-ink-700">{memoCountPhrase(locale, plan.memoLimit)}</p>
             <p className="text-sm text-ink-700">{plan.chatLimit == null ? COPY.unlimited[locale] : t("plans.chats", { count: plan.chatLimit })}</p>
           </section>
         );

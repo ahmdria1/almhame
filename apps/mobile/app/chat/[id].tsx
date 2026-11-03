@@ -5,6 +5,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { client } from "../../src/api";
 
@@ -78,27 +79,27 @@ export default function ChatScreen() {
       {uploading ? <Text style={styles.status}>{t("workspace.uploading")}</Text> : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <View style={styles.bar}>
-        <Pressable accessibilityLabel={t("workspace.attach")} disabled={uploading || !caseId} onPress={() => void attach()}>
-          <Text style={styles.clip}>📎</Text>
+        <Pressable accessibilityLabel={t("workspace.attach")} style={styles.icon} disabled={uploading || !caseId} onPress={() => void attach()}>
+          <Ionicons name="attach" size={22} color={colors.navy700} />
         </Pressable>
-        <Pressable accessibilityLabel="الكاميرا" disabled={uploading || !caseId} onPress={() => void pickImage("camera")}>
-          <Text style={styles.clip}>📷</Text>
+        <Pressable accessibilityLabel={t("upload.camera")} style={styles.icon} disabled={uploading || !caseId} onPress={() => void pickImage("camera")}>
+          <Ionicons name="camera-outline" size={22} color={colors.navy700} />
         </Pressable>
-        <Pressable accessibilityLabel="مكتبة الصور" disabled={uploading || !caseId} onPress={() => void pickImage("library")}>
-          <Text style={styles.clip}>🖼</Text>
+        <Pressable accessibilityLabel={t("upload.photos")} style={styles.icon} disabled={uploading || !caseId} onPress={() => void pickImage("library")}>
+          <Ionicons name="image-outline" size={22} color={colors.navy700} />
         </Pressable>
-        <TextInput style={styles.input} value={text} onChangeText={setText} placeholder="اكتب رسالتك" />
-        <Pressable onPress={async () => {
+        <TextInput style={styles.input} value={text} onChangeText={setText} placeholder={t("workspace.placeholder")} />
+        <Pressable style={styles.icon} accessibilityLabel={t("auth.submitLogin")} onPress={async () => {
           const result = await client().sendMessage(String(id), text);
           setMessages((rows) => [...rows, result.user, result.counsel]);
           setText("");
-        }}><Text style={styles.send}>إرسال</Text></Pressable>
+        }}><Ionicons name="send" size={20} color={colors.navy700} style={{ transform: [{ scaleX: -1 }] }} /></Pressable>
       </View>
       <Pressable style={styles.draft} onPress={async () => {
         const result = await client().draft(String(id));
         router.push({ pathname: "/memo/[id]", params: { id: result.memo.id } });
       }}>
-        <Text style={styles.primaryText}>صياغة المذكرة</Text>
+        <Text style={styles.primaryText}>{t("workspace.draft")}</Text>
       </Pressable>
     </View>
   );
@@ -109,9 +110,8 @@ const styles = StyleSheet.create({
   user: { alignSelf: "flex-start", backgroundColor: colors.navy700, color: "white", padding: 12, borderRadius: 16, marginBottom: 8, maxWidth: "80%" },
   counsel: { alignSelf: "flex-end", backgroundColor: "white", color: colors.slate900, padding: 12, borderRadius: 16, marginBottom: 8, maxWidth: "80%" },
   bar: { flexDirection: "row", gap: 8, padding: 12, alignItems: "center" },
-  input: { flex: 1, backgroundColor: "white", borderRadius: 14, padding: 12 },
-  send: { color: colors.navy700, fontWeight: "700" },
-  clip: { fontSize: 20 },
+  input: { flex: 1, backgroundColor: "white", borderRadius: 14, minHeight: 44, padding: 12, textAlign: "right" },
+  icon: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   status: { paddingHorizontal: 16, color: colors.slate900 },
   error: { paddingHorizontal: 16, color: "#b42318" },
   draft: { margin: 12, backgroundColor: colors.navy700, borderRadius: 14, padding: 14, alignItems: "center" },

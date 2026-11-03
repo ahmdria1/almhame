@@ -19,14 +19,24 @@ export default function MemoEditorPage() {
   const [savedBody, setSavedBody] = useState("");
   const [showDiff, setShowDiff] = useState(false);
   const [showPdf, setShowPdf] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [pane, setPane] = useState<"memo" | "sources">("memo");
 
-  useEffect(() => {
+  function load() {
+    setFailed(false);
     client.memo(id).then((result) => {
       const local = window.localStorage.getItem(`memo:${id}`);
       setMemo(result.memo);
       setSavedBody(result.memo.body);
       setBody(local || result.memo.body);
-    }).catch(() => setMemo(null));
+    }).catch(() => {
+      setMemo(null);
+      setFailed(true);
+    });
+  }
+
+  useEffect(() => {
+    load();
   }, [client, id]);
 
   useEffect(() => {
@@ -62,18 +72,30 @@ export default function MemoEditorPage() {
   }
 
   const citations = (memo?.citations || []).filter((item) => filter === "all" || (filter === "statute" ? item.kind === "article" : item.kind === "sharia"));
+  if (failed) {
+    return (
+      <div className="p-8">
+        <p className="text-ink-700">{t("common.error")}</p>
+        <button type="button" className="mt-4 inline-flex min-h-11 items-center rounded-xl bg-navy-700 px-4 text-sm font-semibold text-white" onClick={() => load()}>{t("common.retry")}</button>
+      </div>
+    );
+  }
   if (!memo) return <p className="p-8 text-ink-500">{t("common.loading")}</p>;
 
   return (
     <div className="grid min-h-[calc(100vh-4rem)] lg:grid-cols-[320px_minmax(0,1fr)]">
-      <aside className="border-ink-200 p-4 lg:border-e dark:border-white/10">
+      <div className="flex border-b border-ink-200 lg:hidden dark:border-white/10">
+        <button type="button" className={`min-h-11 flex-1 text-sm font-semibold ${pane === "memo" ? "border-b-2 border-navy-700 text-navy-700" : "text-ink-500"}`} onClick={() => setPane("memo")}>{t("workspace.tabMemo")}</button>
+        <button type="button" className={`min-h-11 flex-1 text-sm font-semibold ${pane === "sources" ? "border-b-2 border-navy-700 text-navy-700" : "text-ink-500"}`} onClick={() => setPane("sources")}>{t("workspace.tabSources")}</button>
+      </div>
+      <aside className={`${pane === "sources" ? "block" : "hidden"} border-ink-200 p-4 lg:block lg:border-e dark:border-white/10`}>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="font-semibold">{t("memo.citations")}</h2>
           <span className="rounded-full bg-success-soft px-2 py-1 text-xs text-success">{citations.length}</span>
         </div>
         <div className="mb-3 flex gap-2 text-xs font-semibold">
           {[["all", "memo.filterAll"], ["statute", "memo.filterStatute"], ["sharia", "memo.filterSharia"]].map(([key, label]) => (
-            <button key={key} type="button" onClick={() => setFilter(key)} className={`rounded-full px-3 py-1 ${filter === key ? "bg-navy-700 text-white" : "bg-ink-100"}`}>{t(label)}</button>
+            <button key={key} type="button" onClick={() => setFilter(key)} className={`inline-flex min-h-11 items-center rounded-full px-3 ${filter === key ? "bg-navy-700 text-white" : "bg-ink-100"}`}>{t(label)}</button>
           ))}
         </div>
         <div className="grid gap-2">
@@ -87,11 +109,11 @@ export default function MemoEditorPage() {
         </div>
         <p className="mt-3 text-xs leading-5 text-ink-500">{t("memo.sampleNote")}</p>
       </aside>
-      <section className="p-4">
+      <section className={`${pane === "memo" ? "block" : "hidden"} p-4 lg:block`}>
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <Link href="/app/memos" className="text-sm text-ink-500">{t("common.back")}</Link>
           <h1 className="text-xl font-bold">{memo.title}</h1>
-          <span className="rounded-full bg-warning-soft px-2 py-1 text-xs font-semibold text-warning">{t("memo.draft")}</span>
+          <span className="rounded-full bg-teal-100 px-2 py-1 text-xs font-semibold text-teal-700">{t("memo.draft")}</span>
           <div className="ms-auto flex gap-2">
             <Button data-testid="save-memo" variant="secondary" onClick={() => void save()}>{t("memo.saveDraft")}</Button>
             <Button data-testid="export-word" variant="secondary" onClick={() => void download("docx")}>{t("memo.exportWord")}</Button>

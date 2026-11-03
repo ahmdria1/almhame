@@ -1,10 +1,10 @@
 "use client";
 
-import { ApiError } from "@elawyer/api-client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useState } from "react";
 import { AuthShell } from "@/components/auth-shell";
 import { Button, Input } from "@/components/ui";
+import { userFacingError } from "@/lib/errors";
 import { useApp } from "@/lib/providers";
 
 function ResetForm() {
@@ -26,7 +26,7 @@ function ResetForm() {
       });
       router.push("/login");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t("common.error"));
+      setError(userFacingError(err, t));
     }
   }
 

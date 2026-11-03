@@ -1,3 +1,5 @@
+import { ApiError } from "@elawyer/api-client";
+import { translate } from "@elawyer/i18n";
 import { colors } from "@elawyer/tokens";
 import { Link, useRouter } from "expo-router";
 import { useState } from "react";
@@ -21,7 +23,8 @@ export default function Login() {
           await writeToken(result.accessToken);
           router.replace("/home");
         } catch (err) {
-          setError(err instanceof Error ? err.message : "تعذر الدخول");
+          const english = err instanceof ApiError && /^[\u0000-\u007f]*$/.test(err.message);
+          setError(english || (err instanceof ApiError && (err.status === 401 || /unauthorized/i.test(err.message))) ? translate("ar", "auth.failed") : translate("ar", "common.error"));
         }
       }}>
         <Text style={styles.buttonText}>دخول</Text>

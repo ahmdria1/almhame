@@ -21,6 +21,7 @@
     "@expo/metro-runtime": "~4.0.1",
     "@tanstack/react-query": "5.84.1",
     "expo": "~52.0.47",
+    "expo-font": "~13.0.4",
     "expo-constants": "~17.0.8",
     "expo-document-picker": "~13.0.3",
     "expo-image-picker": "~16.0.6",
