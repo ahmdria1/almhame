@@ -4,7 +4,7 @@ import { join } from "path";
 import { citationLabel } from "./article-numbers";
 import { textHash } from "./citations";
 import { COURT_HEADING, MEMO_TITLE, type RetrievedArticle, type RetrievedJudgment } from "./draft";
-import { draftCheckRecord, draftPrompt, findAiTell, humanMemo, judgmentPrecedesFacts, matchArticles, renumberSections, reviewModelDraft, textMatchesOfficial, type DraftPacket, type SettledDraft } from "./draft-guard";
+import { closingBlock, draftCheckRecord, draftPrompt, findAiTell, humanMemo, judgmentPrecedesFacts, matchArticles, renumberSections, reviewModelDraft, textMatchesOfficial, type DraftPacket, type SettledDraft } from "./draft-guard";
 import { fontFile, renderPdf } from "../render";
 import { execFileSync } from "child_process";
 import { tmpdir } from "os";
@@ -88,6 +88,12 @@ function packet(memoType: MemoType, extra?: Partial<DraftPacket>): DraftPacket {
 function rejectedReason(result: { ok: true; draft: SettledDraft } | { ok: false; reason: string }): string {
   if (result.ok === false) return result.reason;
   throw new Error("expected rejection");
+}
+
+function closingFromReview(memoType: MemoType): string {
+  const reviewed = reviewModelDraft(mocked(memoType), packet(memoType));
+  if (reviewed.ok === false) throw new Error(reviewed.reason);
+  return reviewed.draft.body;
 }
 
 function headings(body: string): string[] {
@@ -428,28 +434,31 @@ describe("draft guard", () => {
     })).body).toContain("تاريخ الحكم سابق");
   });
 
-  it("signs the memo as the party who presents it", () => {
-    const tail = (memoType: MemoType) => humanMemo(packet(memoType)).body.split("مقدم المذكرة").pop() || "";
-    expect(tail("lawsuit")).toContain("خالد بن سامي");
-    expect(tail("lawsuit")).toContain("المدّعي");
-    expect(tail("lawsuit")).not.toContain("شركة أفق");
-    expect(tail("defense")).toContain("شركة أفق");
-    expect(tail("defense")).toContain("المدّعى عليه");
-    expect(tail("defense")).not.toContain("خالد");
-    expect(tail("reply")).toContain("خالد بن سامي");
-    expect(tail("reply")).toContain("مقدم الجواب");
-    expect(tail("appeal")).toContain("خالد بن سامي");
-    expect(tail("appeal")).toContain("المعترض");
-    for (const memoType of MEMO_TYPES) {
-      const body = humanMemo(packet(memoType)).body;
-      expect(body.split("والله الموفق").length - 1).toBe(1);
-      expect(body.split("مقدم المذكرة").length - 1).toBe(1);
-      expect(body.indexOf("الطلبات")).toBeLessThan(body.indexOf("مقدم المذكرة"));
+  it.each(MEMO_TYPES)("ends the %s memo with the court closing block", (memoType) => {
+    const role = memoType === "defense" ? "المدّعى عليه" : memoType === "appeal" ? "المعترض" : memoType === "reply" ? "مقدم المذكرة" : "المدّعي";
+    const name = memoType === "defense" ? "شركة أفق" : "خالد بن سامي";
+    for (const body of [humanMemo(packet(memoType)).body, closingFromReview(memoType)]) {
+      const trimmed = body.trimEnd();
+      const block = trimmed.slice(trimmed.lastIndexOf("والله يحفظكم ويرعاكم"));
+      expect(trimmed.endsWith(closingBlock(packet(memoType)))).toBe(true);
+      expect(trimmed.endsWith("التوقيع")).toBe(true);
+      expect(block.startsWith("والله يحفظكم ويرعاكم،،")).toBe(true);
+      expect(block).toContain(role);
+      expect(block).toContain(name);
+      expect(block.indexOf("التاريخ")).toBeLessThan(block.indexOf("التوقيع"));
+      expect(trimmed.indexOf("الطلبات")).toBeLessThan(trimmed.lastIndexOf("والله يحفظكم ويرعاكم"));
+      expect(trimmed.split("والله يحفظكم ويرعاكم").length - 1).toBe(1);
     }
-    const reviewed = reviewModelDraft(mocked("lawsuit"), packet("lawsuit"));
-    expect(reviewed.ok).toBe(true);
-    if (!reviewed.ok) return;
-    expect(reviewed.draft.body.split("مقدم المذكرة").pop()).toContain("خالد بن سامي");
+  });
+
+  it("leaves the filer line blank when the filing has no name", () => {
+    const draft = humanMemo(packet("lawsuit", {
+      slots: { plaintiff: "", defendant: "شركة أفق", facts, requests: "إلزام المدّعى عليه بأجر شهر أغسطس." },
+    }));
+    const block = draft.body.slice(draft.body.lastIndexOf("والله يحفظكم ويرعاكم"));
+    expect(block).toContain("المدّعي\n\nالتاريخ");
+    expect(block).not.toContain("المذكور");
+    expect(block).not.toContain("شركة أفق");
   });
 
   it("rejects the stock phrases that do not answer the case", () => {

@@ -452,16 +452,32 @@ function asksToChargeDefendant(text: string): boolean {
   return text.includes("إلزام المدّعى عليه") || text.includes("إلزام المدعى عليه");
 }
 
-function signatureLines(packet: DraftPacket): string[] {
-  const signer = packet.memoType === "defense" ? packet.slots.defendant : packet.slots.plaintiff;
-  const role = packet.memoType === "defense" ? "المدّعى عليه" : packet.memoType === "appeal" ? "المعترض" : packet.memoType === "reply" ? "مقدم الجواب" : "المدّعي";
-  return ["والله الموفق،،", "", "مقدم المذكرة", signer, role];
+function filerName(packet: DraftPacket): string {
+  const raw = packet.memoType === "defense" ? packet.slots.defendant : packet.slots.plaintiff;
+  const name = raw.trim();
+  if (!name || name === "المذكور في الوقائع") return "";
+  return name;
+}
+
+function capacityLines(packet: DraftPacket): string[] {
+  if (packet.memoType === "defense") return ["مقدم المذكرة", "المدّعى عليه"];
+  if (packet.memoType === "appeal") return ["مقدم المذكرة", "المعترض"];
+  if (packet.memoType === "reply") return ["مقدم المذكرة"];
+  return ["مقدم المذكرة", "المدّعي"];
+}
+
+export function closingBlock(packet: DraftPacket): string {
+  return ["والله يحفظكم ويرعاكم،،", "", ...capacityLines(packet), filerName(packet), "التاريخ", "", "التوقيع"].join("\n");
 }
 
 function ensureSignature(packet: DraftPacket, body: string): string {
-  if (body.includes("مقدم المذكرة")) return body;
-  const trimmed = body.replace(/\n*والله الموفق[،.\s]*$/u, "").trimEnd();
-  return `${trimmed}\n\n${signatureLines(packet).join("\n")}`;
+  const block = closingBlock(packet);
+  let trimmed = body.trimEnd();
+  const courtesy = "والله يحفظكم ويرعاكم";
+  const at = trimmed.lastIndexOf(courtesy);
+  if (at >= 0) trimmed = trimmed.slice(0, at).trimEnd();
+  trimmed = trimmed.replace(/\n*والله الموفق[،.\s]*$/u, "").trimEnd();
+  return `${trimmed}\n\n${block}`;
 }
 
 function finishDraft(packet: DraftPacket, body: string, citations: CitationRef[]): SettledDraft {
