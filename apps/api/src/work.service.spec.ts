@@ -1,7 +1,14 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import { HttpException } from "@nestjs/common";
+import * as Sentry from "@sentry/node";
+
+jest.mock("@sentry/node", () => ({
+  captureMessage: jest.fn(() => ""),
+  init: jest.fn(),
+}));
 import { citationLabel } from "./domain/article-numbers";
+import { draftCheckRecord } from "./domain/draft-guard";
 import { WorkService } from "./work.service";
 
 const labor = JSON.parse(readFileSync(join(__dirname, "../../../corpus/official/boe/labor.json"), "utf8")) as {
@@ -39,6 +46,7 @@ function harness(articlesKnown: boolean) {
   const articles = [stored("77", "labor-77"), stored("88", "labor-88")];
   let savedBody = "";
   let transactions = 0;
+  const checks: { data: Record<string, unknown> }[] = [];
   const memoRow = () => ({
     id: "memo-1",
     titleEnc: "صحيفة دعوى",
@@ -70,7 +78,12 @@ function harness(articlesKnown: boolean) {
     },
     shariaSource: { findMany: async () => [] },
     judgment: { findMany: async () => [] },
-    draftCheckFailure: { create: async () => ({ id: "check-1" }) },
+    draftCheckFailure: {
+      create: async (input: { data: Record<string, unknown> }) => {
+        checks.push(input);
+        return { id: "check-1" };
+      },
+    },
     memo: {
       create: async (input: { data: { bodyEnc: string; titleEnc: string } }) => {
         savedBody = input.data.bodyEnc;
@@ -127,6 +140,7 @@ function harness(articlesKnown: boolean) {
     service,
     saved: () => savedBody,
     transactions: () => transactions,
+    checks: () => checks,
   };
 }
 
@@ -180,5 +194,55 @@ describe("draft attempts", () => {
     }
     expect(draftCalls).toBe(2);
     expect(transactions()).toBe(0);
+  });
+
+  it("writes a draft check without the user's facts", async () => {
+    const { service, checks } = harness(true);
+    const secret = "واقعة سرية لا تُسجل خالد طلب مبلغًا لم يذكره";
+    const capture = Sentry.captureMessage as jest.Mock;
+    capture.mockClear();
+    await (service as unknown as {
+      recordDraftCheck: (failure: ReturnType<typeof draftCheckRecord>, modelId: string, attempt: number) => Promise<void>;
+    }).recordDraftCheck(
+      draftCheckRecord({
+        recordId: "labor-77",
+        articleNumber: "77",
+        statute: "نظام العمل",
+        failureType: "quote",
+        quoteSpan: "وجب دفع الأجر",
+        facts: secret,
+        memo: secret,
+      }),
+      "draft-model",
+      1,
+    );
+    expect(checks()).toEqual([{
+      data: {
+        recordId: "labor-77",
+        articleNumber: "77",
+        statute: "نظام العمل",
+        modelId: "draft-model",
+        attempt: 1,
+        failureType: "quote",
+        quoteSpan: "وجب دفع الأجر",
+      },
+    }]);
+    expect(JSON.stringify(checks())).not.toContain("واقعة سرية");
+    expect(JSON.stringify(checks())).not.toContain("خالد طلب");
+    expect(capture).toHaveBeenCalledWith("draft check", {
+      level: "warning",
+      extra: {
+        draftCheck: {
+          recordId: "labor-77",
+          articleNumber: "77",
+          statute: "نظام العمل",
+          modelId: "draft-model",
+          attempt: 1,
+          failureType: "quote",
+          quoteSpan: "وجب دفع الأجر",
+        },
+      },
+    });
+    expect(JSON.stringify(capture.mock.calls)).not.toContain("واقعة سرية");
   });
 });
