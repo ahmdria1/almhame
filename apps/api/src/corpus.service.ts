@@ -238,6 +238,13 @@ export class CorpusService {
     return { ...decision, judgments };
   }
 
+  async importJudgmentFiles() {
+    const dir = path.resolve(__dirname, "../../../corpus/official/judgements");
+    await this.importJudgments(dir);
+    const judgments = await this.kernel.prisma.judgment.count({ where: { isSample: false, verbatimStatus: "ok" } });
+    return { judgments };
+  }
+
   private async rankJudgments(query: string, vector: string) {
     const stems = searchStems(query).slice(0, 6).map((stem) => stem.replace(/[%_]/g, ""));
     if (!stems.length) return [];
@@ -275,10 +282,11 @@ export class CorpusService {
   }
 
   async counts() {
-    const [laws, articles, sharia, sampleArticles, rows, runs, shariaByKind] = await Promise.all([
+    const [laws, articles, sharia, judgments, sampleArticles, rows, runs, shariaByKind] = await Promise.all([
       this.kernel.prisma.law.count(),
       this.kernel.prisma.article.count(),
       this.kernel.prisma.shariaSource.count(),
+      this.kernel.prisma.judgment.count({ where: { isSample: false, verbatimStatus: "ok" } }),
       this.kernel.prisma.article.count({ where: { isSample: true } }),
       this.kernel.prisma.law.findMany({
         orderBy: { nameAr: "asc" },
@@ -291,6 +299,7 @@ export class CorpusService {
       laws,
       articles,
       sharia,
+      judgments,
       sampleArticles,
       byLaw: rows.map((row) => ({
         key: row.key,
@@ -375,7 +384,7 @@ export class CorpusService {
       laws.push(maximLaw);
       await this.importRecords({ laws: [maximLaw], sharia: [], confirmOfficial: true });
     }
-    await this.importJudgments(path.join(root, "judgements"));
+    const judgments = await this.importJudgments(path.join(root, "judgements"));
     const sharia = await this.readSharia(root);
     let shariaCount = 0;
     for (let offset = 0; offset < sharia.length; offset += 200) {
@@ -397,13 +406,16 @@ export class CorpusService {
       shariaCount += batch.length;
     }
     const articles = laws.reduce((sum, law) => sum + law.articles.length, 0);
-    return { laws: laws.length, articles, sharia: shariaCount };
+    return { laws: laws.length, articles, sharia: shariaCount, judgments };
   }
 
   private async finishRefresh(id: string) {
     try {
+      const rootDir = path.resolve(__dirname, "../../..");
+      const judgements = path.resolve(__dirname, "../../../corpus/fetch-judgements.mjs");
+      await exec(process.execPath, [judgements, "--limit=3"], { cwd: rootDir, timeout: 30 * 60 * 1000, maxBuffer: 16 * 1024 * 1024 });
       const script = path.resolve(__dirname, "../../../corpus/fetch-official.mjs");
-      await exec(process.execPath, [script], { cwd: path.resolve(__dirname, "../../.."), timeout: 30 * 60 * 1000, maxBuffer: 16 * 1024 * 1024 });
+      await exec(process.execPath, [script], { cwd: rootDir, timeout: 30 * 60 * 1000, maxBuffer: 16 * 1024 * 1024 });
       const result = await this.importOfficial();
       await this.kernel.prisma.ingestionRun.update({
         where: { id },
@@ -441,7 +453,8 @@ export class CorpusService {
   }
 
   private async importJudgments(dir: string) {
-    const names = (await readdir(dir).catch(() => [] as string[])).filter((name) => name.endsWith(".json"));
+    const names = (await readdir(dir).catch(() => [] as string[])).filter((name) => /^\d+\.json$/.test(name));
+    let imported = 0;
     for (const name of names) {
       const row = JSON.parse(await readFile(path.join(dir, name), "utf8")) as {
         source: string;
@@ -463,6 +476,7 @@ export class CorpusService {
         ruling: string;
         fullText: string;
         rawHtml: string;
+        subject?: string;
         principleNo: string;
         principleText: string;
         statutesCited: unknown;
@@ -496,6 +510,7 @@ export class CorpusService {
           ruling: row.ruling || "",
           fullText: row.fullText,
           rawHtml: row.rawHtml || "",
+          subject: row.subject || "",
           principleNo: row.principleNo || "",
           principleText: row.principleText || "",
           statutesCited: (row.statutesCited ?? undefined) as Prisma.InputJsonValue | undefined,
@@ -507,6 +522,13 @@ export class CorpusService {
           blockedReason: row.blockedReason || "",
         },
         update: {
+          court: row.court,
+          courtType: row.courtType,
+          circuit: row.circuit || "",
+          city: row.city,
+          caseNo: row.caseNo,
+          subject: row.subject || "",
+          principleText: row.principleText || "",
           fullText: row.fullText,
           rawHtml: row.rawHtml || "",
           sourceUrl: row.sourceUrl,
@@ -514,8 +536,10 @@ export class CorpusService {
           fetchedAt: new Date(row.fetchedAt),
         },
       });
-      await this.storeVector("judgment", saved.id, `${row.court} ${row.judgmentNo} ${row.fullText}`);
+      await this.storeVector("judgment", saved.id, `${row.court} ${row.subject || ""} ${row.judgmentNo} ${row.fullText}`);
+      imported += 1;
     }
+    return imported;
   }
 
   private assertRecord(isSample: boolean, sourceUrl: string, confirmOfficial: boolean) {

@@ -1,9 +1,42 @@
 {
-  "nextPage": 3,
+  "listPage": 2,
+  "pageSize": 12,
   "judgmentNos": [
     "4530838530",
-    "4630444976"
+    "4630444976",
+    "4430075114",
+    "4530318747",
+    "4430682254",
+    "4430260136",
+    "4430138572",
+    "4530143365",
+    "447251670",
+    "4530290866",
+    "4430385408",
+    "4530416855"
   ],
-  "totalCount": 55159,
-  "note": "Fetched 2 judgments with text. One later detail had no judgment text and was not stored. The list reported totalCount 55159."
+  "blocked": [
+    {
+      "judgmentNo": "229/4/4",
+      "reason": "detail had no judgment number",
+      "at": "2026-11-03T15:49:05.747Z"
+    }
+  ],
+  "totalCount": 55201,
+  "note": "12 judgments stored from the public gateway on 2026-11-03. The list reported totalCount 55201. One list row, 229/4/4, had no published number and was not stored. A later request was rejected by the gateway firewall, so the run stopped. Records are keyed by the published judgment or appeal number.",
+  "courtTypes": [
+    {
+      "value": 1,
+      "name": "أحكام محاكم الدرجة الاولى النهائية"
+    },
+    {
+      "value": 2,
+      "name": "أحكام محكمة الاستئناف"
+    },
+    {
+      "value": 3,
+      "name": "أحكام المحكمة العليا"
+    }
+  ],
+  "addedThisRun": 8
 }

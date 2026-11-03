@@ -18,3 +18,31 @@ jobs:
         with:
           languages: javascript-typescript
       - uses: github/codeql-action/analyze@v3
+
+  zap:
+    name: ZAP baseline
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies and build the web app
+        env:
+          SITE_URL: http://127.0.0.1:4720
+          NEXT_PUBLIC_API_URL: http://127.0.0.1:4710/api
+        run: pnpm install --frozen-lockfile && pnpm --filter @elawyer/web build
+      - name: Start the web app
+        env:
+          SITE_URL: http://127.0.0.1:4720
+        run: |
+          pnpm --filter @elawyer/web exec next start -p 4720 > /tmp/web.log 2>&1 &
+          for i in $(seq 1 40); do curl -sf -o /dev/null http://127.0.0.1:4720/ && exit 0; sleep 2; done
+          tail -n 60 /tmp/web.log || true
+          exit 1
+      - name: Baseline scan
+        run: docker run --rm --network host ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://127.0.0.1:4720 -I

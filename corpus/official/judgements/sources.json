@@ -1,0 +1,35 @@
+{
+  "checkedAt": "2026-11-03",
+  "portal": "https://laws.moj.gov.sa/",
+  "robotsUrl": "https://laws.moj.gov.sa/robots.txt",
+  "robots": "User-agent: * Allow: /",
+  "sitemaps": [
+    "https://laws.moj.gov.sa/sitemap.xml",
+    "https://laws.moj.gov.sa/sitemap-regulations.xml",
+    "https://laws.moj.gov.sa/sitemap-judicial-decisions.xml"
+  ],
+  "gateway": "https://laws-gateway.moj.gov.sa/apis/legislations/v1",
+  "list": "POST /Judgements/judgements-list",
+  "detail": "GET /Judgements/get-details",
+  "lookups": "GET /gatewaylookups/get?catalog=8",
+  "openDataPolicy": "https://www.moj.gov.sa/ar/OpenData/Pages/OpenDataPolicy.aspx",
+  "terms": "https://www.moj.gov.sa/ar/Ministry/Pages/TermsOfUse.aspx",
+  "termsDecision": "The ministry portal terms forbid copying www.moj.gov.sa and forbid an unreasonable load. Those pages were not copied. The open-data policy names الأحكام والسوابق القضائية as data that may be reused without modification, with attribution to the Ministry of Justice. The scientific portal publishes that text on the unauthenticated gateway. Each request waits 12 seconds. Page size is 12, the same size the portal uses.",
+  "gatewayRobots": "GET /robots.txt on laws-gateway.moj.gov.sa was rejected by the site firewall. The public judgment API still answered.",
+  "principles": "The portal code exposes judgements-list, get-details, judgement-statute-search, and the court-type lookup. classificationList on catalog 8 is null. No المبادئ والقرارات القضائية collection is published on this gateway, so none was imported.",
+  "circuit": "The detail payload has no circuit name. circuit is stored empty. refereeNo on the list, when present, is counted and not copied into another field.",
+  "fetchResult": {
+    "fetchedAt": "2026-11-03",
+    "stored": 12,
+    "listTotalCount": 55201,
+    "blockedWithoutNumber": ["229/4/4"],
+    "stoppedBecause": "The gateway firewall rejected a later request. The run stopped instead of retrying past that rejection."
+  },
+  "notUsed": [
+    "https://laws-gateway.moj.gov.sa/selfservices/apis/legislations/v1",
+    "/favorites/",
+    "/highlights/",
+    "Nafath",
+    "Najiz"
+  ]
+}

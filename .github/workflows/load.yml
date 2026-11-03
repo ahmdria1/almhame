@@ -1,0 +1,96 @@
+name: load
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: load smoke
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: elawyer
+          POSTGRES_PASSWORD: elawyer
+          POSTGRES_DB: elawyer
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U elawyer -d elawyer"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://elawyer:elawyer@127.0.0.1:5432/elawyer
+      JWT_SECRET: ci-jwt-secret-0123456789abcdef
+      KMS_MASTER_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      OTP_PEPPER: ci-otp-pepper
+      PAYMENT_GATEWAY: sandbox
+      PAYMENT_SANDBOX_SECRET: sandbox-dev-secret
+      LLM_PROVIDER: mock
+      EMBEDDING_PROVIDER: mock
+      REDIS_URL: redis://127.0.0.1:6379
+      WEB_ORIGIN: http://127.0.0.1:4720
+      ADMIN_ORIGIN: http://127.0.0.1:4730
+      API_PUBLIC_URL: http://127.0.0.1:4710
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:4710/api
+      SITE_URL: http://127.0.0.1:4720
+      NODE_ENV: test
+      API_URL: http://127.0.0.1:4710
+      WEB_URL: http://127.0.0.1:4720
+      SMOKE: "1"
+      LOAD_USERS: "1"
+      LOAD_USERS_FILE: /tmp/elawyer-load-users.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install k6
+        run: curl -sSfL "https://github.com/grafana/k6/releases/download/v0.54.0/k6-v0.54.0-linux-amd64.tar.gz" | tar -xz -C /tmp && sudo mv /tmp/k6-v0.54.0-linux-amd64/k6 /usr/local/bin/k6
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Prepare the database
+        run: |
+          PGPASSWORD=elawyer psql -h 127.0.0.1 -U elawyer -d elawyer -c "CREATE EXTENSION IF NOT EXISTS vector"
+          pnpm --filter @elawyer/api exec prisma generate
+          pnpm --filter @elawyer/api exec prisma migrate deploy
+      - name: Build the API and the web app
+        run: |
+          pnpm --filter @elawyer/api build
+          pnpm --filter @elawyer/web build
+      - name: Start the stack
+        run: |
+          node apps/api/dist/main.js > /tmp/api.log 2>&1 &
+          pnpm --filter @elawyer/web exec next start -p 4720 > /tmp/web.log 2>&1 &
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:4710/api/health >/dev/null && curl -sf -o /dev/null http://127.0.0.1:4720/ && exit 0
+            sleep 2
+          done
+          echo "stack did not answer"
+          tail -n 80 /tmp/api.log || true
+          tail -n 80 /tmp/web.log || true
+          exit 1
+      - name: Prepare accounts
+        run: node tests/load/prepare.mjs
+      - name: Smoke load
+        run: k6 run tests/load/api.js
