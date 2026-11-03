@@ -4,14 +4,15 @@ import { mkdir, readdir, readFile, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
 import { promisify } from "util";
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
+import * as Sentry from "@sentry/node";
 import { IntegrationProvider, MemoType, Prisma, User } from "@prisma/client";
 import { jurisdictionOf, priceForMemoType, type CourtType as Court, type MemoType as MemoKind, type PlanCode } from "@elawyer/types";
 import { CorpusService } from "./corpus.service";
 import { InfectedUpload, scanInstream } from "./domain/clamd";
 import { knownArticle, textHash, validateCitations, type CitationRef } from "./domain/citations";
 import { COURT_HEADING, readSlots } from "./domain/draft";
-import { draftPrompt, humanMemo, reviewModelDraft, type DraftPacket } from "./domain/draft-guard";
+import { draftCheckRecord, draftPrompt, humanMemo, reviewModelDraft, type DraftCheckRecord, type DraftPacket } from "./domain/draft-guard";
 import { decryptBytes, encryptBytes } from "./domain/envelope";
 import { halalasToSar, nextInvoiceNumber, splitVatInclusive, zatcaQrBase64 } from "./domain/invoice";
 import { estimateTokens, readGeneric, routeModel, writeGeneric, type RouteDecision } from "./domain/model-route";
@@ -35,6 +36,7 @@ const exec = promisify(execFile);
 
 @Injectable()
 export class WorkService {
+  private readonly logger = new Logger(WorkService.name);
   private readonly uploadStamps = new Map<string, number[]>();
 
   constructor(
@@ -321,15 +323,28 @@ export class WorkService {
     };
     let draftBody = humanMemo(packet);
     const prompt = draftPrompt(packet);
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      const raw = await this.complete({ ...decision, turns: [{ role: "user", text: attempt === 0 ? prompt : `${prompt}\nأعد الكتابة ملتزمًا بالنصوص حرفيًا.` }] });
-      if (!raw) break;
-      const reviewed = reviewModelDraft(raw, packet);
+    const reminder = "لا تكتب نص مادة أو آية أو حكم. استخدم [[ref:المعرف]] فقط، ولا ترقّم الأقسام.";
+    let accepted = false;
+    let remoteAttempts = 0;
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      const turn = attempt === 1 ? prompt : `${prompt}\n${reminder}`;
+      const result = await this.completeDraft({ ...decision, turns: [{ role: "user", text: turn }] });
+      if (!result.called) break;
+      remoteAttempts += 1;
+      await this.noteUsage(user.id, user.planCode, "draft", estimateTokens(decision.prefix) + estimateTokens(turn), decision.degraded, false);
+      if (!result.text) {
+        await this.recordDraftCheck(draftCheckRecord({ failureType: "timeout", quoteSpan: "" }), decision.model, attempt);
+        continue;
+      }
+      const reviewed = reviewModelDraft(result.text, packet);
+      for (const failure of reviewed.failures) await this.recordDraftCheck(failure, decision.model, attempt);
       if (reviewed.ok) {
         draftBody = reviewed.draft;
+        accepted = true;
         break;
       }
     }
+    if (!accepted) draftBody = humanMemo(packet);
     const groundsOf = (body: string) => (body.includes("ثانيًا:") ? body.slice(body.indexOf("ثانيًا:")) : body);
     let known = await this.knownSet(draftBody.citations);
     let verdict = validateCitations(groundsOf(draftBody.body), draftBody.citations, known);
@@ -337,7 +352,10 @@ export class WorkService {
       draftBody = humanMemo(packet);
       known = await this.knownSet(draftBody.citations);
       verdict = validateCitations(groundsOf(draftBody.body), draftBody.citations, known);
-      if (!verdict.ok) fail("CITATION_REJECTED", 422, verdict.unknown.join(","));
+    }
+    if (!verdict.ok) {
+      await this.recordDraftCheck(draftCheckRecord({ failureType: "fallback", quoteSpan: verdict.unknown.join(",").slice(0, 400) }), decision.model, remoteAttempts);
+      fail("DRAFT_RETRY", 503, "DRAFT_RETRY");
     }
     const memo = await this.kernel.prisma.$transaction(async (tx) => {
       const current = await tx.user.findUnique({ where: { id: userId } });
@@ -385,14 +403,16 @@ export class WorkService {
       return created;
     });
     await this.searchIndex.index(userId, dek, "memo", memo.id, draftBody.title);
-    await this.noteUsage(
-      userId,
-      user.planCode,
-      "draft",
-      estimateTokens(decision.prefix) + estimateTokens(filled.facts) + allowed.length * 8,
-      decision.degraded,
-      false,
-    );
+    if (remoteAttempts === 0) {
+      await this.noteUsage(
+        userId,
+        user.planCode,
+        "draft",
+        estimateTokens(decision.prefix) + estimateTokens(filled.facts) + allowed.length * 8,
+        decision.degraded,
+        false,
+      );
+    }
     return this.getMemo(userId, memo.id);
   }
 
@@ -1049,6 +1069,53 @@ export class WorkService {
       });
     } catch {
       return;
+    }
+  }
+
+  private async recordDraftCheck(failure: DraftCheckRecord, modelId: string, attempt: number) {
+    const row = {
+      recordId: failure.recordId,
+      articleNumber: failure.articleNumber,
+      statute: failure.statute,
+      modelId: modelId.slice(0, 80),
+      attempt,
+      failureType: failure.failureType,
+      quoteSpan: failure.quoteSpan,
+    };
+    try {
+      await this.kernel.prisma.draftCheckFailure.create({ data: row });
+    } catch {
+      this.logger.warn("Draft check was not stored");
+    }
+    Sentry.captureMessage("draft check", { level: "warning", extra: { draftCheck: row } });
+  }
+
+  private async completeDraft(decision: RouteDecision): Promise<{ text: string | null; called: boolean }> {
+    if (this.kernel.config.llmProvider !== "remote" || !this.kernel.config.modelBaseUrl || !this.kernel.config.modelApiKey || decision.turns.length === 0) {
+      return { text: null, called: false };
+    }
+    try {
+      const response = await fetch(`${this.kernel.config.modelBaseUrl.replace(/\/$/, "")}/chat/completions`, {
+        method: "POST",
+        signal: AbortSignal.timeout(20000),
+        headers: {
+          Authorization: `Bearer ${this.kernel.config.modelApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: decision.model,
+          temperature: 0,
+          messages: [
+            { role: "system", content: decision.prefix },
+            ...decision.turns.map((turn) => ({ role: turn.role, content: turn.text })),
+          ],
+        }),
+      });
+      if (!response.ok) return { text: null, called: true };
+      const payload = (await response.json()) as { choices?: { message?: { content?: string } }[] };
+      return { text: payload.choices?.[0]?.message?.content?.trim() || null, called: true };
+    } catch {
+      return { text: null, called: true };
     }
   }
 

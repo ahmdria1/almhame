@@ -4,7 +4,7 @@ import { join } from "path";
 import { citationLabel } from "./article-numbers";
 import { textHash } from "./citations";
 import { COURT_HEADING, MEMO_TITLE, type RetrievedArticle, type RetrievedJudgment } from "./draft";
-import { draftPrompt, findAiTell, humanMemo, renumberSections, reviewModelDraft, textMatchesOfficial, type DraftPacket, type SettledDraft } from "./draft-guard";
+import { draftCheckRecord, draftPrompt, findAiTell, humanMemo, renumberSections, reviewModelDraft, textMatchesOfficial, type DraftPacket, type SettledDraft } from "./draft-guard";
 import { fontFile, renderPdf } from "../render";
 import { execFileSync } from "child_process";
 import { tmpdir } from "os";
@@ -15,8 +15,14 @@ const labor = JSON.parse(readFileSync(join(__dirname, "../../../../corpus/offici
   version: string;
   articles: { number: string; textAr: string; sourceUrl: string }[];
 };
-const record = labor.articles.find((item) => citationLabel(item.number) === "88");
-if (!record) throw new Error("stored labor article 88 is missing");
+const record = labor.articles.find((item) => citationLabel(item.number) === "77");
+if (!record) throw new Error("stored labor article 77 is missing");
+const FAKE_ARTICLE = "وحيث إن المادة (77) من نظام العمل: «إذا انتهت علاقة العمل وجب دفع الأجر ومكافأة نهاية الخدمة خلال أسبوع.»";
+const debtVerse = readFileSync(join(__dirname, "../../../../corpus/official/tanzil/quran-uthmani.txt"), "utf8")
+  .split("\n")
+  .find((line) => line.startsWith("2|282|"))
+  ?.slice("2|282|".length)
+  .trim() || "";
 const judgmentFile = JSON.parse(readFileSync(join(__dirname, "../../../../corpus/official/judgements/4530838530.json"), "utf8")) as {
   judgmentNo: string;
   court: string;
@@ -35,7 +41,7 @@ const appealFacts = `${facts} صدر الحكم رقم ${judgmentFile.judgmentNo
 
 function wageArticle(): RetrievedArticle {
   return {
-    id: "labor-88",
+    id: "labor-77",
     number: record!.number,
     textAr: record!.textAr,
     textEn: "",
@@ -78,7 +84,7 @@ function headings(body: string): string[] {
 }
 
 function mocked(memoType: MemoType): string {
-  const quote = `المادة (${citationLabel(record!.number)}) من ${labor.nameAr}: «${record!.textAr}»`;
+  const quote = "[[ref:labor-77]]";
   if (memoType === "defense") {
     return [
       "بسم الله الرحمن الرحيم",
@@ -147,14 +153,14 @@ describe("draft guard", () => {
     const article = wageArticle();
     expect(article.textAr).toBe(record!.textAr);
     expect(textHash(article.textAr)).toBe(textHash(record!.textAr));
-    expect(article.textAr).toContain("تصفية حقوقه");
+    expect(article.textAr).toContain("سبب غير مشروع");
     expect(article.textAr).not.toContain("وجب دفع الأجر ومكافأة نهاية الخدمة خلال أسبوع");
     expect(textMatchesOfficial(article.textAr, record!.textAr)).toBe(true);
   });
 
   it("replaces an altered quote with the stored text", () => {
     const source = packet("lawsuit");
-    const altered = record!.textAr.replace("تصفية حقوقه", "تصفية حقوقه مع زيادة لم تذكر");
+    const altered = record!.textAr.replace("سبب غير مشروع", "سبب غير مشروع مع زيادة لم تذكر");
     const reviewed = reviewModelDraft(
       `بسم الله الرحمن الرحيم\nصحيفة دعوى\n${COURT_HEADING.labor}\nوحيث إن المادة (${citationLabel(record!.number)}) من ${labor.nameAr}: «${altered}»\n${facts}`,
       source,
@@ -200,7 +206,7 @@ describe("draft guard", () => {
       expect(body).not.toContain("{{cite:");
       expect(body).not.toContain("https://");
       expect(body).toContain(`«${record!.textAr}»`);
-      expect(reviewed.draft.citations).toEqual([{ kind: "article", id: "labor-88", number: record!.number }]);
+      expect(reviewed.draft.citations).toEqual([{ kind: "article", id: "labor-77", number: record!.number }]);
       expect(headings(body).join(",")).toBe(headings(body).filter((item, index, all) => all.indexOf(item) === index).join(","));
       const fallback = humanMemo(source);
       expect(fallback.body).toContain(memoType === "reply" ? replyFacts.split(". ")[0] : memoType === "appeal" ? facts : facts);
@@ -253,6 +259,9 @@ describe("draft guard", () => {
 
   it("renumbers a gap and does not skip an empty section", () => {
     expect(renumberSections("أولًا: الوقائع\nثانيًا: الأسانيد\nرابعًا: الطلبات")).toBe("أولًا: الوقائع\nثانيًا: الأسانيد\nثالثًا: الطلبات");
+    expect(renumberSections("ثانيًا: الوقائع\nخامسًا: الطلبات")).toBe("أولًا: الوقائع\nثانيًا: الطلبات");
+    expect(headings(humanMemo(packet("lawsuit")).body)).toEqual(["أولًا:", "ثانيًا:", "ثالثًا:"]);
+    expect(humanMemo(packet("lawsuit")).body).not.toContain("خامسًا");
     const reviewed = reviewModelDraft(mocked("lawsuit").replace("ثالثًا: الطلبات", "رابعًا: الطلبات"), packet("lawsuit"));
     expect(reviewed.ok).toBe(true);
     if (!reviewed.ok) return;
@@ -274,11 +283,11 @@ describe("draft guard", () => {
 
   it("rejects a statute name, a loose quote, a missing verse, and an invented name", () => {
     expect(rejectedReason(reviewModelDraft(`بسم الله الرحمن الرحيم\nالمادة (${citationLabel(record!.number)}) من نظام الشركات: «${record!.textAr}»`, packet("lawsuit")))).toContain("statute:");
-    const altered = record!.textAr.replace("تصفية حقوقه", "تصفية حقوقه مع زيادة لم تذكر");
+    const altered = record!.textAr.replace("سبب غير مشروع", "سبب غير مشروع مع زيادة لم تذكر");
     expect(rejectedReason(reviewModelDraft(`بسم الله الرحمن الرحيم\n«${altered}»`, packet("defense")))).toBe("quote");
     const withVerse = packet("reply", {
       articles: [],
-      sharia: [{ id: "s1", kind: "quran", reference: "2:282", textAr: "يا أيها الذين آمنوا إذا تداينتم بدين", textEn: "", sourceUrl: "https://tanzil.net/download/", isSample: false }],
+      sharia: [{ id: "s1", kind: "quran", reference: "2:282", textAr: debtVerse, textEn: "", sourceUrl: "https://tanzil.net/download/", isSample: false }],
     });
     expect(rejectedReason(reviewModelDraft("بسم الله الرحمن الرحيم\nيستند إلى 2:282 دون إيراد النص.", withVerse))).toContain("sharia:2:282");
     expect(rejectedReason(reviewModelDraft(`بسم الله الرحمن الرحيم\n${facts}\nشركة زهور لم تذكر.\nالمادة (${citationLabel(record!.number)}) من ${labor.nameAr}: «${record!.textAr}»`, packet("appeal")))).toContain("شركة زهور");
@@ -299,7 +308,7 @@ describe("draft guard", () => {
         "بسم الله الرحمن الرحيم",
         `المادة (${citationLabel(record!.number)}) من ${labor.nameAr}: «${record!.textAr}»`,
         "المصدر: https://laws.boe.gov.sa/example",
-        "{{cite:article:labor-88:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}}",
+        "{{cite:article:labor-77:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}}",
         facts,
       ].join("\n"),
       packet("lawsuit"),
@@ -353,7 +362,60 @@ describe("draft guard", () => {
     expect(draftPrompt(packet("reply"))).toContain("بندًا بندًا");
     expect(draftPrompt(packet("defense"))).toContain("رد الدعوى");
     expect(draftPrompt(packet("appeal"))).toContain("نقض الحكم");
-    expect(draftPrompt(packet("reply", { articles: [] }))).toContain("لا نص محفوظ");
+    expect(draftPrompt(packet("reply", { articles: [] }))).toContain("لا مرجع محفوظ");
+    expect(draftPrompt(packet("lawsuit"))).toContain("[[ref:labor-77]]");
+    expect(draftPrompt(packet("lawsuit"))).not.toContain(record!.textAr);
+  });
+});
+
+describe("official injection", () => {
+  it("never keeps the invented labor sentence", async () => {
+    const reviewed = reviewModelDraft(`${FAKE_ARTICLE}\n${facts}`, packet("lawsuit"));
+    expect(reviewed.ok).toBe(true);
+    if (!reviewed.ok) return;
+    expect(reviewed.draft.body).not.toContain("وجب دفع الأجر ومكافأة نهاية الخدمة خلال أسبوع");
+    expect(reviewed.draft.body).toContain(record!.textAr);
+    expect(reviewed.failures[0]?.quoteSpan).toContain("وجب دفع الأجر");
+    expect(JSON.stringify(reviewed.failures)).not.toContain(facts);
+    const bytes = await renderPdf({ title: reviewed.draft.title, body: reviewed.draft.body, fontPath: fontFile("") });
+    const dir = mkdtempSync(path.join(tmpdir(), "elw-fake-"));
+    const file = path.join(dir, "memo.pdf");
+    writeFileSync(file, bytes);
+    const text = execFileSync("pdftotext", ["-enc", "UTF-8", file, "-"], { encoding: "utf8" });
+    expect(text).not.toContain("وجب دفع الأجر ومكافأة نهاية الخدمة خلال أسبوع");
+    expect(text).toContain("سبب غير مشروع");
+  }, 60000);
+
+  it("replaces a paraphrase that has no quotation marks", () => {
+    const reviewed = reviewModelDraft(
+      `بسم الله الرحمن الرحيم\nنصت المادة (77) من نظام العمل على أن إذا انتهت علاقة العمل وجب دفع الأجر خلال أسبوع.\n${facts}`,
+      packet("lawsuit"),
+    );
+    expect(reviewed.ok).toBe(true);
+    if (!reviewed.ok) return;
+    expect(reviewed.draft.body).not.toContain("وجب دفع الأجر خلال أسبوع");
+    expect(reviewed.draft.body).toContain(record!.textAr);
+    expect(reviewed.failures.some((item) => item.failureType === "paraphrase")).toBe(true);
+  });
+
+  it("keeps a failure log to the quoted span", () => {
+    const secret = "واقعة سرية لا تُسجل: خالد طلب مبلغًا لم يذكره";
+    const row = draftCheckRecord({
+      recordId: "labor-77",
+      articleNumber: record!.number,
+      statute: labor.nameAr,
+      failureType: "quote",
+      quoteSpan: "«إذا انتهت علاقة العمل وجب دفع الأجر ومكافأة نهاية الخدمة خلال أسبوع.»",
+      facts: secret,
+      memo: `${secret}\n${FAKE_ARTICLE}`,
+    });
+    const encoded = JSON.stringify(row);
+    expect(encoded).not.toContain("واقعة سرية");
+    expect(encoded).not.toContain("خالد طلب");
+    expect(Object.keys(row).sort()).toEqual(["articleNumber", "failureType", "quoteSpan", "recordId", "statute"]);
+    expect(row.quoteSpan).toContain("وجب دفع الأجر");
+    expect(row.recordId).toBe("labor-77");
+    expect(row.statute).toBe(labor.nameAr);
   });
 });
 

@@ -96,11 +96,35 @@ describe("article numbers", () => {
   });
 });
 
+function boe(file: string, label: string): { nameAr: string; nameEn: string; version: string; effectiveDate: string; article: { number: string; textAr: string; sourceUrl: string } } {
+  const law = JSON.parse(readFileSync(join(__dirname, "../../../../corpus/official/boe", file), "utf8")) as {
+    nameAr: string;
+    nameEn?: string;
+    version?: string;
+    effectiveDate?: string;
+    articles: { number: string; textAr: string; sourceUrl: string }[];
+  };
+  const article = law.articles.find((item) => citationLabel(item.number) === label);
+  if (!article) throw new Error(`${file} has no stored article ${label}`);
+  return { nameAr: law.nameAr, nameEn: law.nameEn || "", version: law.version || "", effectiveDate: law.effectiveDate || "", article };
+}
+
+function verse(surah: string, ayah: string): string {
+  const prefix = `${surah}|${ayah}|`;
+  const line = readFileSync(join(__dirname, "../../../../corpus/official/tanzil/quran-uthmani.txt"), "utf8")
+    .split("\n")
+    .find((item) => item.startsWith(prefix));
+  if (!line) throw new Error(`missing verse ${prefix}`);
+  return line.slice(prefix.length).trim();
+}
+
 describe("citations", () => {
-  const articleText = "نص عيّنة غير رسمي عن إنهاء العقد.";
-  const ayah = "يَا أَيُّهَا الَّذِينَ آمَنُوا";
-  const labor = knownArticle("77", "عيّنة نظام العمل", articleText);
-  const other = knownArticle("77", "نظام الإثبات", "نص من نظام آخر.");
+  const laborRecord = boe("labor.json", "77");
+  const evidenceRecord = boe("evidence.json", "77");
+  const articleText = laborRecord.article.textAr;
+  const ayah = verse("2", "282");
+  const labor = knownArticle("77", laborRecord.nameAr, articleText);
+  const other = knownArticle("77", evidenceRecord.nameAr, evidenceRecord.article.textAr);
   const known = {
     articles: new Map([
       ["a77", labor],
@@ -108,7 +132,7 @@ describe("citations", () => {
     ]),
     sharia: new Map([["s1", { textHash: textHash(ayah), reference: "2:282" }]]),
   };
-  const valid = `المادة (77) من عيّنة نظام العمل: ${articleText}\n{{cite:article:a77:${labor.textHash}}}\n2:282: ${ayah}\n{{cite:sharia:s1:${textHash(ayah)}}}`;
+  const valid = `المادة (77) من ${laborRecord.nameAr}: ${articleText}\n{{cite:article:a77:${labor.textHash}}}\n2:282: ${ayah}\n{{cite:sharia:s1:${textHash(ayah)}}}`;
 
   it("accepts a citation that resolves to the statute, the number, and the text hash", () => {
     expect(
@@ -140,7 +164,7 @@ describe("citations", () => {
 
   it("rejects a number that belongs to another statute", () => {
     const result = validateCitations(
-      valid.replace("من عيّنة نظام العمل", "من نظام الإثبات"),
+      valid.replace(`من ${laborRecord.nameAr}`, `من ${evidenceRecord.nameAr}`),
       [{ kind: "article", id: "a77", number: "77" }, { kind: "sharia", id: "s1" }],
       known,
     );
@@ -158,6 +182,7 @@ describe("draft composer", () => {
   it("quotes only the articles it was given", () => {
     const slots = readSlots(["المدعي: أحمد\nالمدعى عليه: الشركة\nالطلبات: التعويض\nانتهت العلاقة بعد سنوات دون إنذار كتابي ولم تُصرف المكافأة."]);
     expect(slots.ready).toBe(true);
+    const stored = boe("labor.json", "77");
     const draft = composeDraft({
       court: "labor",
       memoType: "lawsuit",
@@ -166,20 +191,20 @@ describe("draft composer", () => {
         {
           id: "a77",
           number: "77",
-          textAr: "نص عيّنة غير رسمي عن إنهاء العقد.",
-          textEn: "sample",
-          lawNameAr: "عيّنة نظام العمل",
-          lawNameEn: "Sample labor",
-          sourceUrl: "https://example.sa/sample/77",
-          isSample: true,
-          version: "sample-1",
-          effectiveDate: "2026-01-01",
+          textAr: stored.article.textAr,
+          textEn: stored.nameEn,
+          lawNameAr: stored.nameAr,
+          lawNameEn: stored.nameEn,
+          sourceUrl: stored.article.sourceUrl,
+          isSample: false,
+          version: stored.version,
+          effectiveDate: stored.effectiveDate,
         },
       ],
       sharia: [],
     });
-    expect(draft.body).toContain("المادة (77) من عيّنة نظام العمل");
-    expect(draft.body).toContain("نص عيّنة غير رسمي عن إنهاء العقد.");
+    expect(draft.body).toContain(`المادة (77) من ${stored.nameAr}`);
+    expect(draft.body).toContain(stored.article.textAr);
     expect(draft.body).not.toContain("{{cite:");
     expect(draft.body).not.toContain("https://");
     expect(draft.body).not.toMatch(/المادة\s*\(?\s*84/);
@@ -197,11 +222,15 @@ describe("citation relevance and slot labels", () => {
     if (!article) throw new Error("stored labor article 88 is missing");
     return article.textAr;
   })();
-  const oath = "يشترط أن يكون الحالف أهلاً للتصرف فيما يحلف عليه، ولا تقبل النيابة في أداء اليمين.";
-  const proof = "يقع إثبات عدم صرف الأجر ومكافأة نهاية الخدمة على من يدعيه بالبينة.";
-  const venue = "تختص المحكمة العامة بنظر الدعاوى الخارجة عن اختصاص المحاكم الأخرى وفق قواعد المرافعات.";
+  const evidenceOath = boe("evidence.json", "50");
+  const evidenceProof = boe("evidence.json", "94");
+  const procedureVenue = boe("sharia-procedure.json", "31");
+  const companiesLaw = boe("companies.json", "1");
+  const oath = evidenceOath.article.textAr;
+  const proof = evidenceProof.article.textAr;
+  const venue = procedureVenue.article.textAr;
 
-  function ground(id: string, lawKey: string, lawNameAr: string, textAr: string, number = "90"): GroundArticle {
+  function ground(id: string, lawKey: string, lawNameAr: string, textAr: string, number = "90", sourceUrl = "", version = "", effectiveDate = ""): GroundArticle {
     return {
       id,
       number,
@@ -210,10 +239,10 @@ describe("citation relevance and slot labels", () => {
       lawKey,
       lawNameAr,
       lawNameEn: "",
-      sourceUrl: "https://example.sa/source",
+      sourceUrl,
       isSample: false,
-      version: "1",
-      effectiveDate: "2026-01-01",
+      version,
+      effectiveDate,
     };
   }
 
@@ -236,7 +265,7 @@ describe("citation relevance and slot labels", () => {
     expect(searchStems("في الأجر على الشركة")).toEqual(["أجر", "شركة"]);
     expect(isFillerCitation("1:1", "بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ")).toBe(true);
     expect(isFillerCitation("فاتحة", "بسم الله الرحمن الرحيم")).toBe(true);
-    expect(isFillerCitation("2:282", "يا أيها الذين آمنوا إذا تداينتم بدين")).toBe(false);
+    expect(isFillerCitation("2:282", verse("2", "282"))).toBe(false);
     expect(courtSubject("labor")?.nameAr).toBe("نظام العمل");
     expect(courtSubject("unknown")).toBeNull();
   });
@@ -247,9 +276,9 @@ describe("citation relevance and slot labels", () => {
       memoType: "lawsuit",
       facts: wage,
       articles: [
-        ground("oath", "evidence", "نظام الإثبات", oath, "94"),
-        ground("proof", "evidence", "نظام الإثبات", proof, "50"),
-        ground("venue", "sharia-procedure", "نظام المرافعات الشرعية", venue, "31"),
+        ground("oath", "evidence", evidenceOath.nameAr, oath, "94", evidenceOath.article.sourceUrl, evidenceOath.version, evidenceOath.effectiveDate),
+        ground("proof", "evidence", evidenceProof.nameAr, proof, "50", evidenceProof.article.sourceUrl, evidenceProof.version, evidenceProof.effectiveDate),
+        ground("venue", "sharia-procedure", procedureVenue.nameAr, venue, "31", procedureVenue.article.sourceUrl, procedureVenue.version, procedureVenue.effectiveDate),
       ],
       sharia: [
         {
@@ -287,10 +316,12 @@ describe("citation relevance and slot labels", () => {
   it("cites stored labor articles for a wage claim and rejects an unknown number", () => {
     const labor = JSON.parse(readFileSync(join(__dirname, "../../../../corpus/official/boe/labor.json"), "utf8")) as {
       nameAr: string;
-      articles: { number: string; textAr: string }[];
+      version?: string;
+      effectiveDate?: string;
+      articles: { number: string; textAr: string; sourceUrl?: string }[];
     };
-    const facts = `${wage} انتهت خدمة العامل وجب على صاحب العمل دفع أجره وتصفية حقوقه خلال أسبوع.`;
-    const articles = labor.articles.map((article, index) => ground(`labor-${index}`, "labor", labor.nameAr, article.textAr, article.number));
+    const facts = `${wage}\n${laborText}`;
+    const articles = labor.articles.map((article, index) => ground(`labor-${index}`, "labor", labor.nameAr, article.textAr, article.number, article.sourceUrl, labor.version, labor.effectiveDate || ""));
     const decision = selectGrounds({
       court: "labor",
       memoType: "lawsuit",
@@ -327,15 +358,19 @@ describe("citation relevance and slot labels", () => {
   it("cites the narcotics law for possession and the bribery law for a bribe, and rejects an unknown number", () => {
     const narcotics = JSON.parse(readFileSync(join(__dirname, "../../../../corpus/official/boe/narcotics.json"), "utf8")) as {
       nameAr: string;
-      articles: { number: string; textAr: string }[];
+      version?: string;
+      effectiveDate?: string;
+      articles: { number: string; textAr: string; sourceUrl?: string }[];
     };
     const bribery = JSON.parse(readFileSync(join(__dirname, "../../../../corpus/official/boe/bribery.json"), "utf8")) as {
       nameAr: string;
-      articles: { number: string; textAr: string }[];
+      version?: string;
+      effectiveDate?: string;
+      articles: { number: string; textAr: string; sourceUrl?: string }[];
     };
     const articles = [
-      ...narcotics.articles.map((article, index) => ground(`narcotics-${index}`, "narcotics", narcotics.nameAr, article.textAr, article.number)),
-      ...bribery.articles.map((article, index) => ground(`bribery-${index}`, "bribery", bribery.nameAr, article.textAr, article.number)),
+      ...narcotics.articles.map((article, index) => ground(`narcotics-${index}`, "narcotics", narcotics.nameAr, article.textAr, article.number, article.sourceUrl, narcotics.version, narcotics.effectiveDate || "")),
+      ...bribery.articles.map((article, index) => ground(`bribery-${index}`, "bribery", bribery.nameAr, article.textAr, article.number, article.sourceUrl, bribery.version, bribery.effectiveDate || "")),
     ];
     const possession = "دفاع عن حيازة مواد مخدرة. يعاقب كل من حاز مواد مخدرة أو مؤثرات عقلية أو أحرزها أو نقلها أو سلمها أو تسلمها لغير قصد الاتجار أو الترويج أو التعاطي أو الاستعمال الشخصي.";
     const drug = selectGrounds({
@@ -390,10 +425,14 @@ describe("citation relevance and slot labels", () => {
   it("cites the trademarks law for a trademark dispute and rejects an unknown number", () => {
     const trademarks = JSON.parse(readFileSync(join(__dirname, "../../../../corpus/official/boe/trademarks.json"), "utf8")) as {
       nameAr: string;
-      articles: { number: string; textAr: string }[];
+      version?: string;
+      effectiveDate?: string;
+      articles: { number: string; textAr: string; sourceUrl?: string }[];
     };
-    const articles = trademarks.articles.map((article, index) => ground(`mark-${index}`, "trademarks", trademarks.nameAr, article.textAr, article.number));
-    const facts = "نزاع على علامة تجارية. يجوز لوزير التجارة الترخيص بتسجيل علامة تجارية جماعية للأشخاص الطبيعيين أو المعنويين الذين يتولون مراقبة منتجات أو خدمات معينة أو فحصها فيما يختص بمصدرها أو عناصر تركيبها أو طريقة صنعها.";
+    const articles = trademarks.articles.map((article, index) => ground(`mark-${index}`, "trademarks", trademarks.nameAr, article.textAr, article.number, article.sourceUrl, trademarks.version, trademarks.effectiveDate || ""));
+    const collective = trademarks.articles.find((article) => article.textAr.includes("علامة تجارية جماعية"));
+    if (!collective) throw new Error("stored trademarks collective-mark article is missing");
+    const facts = `نزاع على علامة تجارية. ${collective.textAr}`;
     const decision = selectGrounds({
       court: "commercial",
       memoType: "lawsuit",
@@ -423,14 +462,14 @@ describe("citation relevance and slot labels", () => {
   });
 
   it("keeps procedural articles in the procedural section only when they match", () => {
-    const facts = `${wage} ويطلب إثبات عدم الصرف بالبينة.`;
+    const facts = `${wage} ويطلب إثبات عدم الصرف بالبينة. ${proof}`;
     const decision = selectGrounds({
       court: "labor",
       memoType: "lawsuit",
       facts,
       articles: [
-        ground("proof", "evidence", "نظام الإثبات", proof, "40"),
-        ground("venue", "sharia-procedure", "نظام المرافعات الشرعية", venue, "31"),
+        ground("proof", "evidence", evidenceProof.nameAr, proof, "94", evidenceProof.article.sourceUrl, evidenceProof.version, evidenceProof.effectiveDate),
+        ground("venue", "sharia-procedure", procedureVenue.nameAr, venue, "31", procedureVenue.article.sourceUrl, procedureVenue.version, procedureVenue.effectiveDate),
         ground("labor", "labor", "نظام العمل", laborText, "88"),
       ],
       sharia: [],
@@ -452,13 +491,13 @@ describe("citation relevance and slot labels", () => {
     const procedural = draft.body.split("الأسانيد الإجرائية")[1].split("ثالثًا")[0];
     expect(statutory).not.toContain("نظام الإثبات");
     expect(statutory).not.toContain("نظام المرافعات");
-    expect(procedural).toContain("المادة (40) من نظام الإثبات");
+    expect(procedural).toContain("المادة (94) من نظام الإثبات");
     expect(procedural).not.toContain("نظام المرافعات");
     const matched = selectGrounds({
       court: "labor",
       memoType: "lawsuit",
       facts: `${wage}\n${laborText}`,
-      articles: [ground("labor", "labor", "نظام العمل", laborText, "88"), ground("proof", "evidence", "نظام الإثبات", proof, "40")],
+      articles: [ground("labor", "labor", "نظام العمل", laborText, "88"), ground("proof", "evidence", evidenceProof.nameAr, proof, "94", evidenceProof.article.sourceUrl, evidenceProof.version, evidenceProof.effectiveDate)],
       sharia: [],
       presentLawKeys: ["labor", "evidence"],
     });
@@ -469,7 +508,7 @@ describe("citation relevance and slot labels", () => {
       court: "commercial",
       memoType: "lawsuit",
       facts: wage,
-      articles: [ground("oath", "companies", "نظام الشركات", oath, "2")],
+      articles: [ground("company", "companies", companiesLaw.nameAr, companiesLaw.article.textAr, "1", companiesLaw.article.sourceUrl, companiesLaw.version, companiesLaw.effectiveDate)],
       sharia: [],
       presentLawKeys: ["companies"],
     });
@@ -478,8 +517,8 @@ describe("citation relevance and slot labels", () => {
     const appeal = selectGrounds({
       court: "appeal",
       memoType: "appeal",
-      facts: wage,
-      articles: [ground("proof", "evidence", "نظام الإثبات", proof, "40")],
+      facts: `${wage}\n${proof}`,
+      articles: [ground("proof", "evidence", evidenceProof.nameAr, proof, "94", evidenceProof.article.sourceUrl, evidenceProof.version, evidenceProof.effectiveDate)],
       sharia: [],
       presentLawKeys: ["sharia-procedure", "evidence"],
     });
@@ -562,23 +601,26 @@ describe("remaining domain branches", () => {
   });
 
   it("rejects a mismatched article number, a bad hash, and an unknown token", () => {
-    const articleText = "نص محفوظ.";
-    const row = knownArticle("77", "عيّنة نظام العمل", articleText);
+    const stored = boe("labor.json", "77");
+    const articleText = stored.article.textAr;
+    const ayah = verse("2", "282");
+    const row = knownArticle("77", stored.nameAr, articleText);
     const known = {
       articles: new Map([["a77", row]]),
-      sharia: new Map([["s1", { textHash: textHash("آية"), reference: "2:282" }]]),
+      sharia: new Map([["s1", { textHash: textHash(ayah), reference: "2:282" }]]),
     };
-    const mismatch = validateCitations(`المادة (77) من عيّنة نظام العمل: ${articleText}\n{{cite:article:a77:${row.textHash}}}`, [{ kind: "article", id: "a77", number: "1" }], known);
+    const mismatch = validateCitations(`المادة (77) من ${stored.nameAr}: ${articleText}\n{{cite:article:a77:${row.textHash}}}`, [{ kind: "article", id: "a77", number: "1" }], known);
     expect(mismatch.ok).toBe(false);
     expect(mismatch.unknown).toContain("mismatch:a77");
     const badHash = validateCitations(
-      `المادة (77) من عيّنة نظام العمل: ${articleText}\n{{cite:article:a77:${"ab".repeat(32)}}}`,
+      `المادة (77) من ${stored.nameAr}: ${articleText}\n{{cite:article:a77:${"ab".repeat(32)}}}`,
       [{ kind: "article", id: "a77", number: "77" }],
       known,
     );
     expect(badHash.unknown).toContain("hash:a77");
     const token = validateCitations("{{cite:sharia:missing:" + "cd".repeat(32) + "}}", [], known);
     expect(token.unknown).toContain("token:missing");
+    const rule = boe("sharia-procedure-regulation.json", "1/30");
     const regulation = composeDraft({
       court: "general",
       memoType: "lawsuit",
@@ -586,20 +628,21 @@ describe("remaining domain branches", () => {
       articles: [
         {
           id: "reg",
-          number: "١/٣٠",
-          textAr: "نص اللائحة.",
-          textEn: "",
-          lawNameAr: "اللوائح التنفيذية لنظام المرافعات الشرعية",
-          lawNameEn: "",
-          sourceUrl: "https://laws.moj.gov.sa/ar/legislation/example",
+          number: rule.article.number,
+          textAr: rule.article.textAr,
+          textEn: rule.nameEn,
+          lawNameAr: rule.nameAr,
+          lawNameEn: rule.nameEn,
+          sourceUrl: rule.article.sourceUrl,
           isSample: false,
-          version: "1",
-          effectiveDate: "2023-07-23",
+          version: rule.version,
+          effectiveDate: rule.effectiveDate,
         },
       ],
       sharia: [],
     });
-    expect(regulation.body).toContain("المادة (1/30) من اللوائح التنفيذية لنظام المرافعات الشرعية");
+    expect(regulation.body).toContain(`المادة (1/30) من ${rule.nameAr}`);
+    expect(regulation.body).toContain(rule.article.textAr);
     expect(regulation.body).not.toContain("المادة (1) من اللوائح");
   });
 
@@ -610,6 +653,7 @@ describe("remaining domain branches", () => {
     const noDefendant = readSlots(["المدعي: أحمد\nهذه وقائع طويلة تكفي لوصف النزاع دون ذكر الطرف الآخر."]);
     expect(noDefendant.ready).toBe(false);
     const slots = readSlots(["المدعي: أحمد\nالمدعى عليه: الشركة\nالطلبات: التعويض\nانتهت العلاقة بعد سنوات دون إنذار كتابي ولم تُصرف المكافأة."]);
+    const ayah = verse("2", "282");
     const draft = composeDraft({
       court: "general",
       memoType: "defense",
@@ -620,8 +664,8 @@ describe("remaining domain branches", () => {
           id: "s1",
           kind: "quran",
           reference: "2:282",
-          textAr: "يَا أَيُّهَا الَّذِينَ آمَنُوا",
-          textEn: "quran",
+          textAr: ayah,
+          textEn: "",
           sourceUrl: "https://tanzil.net/download/",
           isSample: false,
         },
@@ -631,7 +675,7 @@ describe("remaining domain branches", () => {
     expect(draft.title).toBe("مذكرة دفاع");
     expect(draft.body).not.toContain("لم يُسترجع");
     expect(draft.body).toContain("2:282");
-    expect(draft.body).toContain("يَا أَيُّهَا الَّذِينَ آمَنُوا");
+    expect(draft.body).toContain(ayah.slice(0, 24));
     expect(draft.body).not.toContain("https://");
     expect(draft.body).toContain("مكتب أحمد العمراني");
     expect(draft.citations).toEqual([{ kind: "sharia", id: "s1" }]);

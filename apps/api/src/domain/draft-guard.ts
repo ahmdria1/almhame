@@ -44,14 +44,14 @@ export function articleMention(article: RetrievedArticle): string {
   return `المادة (${citationLabel(article.number)}) من ${lawName}`;
 }
 
-function allSources(packet: DraftPacket): { kind: CitationRef["kind"]; id: string; number?: string; text: string; mention?: string }[] {
+function allSources(packet: DraftPacket): { kind: CitationRef["kind"]; id: string; number?: string; text: string; mention?: string; statute: string }[] {
   const procedural = packet.procedural || [];
   const judgments = packet.judgments || [];
   return [
-    ...packet.articles.map((article) => ({ kind: "article" as const, id: article.id, number: article.number, text: article.textAr, mention: articleMention(article) })),
-    ...procedural.map((article) => ({ kind: "article" as const, id: article.id, number: article.number, text: article.textAr, mention: articleMention(article) })),
-    ...packet.sharia.map((row) => ({ kind: "sharia" as const, id: row.id, number: row.reference, text: row.textAr, mention: row.reference })),
-    ...judgments.map((row) => ({ kind: "judgment" as const, id: row.id, number: row.judgmentNo, text: row.fullText, mention: row.judgmentNo })),
+    ...packet.articles.map((article) => ({ kind: "article" as const, id: article.id, number: article.number, text: article.textAr, mention: articleMention(article), statute: article.lawNameAr })),
+    ...procedural.map((article) => ({ kind: "article" as const, id: article.id, number: article.number, text: article.textAr, mention: articleMention(article), statute: article.lawNameAr })),
+    ...packet.sharia.map((row) => ({ kind: "sharia" as const, id: row.id, number: row.reference, text: row.textAr, mention: row.reference, statute: "" })),
+    ...judgments.map((row) => ({ kind: "judgment" as const, id: row.id, number: row.judgmentNo, text: row.fullText, mention: row.judgmentNo, statute: row.court })),
   ];
 }
 
@@ -88,10 +88,11 @@ export function findAiTell(text: string): string | null {
 
 function quotedSpans(text: string): { start: number; end: number; inner: string }[] {
   const spans = [];
-  const pattern = /«([^»]+)»/g;
+  const pattern = /«([^»]*)»|"([^"]{8,})"|“([^”]{8,})”/g;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(text))) {
-    spans.push({ start: match.index, end: match.index + match[0].length, inner: match[1] });
+    const inner = match[1] ?? match[2] ?? match[3] ?? "";
+    spans.push({ start: match.index, end: match.index + match[0].length, inner });
   }
   return spans;
 }
@@ -104,27 +105,105 @@ function exactQuote(inner: string, packet: DraftPacket): boolean {
   return (packet.judgments || []).some((row) => textHash(row.fullText) === hashed);
 }
 
-export function repairQuotes(text: string, packet: DraftPacket): { text: string; ok: boolean; reason?: string } {
-  let next = text;
-  const spans = quotedSpans(text);
-  for (const span of [...spans].reverse()) {
-    if (exactQuote(span.inner, packet)) continue;
-    const before = next.slice(Math.max(0, span.start - 180), span.start);
-    let hit: ReturnType<typeof allSources>[number] | undefined;
-    let nearest = -1;
-    for (const row of allSources(packet)) {
-      if (!row.mention) continue;
-      const at = before.lastIndexOf(row.mention);
-      if (at > nearest) {
-        nearest = at;
+function sourceById(packet: DraftPacket, id: string) {
+  return allSources(packet).find((row) => row.id === id);
+}
+
+export interface DraftCheckRecord {
+  recordId: string;
+  articleNumber: string;
+  statute: string;
+  failureType: string;
+  quoteSpan: string;
+}
+
+export function draftCheckRecord(input: {
+  recordId?: string;
+  articleNumber?: string;
+  statute?: string;
+  failureType: string;
+  quoteSpan: string;
+  facts?: string;
+  memo?: string;
+}): DraftCheckRecord {
+  return {
+    recordId: String(input.recordId || "").slice(0, 80),
+    articleNumber: String(input.articleNumber || "").slice(0, 40),
+    statute: String(input.statute || "").slice(0, 160),
+    failureType: String(input.failureType || "").slice(0, 40),
+    quoteSpan: String(input.quoteSpan || "").replace(/\s+/g, " ").trim().slice(0, 400),
+  };
+}
+
+export function injectRefs(text: string, packet: DraftPacket): string {
+  return text.replace(/\[\[ref:\s*([^\]]+?)\s*\]\]/g, (_match, id: string) => {
+    const source = sourceById(packet, id);
+    if (!source || !source.text) return "";
+    return `${source.mention || source.id}: «${source.text}»`;
+  });
+}
+
+function nearestSource(text: string, at: number, packet: DraftPacket) {
+  const before = text.slice(Math.max(0, at - 220), at);
+  let hit: ReturnType<typeof allSources>[number] | undefined;
+  let nearest = -1;
+  for (const row of allSources(packet)) {
+    if (!row.mention) continue;
+    const found = before.lastIndexOf(row.mention);
+    if (found > nearest) {
+      nearest = found;
+      hit = row;
+    }
+    const label = row.kind === "article" ? citationLabel(row.number || "") : "";
+    if (label) {
+      const bare = before.lastIndexOf(`المادة (${label})`);
+      if (bare > nearest) {
+        nearest = bare;
         hit = row;
       }
     }
-    if (!hit || nearest < 0) return { text, ok: false, reason: "quote" };
-    const replacement = `«${hit.text}»`;
-    next = `${next.slice(0, span.start)}${replacement}${next.slice(span.end)}`;
   }
-  return { text: next, ok: true };
+  return nearest >= 0 ? hit : undefined;
+}
+
+export function repairQuotes(text: string, packet: DraftPacket): { text: string; ok: boolean; reason?: string; failures: DraftCheckRecord[] } {
+  const failures: DraftCheckRecord[] = [];
+  let next = injectRefs(text, packet);
+  const spans = quotedSpans(next);
+  for (const span of [...spans].reverse()) {
+    if (exactQuote(span.inner, packet)) continue;
+    const hit = nearestSource(next, span.start, packet);
+    if (!hit || !hit.text) return { text, ok: false, reason: "quote", failures: [...failures, draftCheckRecord({ failureType: "quote", quoteSpan: span.inner })] };
+    failures.push(draftCheckRecord({ recordId: hit.id, articleNumber: hit.number || "", statute: hit.statute, failureType: "quote", quoteSpan: span.inner }));
+    next = `${next.slice(0, span.start)}«${hit.text}»${next.slice(span.end)}`;
+  }
+  const tail = /((?:نصت\s+)?المادة\s*\(((?:[^()]|\([^()]*\))*)\)(?:\s*من\s+[^\n:«"]{0,120})?\s*[:：]\s*)([^\n«"]+)/g;
+  const tails = [];
+  let found: RegExpExecArray | null;
+  while ((found = tail.exec(next))) {
+    tails.push({ start: found.index + found[1].length, end: found.index + found[0].length, inner: found[3], label: normalizeCitationText(found[2] || "") });
+  }
+  for (const span of tails.reverse()) {
+    if (exactQuote(span.inner, packet)) continue;
+    const known = articleLabels(packet);
+    const article = known.get(span.label);
+    if (!article) return { text, ok: false, reason: span.label ? `article:${span.label}` : "quote", failures: [...failures, draftCheckRecord({ failureType: "article", articleNumber: span.label, quoteSpan: span.inner })] };
+    failures.push(draftCheckRecord({ recordId: article.id, articleNumber: article.number, statute: article.lawNameAr, failureType: "paraphrase", quoteSpan: span.inner }));
+    next = `${next.slice(0, span.start)}«${article.textAr}»${next.slice(span.end)}`;
+  }
+  const told = /نصت\s+المادة\s*\(((?:[^()]|\([^()]*\))*)\)[^\n]{0,80}?على\s+أن\s+([^\n]+)/g;
+  const toldSpans = [];
+  while ((found = told.exec(next))) {
+    toldSpans.push({ start: found.index + found[0].length - found[2].length, end: found.index + found[0].length, inner: found[2], label: normalizeCitationText(found[1] || "") });
+  }
+  for (const span of toldSpans.reverse()) {
+    if (exactQuote(span.inner, packet)) continue;
+    const article = articleLabels(packet).get(span.label);
+    if (!article) return { text, ok: false, reason: span.label ? `article:${span.label}` : "quote", failures: [...failures, draftCheckRecord({ failureType: "article", articleNumber: span.label, quoteSpan: span.inner })] };
+    failures.push(draftCheckRecord({ recordId: article.id, articleNumber: article.number, statute: article.lawNameAr, failureType: "paraphrase", quoteSpan: span.inner }));
+    next = `${next.slice(0, span.start)}«${article.textAr}»${next.slice(span.end)}`;
+  }
+  return { text: next, ok: true, failures };
 }
 
 function articleLabels(packet: DraftPacket): Map<string, RetrievedArticle> {
@@ -137,7 +216,7 @@ function articleLabels(packet: DraftPacket): Map<string, RetrievedArticle> {
 
 export function findBadCitation(text: string, packet: DraftPacket): string | null {
   const known = articleLabels(packet);
-  const named = /المادة\s*\(((?:[^()]|\([^()]*\))*)\)\s*من\s+([^\n:«»]+)/g;
+  const named = /المادة\s*\(((?:[^()]|\([^()]*\))*)\)\s*من\s+([^\n:«»]+?)(?=\s*[:：]|\s+على\b|\s*$)/g;
   let match: RegExpExecArray | null;
   while ((match = named.exec(text))) {
     const label = normalizeCitationText(match[1] || "");
@@ -212,28 +291,28 @@ function stripVersions(text: string, packet: DraftPacket): string {
     .join("");
 }
 
-export function reviewModelDraft(raw: string, packet: DraftPacket): { ok: true; draft: SettledDraft } | { ok: false; reason: string } {
-  const cleaned = visibleMemo(raw);
+export function reviewModelDraft(raw: string, packet: DraftPacket): { ok: true; draft: SettledDraft; failures: DraftCheckRecord[] } | { ok: false; reason: string; failures: DraftCheckRecord[] } {
+  const cleaned = injectRefs(visibleMemo(raw), packet);
   const tell = findAiTell(cleaned);
-  if (tell) return { ok: false, reason: `tell:${tell}` };
+  if (tell) return { ok: false, reason: `tell:${tell}`, failures: [draftCheckRecord({ failureType: "tell", quoteSpan: tell })] };
   const citation = findBadCitation(cleaned, packet);
-  if (citation) return { ok: false, reason: citation };
+  if (citation) return { ok: false, reason: citation, failures: [draftCheckRecord({ failureType: "article", articleNumber: citation.replace(/^article:|^statute:/, ""), quoteSpan: citation })] };
   const repaired = repairQuotes(cleaned, packet);
-  if (!repaired.ok) return { ok: false, reason: repaired.reason || "quote" };
+  if (!repaired.ok) return { ok: false, reason: repaired.reason || "quote", failures: repaired.failures };
   const sharia = findBadSharia(repaired.text, packet);
-  if (sharia) return { ok: false, reason: sharia };
+  if (sharia) return { ok: false, reason: sharia, failures: [...repaired.failures, draftCheckRecord({ failureType: "sharia", quoteSpan: sharia })] };
   const withBasmala = repaired.text.includes("بسم الله الرحمن الرحيم") ? repaired.text : `بسم الله الرحمن الرحيم\n\n${repaired.text}`;
   const body = stripVersions(visibleMemo(withBasmala), packet);
-  if (body.split("بسم الله الرحمن الرحيم").length - 1 !== 1) return { ok: false, reason: "basmala" };
+  if (body.split("بسم الله الرحمن الرحيم").length - 1 !== 1) return { ok: false, reason: "basmala", failures: repaired.failures };
   const invented = findInventedNumber(body, packet);
-  if (invented) return { ok: false, reason: `invented:${invented}` };
-  if (findAiTell(body)) return { ok: false, reason: "tell" };
-  const ordered = renumberSections(body);
+  if (invented) return { ok: false, reason: `invented:${invented}`, failures: [...repaired.failures, draftCheckRecord({ failureType: "invented", quoteSpan: invented })] };
+  if (findAiTell(body)) return { ok: false, reason: "tell", failures: repaired.failures };
+  const ordered = applySectionNumbers(body);
   if (packet.memoType === "defense") {
     const plea = ordered.split("الطلبات").pop() || "";
-    if (asksToChargeDefendant(plea)) return { ok: false, reason: "request" };
+    if (asksToChargeDefendant(plea)) return { ok: false, reason: "request", failures: [...repaired.failures, draftCheckRecord({ failureType: "request", quoteSpan: "إلزام المدّعى عليه" })] };
   }
-  return { ok: true, draft: finishDraft(packet, ordered, citationsUsed(ordered, packet)) };
+  return { ok: true, draft: finishDraft(packet, ordered, citationsUsed(ordered, packet)), failures: repaired.failures };
 }
 
 function citationsUsed(body: string, packet: DraftPacket): CitationRef[] {
@@ -255,12 +334,20 @@ function citationsUsed(body: string, packet: DraftPacket): CitationRef[] {
 const ORDINALS = ["أولًا", "ثانيًا", "ثالثًا", "رابعًا", "خامسًا", "سادسًا", "سابعًا", "ثامنًا"];
 const APPEAL_HEADING = "فضيلة رئيس محكمة الاستئناف";
 
+const SECTION_TITLES = ["الدفوع الشكلية", "الدفوع الموضوعية", "الرد على مذكرة الخصم", "الحكم المعترض عليه", "أوجه الاعتراض", "الأسانيد النظامية", "الأسانيد الإجرائية", "الأسانيد الشرعية", "الأسانيد", "الوقائع", "الطلبات"];
+
 export function renumberSections(text: string): string {
+  return applySectionNumbers(text);
+}
+
+export function applySectionNumbers(text: string): string {
+  const ordinalWord = "أولًا|اولا|ثانيًا|ثانيا|ثالثًا|ثالثا|رابعًا|رابعا|خامسًا|خامسا|سادسًا|سادسا|سابعًا|سابعا|ثامنًا|ثامنا";
+  const stripped = text.replace(new RegExp(`(^|\\n)[ \\t]*(?:${ordinalWord})[ \\t]*[:：][ \\t]*`, "g"), "$1");
   let index = 0;
-  return text.replace(/^(أولًا|ثانيًا|ثالثًا|رابعًا|خامسًا|سادسًا|سابعًا|ثامنًا)(\s*:)/gm, (_match, _ordinal: string, colon: string) => {
-    const next = ORDINALS[Math.min(index, ORDINALS.length - 1)];
+  return stripped.replace(new RegExp(`(^|\\n)[ \\t]*(${SECTION_TITLES.join("|")})(?=[ \\t]*$)`, "gm"), (_match, lead: string, title: string) => {
+    const ordinal = ORDINALS[Math.min(index, ORDINALS.length - 1)];
     index += 1;
-    return `${next}${colon}`;
+    return `${lead}${ordinal}: ${title}`;
   });
 }
 
@@ -447,14 +534,14 @@ export function humanMemo(packet: DraftPacket): SettledDraft {
   const lines = ["بسم الله الرحمن الرحيم", "", title, "", heading];
   if (packet.letterhead) lines.push(packet.letterhead);
   lines.push("", ...parties(packet), ...numbered(sectionsOf(packet, seed)), "", "والله الموفق.");
-  const body = renumberSections(lines.filter((line, index, all) => line !== "" || all[index - 1] !== "").join("\n"));
+  const body = applySectionNumbers(lines.filter((line, index, all) => line !== "" || all[index - 1] !== "").join("\n"));
   return { title, body, citations: citationsUsed(body, packet) };
 }
 
 export function draftPrompt(packet: DraftPacket): string {
-  const sources = allSources(packet).map((row) => `مرجع ${row.mention || row.id}\n${row.text}`).join("\n\n");
+  const sources = allSources(packet).map((row) => `[[ref:${row.id}]] ${row.mention || row.id}`).join("\n");
   const shape: Record<MemoType, string> = {
-    lawsuit: "صحيفة دعوى من المدّعي: الوقائع، ثم الأسانيد، ثم الطلبات. رقّم الأقسام أولًا ثم ثانيًا دون قفز.",
+    lawsuit: "صحيفة دعوى من المدّعي: الوقائع، ثم الأسانيد، ثم الطلبات.",
     defense: "مذكرة دفاع من المدّعى عليه: الدفوع الشكلية، ثم الدفوع الموضوعية، ثم طلب رد الدعوى. لا تطلب إلزام المدّعى عليه.",
     reply: "مذكرة جوابية ترد على مذكرة الخصم بندًا بندًا، ثم الأسانيد، ثم الطلبات.",
     appeal: "لائحة اعتراضية إلى محكمة الاستئناف: رقم الحكم وتاريخه إن وردا في الوقائع، ثم أوجه الاعتراض، ثم طلب نقض الحكم.",
@@ -462,15 +549,16 @@ export function draftPrompt(packet: DraftPacket): string {
   return [
     `اكتب ${packet.title || "المذكرة"} بعبارة محامٍ سعودي أمام ${packet.memoType === "appeal" ? APPEAL_HEADING : packet.courtHeading || "المحكمة"}.`,
     shape[packet.memoType],
+    "لا تكتب نص مادة أو آية أو حكم. أشر إلى النص المحفوظ بهذا الشكل فقط: [[ref:المعرف]].",
+    "لا ترقّم الأقسام. اكتب عنوان القسم وحده، مثل الوقائع أو الطلبات.",
     "أعد صياغة الوقائع في سرد متصل، وأبق كل واقعة مذكورة، ولا تضف واقعة أو تاريخًا أو مبلغًا أو اسمًا.",
-    "اربط الوقائع بالنصوص المعطاة تسبيبًا، وضع النص النظامي أو الشرعي بين «» كما أُعطي حرفيًا.",
     "لا تذكر رابطًا ولا رقم إصدار، ولا تكتب بالإنجليزية، ولا تستخدم نجوم التنسيق.",
     "ابدأ مرة واحدة ببسم الله الرحمن الرحيم، وخاطب المحكمة بـ حيث إن وبما أن وبناءً على ما تقدم ونلتمس من فضيلتكم.",
     `المدّعي: ${packet.slots.plaintiff}`,
     `المدّعى عليه: ${packet.slots.defendant}`,
     `الوقائع: ${packet.slots.facts}`,
     `الطلبات: ${packet.slots.requests}`,
-    sources || "لا نص محفوظ يطابق هذه الوقائع، فلا تذكر رقم مادة.",
+    sources || "لا مرجع محفوظ. لا تذكر رقم مادة.",
   ].join("\n");
 }
 

@@ -53,7 +53,13 @@ test("chat, draft, and pdf export", async ({ page }) => {
   await page.getByTestId("chat-input").fill("المدعي أحمد العمراني يطالب شركة الأفق للمقاولات بأجر شهر أغسطس الذي لم يصرف بعد انتهاء الخدمة.");
   await page.getByTestId("chat-send").click();
   await expect(page.getByText("المدعي أحمد العمراني")).toBeVisible();
+  await page.route("**/api/chats/*/draft", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 2200));
+    await route.continue();
+  });
   await page.getByTestId("draft-button").click();
+  await expect(page.getByTestId("draft-status")).toContainText("جارٍ صياغة المذكرة");
+  await expect(page.getByTestId("draft-status")).toContainText("جارٍ مراجعة الأسانيد", { timeout: 5000 });
   await page.waitForURL(/\/app\/memos\//);
   await expect(page.getByTestId("memo-body")).toBeVisible();
   const memoId = page.url().split("/").pop();
