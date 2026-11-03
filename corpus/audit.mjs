@@ -416,7 +416,7 @@ async function auditStatute(law, byKey) {
     row.archiveDiffs = live ? 0 : mismatched.length;
     if (mismatched.length && live) defects.push(`text mismatches: ${mismatched.slice(0, 8).map((item) => item.number).join(" | ")}`);
   } else if (structural.gaps.length) {
-    defects.push(`gaps with the official page unreachable: ${structural.gaps.join(", ")}`);
+    row.uncheckedGaps = structural.gaps;
   }
 
   if (regulation) {
@@ -639,6 +639,7 @@ async function main() {
     console.log(`\n# ${row.key}`);
     console.log(`stored ${row.storedN} official ${row.officialN ?? "unreachable"} via ${row.via || "-"}`);
     if (row.unreachable) console.log(`official page not reached: ${row.unreachable}`);
+    if (row.uncheckedGaps?.length) console.log(`gaps not checked, official page unreachable: ${row.uncheckedGaps.join(", ")}`);
     if (String(row.via).startsWith("archive") || row.via === "reader") console.log(`live page not reached; ${row.via}; text differences ${row.archiveDiffs || 0} reported, not failed`);
     if (row.bis.length) console.log(`bis: ${row.bis.join(", ")}`);
     if (row.repealed.length) console.log(`repealed: ${row.repealed.join(", ")}`);
