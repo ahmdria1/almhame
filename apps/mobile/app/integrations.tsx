@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Linking, Pressable, ScrollView, StyleSheet, Text } from "react-native";
 import { client } from "../src/api";
+import { Hub } from "../src/nav";
 
 const COPY = {
   google_drive: "integrations.drive",
@@ -39,6 +40,7 @@ export default function Integrations() {
         );
       })}
       {note ? <Text style={styles.note}>{note}</Text> : null}
+      <Hub />
     </ScrollView>
   );
 }

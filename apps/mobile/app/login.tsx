@@ -30,6 +30,7 @@ export default function Login() {
         <Text style={styles.buttonText}>دخول</Text>
       </Pressable>
       <Link href="/signup" style={styles.link}>حساب جديد</Link>
+      <Link href="/" style={styles.link}>{translate("ar", "common.back")}</Link>
     </View>
   );
 }

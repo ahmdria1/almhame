@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "expo-router";
 import { ScrollView, StyleSheet, Text } from "react-native";
 import { client } from "../src/api";
+import { Hub } from "../src/nav";
 
 export default function Memos() {
   const query = useQuery({ queryKey: ["memos"], queryFn: () => client().memos() });
@@ -15,6 +16,7 @@ export default function Memos() {
         </Link>
       ))}
       {(query.data?.memos.length || 0) === 0 ? <Text style={styles.empty}>لا مذكرات بعد</Text> : null}
+      <Hub />
     </ScrollView>
   );
 }

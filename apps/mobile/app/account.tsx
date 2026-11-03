@@ -4,6 +4,7 @@ import { LOCALES } from "@elawyer/types";
 import { Link, useRouter } from "expo-router";
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { clearToken, client } from "../src/api";
+import { Hub } from "../src/nav";
 
 const LINKS = [
   ["/wallet", "nav.wallet"],
@@ -19,6 +20,7 @@ export default function Account() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ padding: 20 }}>
       <Text style={styles.title}>{translate("ar", "nav.account")}</Text>
+      <Hub />
       {LINKS.map(([href, key]) => (
         <Link key={href} href={href} style={styles.item}>{translate("ar", key)}</Link>
       ))}

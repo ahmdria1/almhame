@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "expo-router";
 import { ScrollView, StyleSheet, Text } from "react-native";
 import { client } from "../src/api";
+import { Hub } from "../src/nav";
 
 export default function Saved() {
   const query = useQuery({ queryKey: ["saved"], queryFn: () => client().saved() });
@@ -22,6 +23,7 @@ export default function Saved() {
           <Text key={item.id} style={styles.card}>{item.title}</Text>
         )
       ))}
+      <Hub />
     </ScrollView>
   );
 }

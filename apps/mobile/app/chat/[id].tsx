@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { client } from "../../src/api";
+import { Hub } from "../../src/nav";
 
 const t = (key: string) => translate("ar", key);
 
@@ -120,6 +121,7 @@ export default function ChatScreen() {
       }}>
         <Text style={styles.primaryText}>{t("workspace.draft")}</Text>
       </Pressable>
+      <Hub />
     </View>
   );
 }

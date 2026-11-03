@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { AccountFrame } from "@/components/account-frame";
 import { Button, Input } from "@/components/ui";
 import { useApp } from "@/lib/providers";
 
@@ -16,8 +17,7 @@ export default function ReferralPage() {
     setNote(t("referral.ok"));
   }
   return (
-    <main className="mx-auto max-w-xl px-4 py-8">
-      <h1 className="text-3xl font-bold text-navy-700 dark:text-white">{t("referral.title")}</h1>
+    <AccountFrame title={t("referral.title")}>
       <p className="mt-4 text-sm text-ink-500">{t("referral.yours")}</p>
       <p className="mt-1 font-semibold">{code}</p>
       <form className="mt-6 grid gap-3" onSubmit={(event) => void claim(event)}>
@@ -25,6 +25,6 @@ export default function ReferralPage() {
         <Button type="submit">{t("referral.claim")}</Button>
       </form>
       {note ? <p className="mt-3 text-sm text-teal-700">{note}</p> : null}
-    </main>
+    </AccountFrame>
   );
 }

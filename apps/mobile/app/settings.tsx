@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput } from "react-native";
 import { client } from "../src/api";
+import { Hub } from "../src/nav";
 
 export default function Settings() {
   const query = useQuery({ queryKey: ["me"], queryFn: () => client().me() });
@@ -26,6 +27,7 @@ export default function Settings() {
         <Text style={styles.buttonText}>{translate("ar", "common.save")}</Text>
       </Pressable>
       {note ? <Text style={styles.note}>{note}</Text> : null}
+      <Hub />
     </ScrollView>
   );
 }

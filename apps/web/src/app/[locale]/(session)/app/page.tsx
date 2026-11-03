@@ -157,6 +157,7 @@ export default function WorkspacePage() {
 
   return (
     <div className="flex min-h-[calc(100vh-5rem)] flex-col bg-canvas lg:grid lg:grid-cols-[300px_minmax(0,1fr)_300px] dark:bg-navy-900">
+      <h1 className="sr-only">{t("nav.home")}</h1>
       <div className="flex gap-2 border-b border-ink-200 p-2 lg:hidden dark:border-white/10">
         {tabs.map(([key, label]) => (
           <button key={key} type="button" className={`min-h-11 flex-1 rounded-full px-2 text-sm font-semibold ${tab === key ? "bg-teal-100 text-teal-700" : "bg-white text-ink-500"}`} onClick={() => setTab(key)}>

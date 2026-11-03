@@ -1,17 +1,21 @@
 "use client";
 
-import { Bookmark, CreditCard, Folder, Lock, Plug, Settings, Wallet } from "lucide-react";
+import { Archive, Bookmark, Briefcase, CreditCard, Folder, House, Lock, Plug, Settings, Share2, Wallet } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useApp } from "@/lib/providers";
 import { cn } from "./ui";
 
 const LINKS = [
+  ["/app", "nav.home", House],
   ["/app/memos", "nav.memos", Folder],
+  ["/app/cases", "cases.title", Briefcase],
   ["/app/saved", "nav.saved", Bookmark],
+  ["/app/vault", "vault.title", Archive],
   ["/app/wallet", "nav.wallet", Wallet],
   ["/app/plans", "nav.subscription", CreditCard],
   ["/app/integrations", "nav.integrations", Plug],
+  ["/app/referral", "referral.title", Share2],
   ["/app/settings", "nav.settings", Settings],
 ] as const;
 
@@ -32,7 +36,8 @@ export function AccountFrame({
         <p className="px-3 text-sm text-ink-500">{t("nav.account")}</p>
         <nav className="mt-2 flex gap-2 overflow-x-auto lg:grid lg:gap-1.5">
           {LINKS.map(([href, key, Icon]) => {
-            const active = path === href || path.startsWith(`${href}/`);
+            const normalized = path.replace(/^\/(en|ur|hi|pa|si|bn|ne|fil|tr|am)(?=\/)/, "");
+            const active = href === "/app" ? normalized === "/app" : normalized === href || normalized.startsWith(`${href}/`);
             return (
               <Link
                 key={href}

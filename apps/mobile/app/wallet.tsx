@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { client } from "../src/api";
 import { formatSar } from "../src/format";
+import { Hub } from "../src/nav";
 
 export default function Wallet() {
   const query = useQuery({ queryKey: ["wallet"], queryFn: () => client().wallet() });
@@ -26,6 +27,7 @@ export default function Wallet() {
       {(query.data?.transactions || []).map((row) => (
         <Text key={row.id} style={styles.row}>{row.description} · {formatSar(row.amountHalalas)}</Text>
       ))}
+      <Hub />
     </ScrollView>
   );
 }

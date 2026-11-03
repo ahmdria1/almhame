@@ -38,7 +38,8 @@ function ActivateForm() {
         <input name="password" type="password" required minLength={8} className="mt-3 h-12 w-full rounded-xl border px-3" placeholder="كلمة المرور" />
         {error ? <p className="mt-2 text-sm text-red-700">{error}</p> : null}
         {done ? <p className="mt-2 text-sm text-teal-600">تم التفعيل. يمكنك الدخول الآن.</p> : null}
-        <button className="mt-4 h-12 w-full rounded-xl bg-navy-700 font-semibold text-white" type="submit">تفعيل</button>
+        <button className="mt-4 h-14 w-full rounded-[14px] bg-navy-700 font-semibold text-white" type="submit">تفعيل</button>
+        <a href="/" className="mt-3 inline-flex min-h-11 items-center justify-center text-sm font-semibold text-teal-700">دخول</a>
       </form>
     </main>
   );

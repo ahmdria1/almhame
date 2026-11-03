@@ -1,5 +1,5 @@
 import { colors } from "@elawyer/tokens";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { Link, useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { client, writeToken } from "../src/api";
@@ -25,6 +25,7 @@ export default function Otp() {
       }}>
         <Text style={styles.buttonText}>تأكيد</Text>
       </Pressable>
+      <Link href="/signup" style={styles.link}>رجوع</Link>
     </View>
   );
 }
@@ -35,4 +36,5 @@ const styles = StyleSheet.create({
   input: { marginTop: 16, backgroundColor: "white", borderRadius: 12, borderWidth: 1, borderColor: colors.slate300, minHeight: 56, padding: 12, fontSize: 24, textAlign: "center" },
   button: { marginTop: 16, backgroundColor: colors.navy700, borderRadius: 14, minHeight: 56, alignItems: "center", justifyContent: "center" },
   buttonText: { color: "white", fontWeight: "700", fontSize: 18 },
+  link: { marginTop: 16, minHeight: 44, color: colors.blue500, fontWeight: "700", textAlign: "center" },
 });

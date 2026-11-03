@@ -3,8 +3,10 @@
 import { LANGUAGE_NAMES, memoCountPhrase } from "@elawyer/i18n";
 import type { Locale } from "@elawyer/types";
 import {
+  Archive,
   Bell,
   Bookmark,
+  Briefcase,
   CreditCard,
   Folder,
   Globe,
@@ -12,6 +14,7 @@ import {
   Plug,
   Search,
   Settings,
+  Share2,
   Wallet,
 } from "lucide-react";
 import Link from "next/link";
@@ -67,9 +70,12 @@ export function AccountMenu() {
   const items = [
     ["/app/wallet", "nav.wallet", Wallet],
     ["/app/memos", "nav.memos", Folder],
+    ["/app/cases", "cases.title", Briefcase],
     ["/app/saved", "nav.saved", Bookmark],
+    ["/app/vault", "vault.title", Archive],
     ["/app/integrations", "nav.integrations", Plug],
     ["/app/plans", "nav.subscription", CreditCard],
+    ["/app/referral", "referral.title", Share2],
     ["/app/settings", "nav.settings", Settings],
   ] as const;
   return (
@@ -95,7 +101,7 @@ export function AccountMenu() {
             <p className="mt-2 text-sm text-teal-700">{t("menu.memosLeft", { phrase: memoCountPhrase(locale, user.memoRemaining) })}</p>
           </div>
           {items.map(([href, key, Icon]) => (
-            <Link key={key} href={href} data-testid={`menu-${key.split(".")[1]}`} className="flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold hover:bg-ink-100 dark:hover:bg-white/5" onClick={() => setOpen(false)}>
+            <Link key={key} href={href} data-testid={`menu-${key.startsWith("nav.") ? key.split(".")[1] : key.split(".")[0]}`} className="flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold hover:bg-ink-100 dark:hover:bg-white/5" onClick={() => setOpen(false)}>
               <Icon size={16} /> {t(key)}
             </Link>
           ))}

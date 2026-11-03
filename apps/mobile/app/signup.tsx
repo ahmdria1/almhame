@@ -37,6 +37,7 @@ export default function Signup() {
         <Text style={styles.buttonText}>أرسل رمز البريد</Text>
       </Pressable>
       <Link href="/login" style={styles.link}>لديك حساب؟ دخول</Link>
+      <Link href="/" style={styles.link}>رجوع</Link>
     </View>
   );
 }

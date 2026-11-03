@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { client } from "../src/api";
 import { formatSar } from "../src/format";
+import { Hub } from "../src/nav";
 
 const SERVICE_KEY: Record<ServiceCode, string> = {
   review: "plans.serviceReview",
@@ -54,6 +55,7 @@ export default function Plans() {
         </Pressable>
       ))}
       {note ? <Text style={styles.note}>{note}</Text> : null}
+      <Hub />
     </ScrollView>
   );
 }
