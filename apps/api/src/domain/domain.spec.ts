@@ -179,7 +179,9 @@ describe("draft composer", () => {
       sharia: [],
     });
     expect(draft.body).toContain("المادة (77) من عيّنة نظام العمل");
-    expect(draft.body).toContain(`{{cite:article:a77:${textHash("نص عيّنة غير رسمي عن إنهاء العقد.")}}}`);
+    expect(draft.body).toContain("نص عيّنة غير رسمي عن إنهاء العقد.");
+    expect(draft.body).not.toContain("{{cite:");
+    expect(draft.body).not.toContain("https://");
     expect(draft.body).not.toMatch(/المادة\s*\(?\s*84/);
     expect(draft.citations).toEqual([{ kind: "article", id: "a77", number: "77" }]);
   });
@@ -620,8 +622,10 @@ describe("remaining domain branches", () => {
       letterhead: "مكتب أحمد العمراني",
     });
     expect(draft.title).toBe("مذكرة دفاع");
-    expect(draft.body).toContain("لم يُسترجع من المدونة");
+    expect(draft.body).not.toContain("لم يُسترجع");
     expect(draft.body).toContain("2:282");
+    expect(draft.body).toContain("يَا أَيُّهَا الَّذِينَ آمَنُوا");
+    expect(draft.body).not.toContain("https://");
     expect(draft.body).toContain("مكتب أحمد العمراني");
     expect(draft.citations).toEqual([{ kind: "sharia", id: "s1" }]);
   });

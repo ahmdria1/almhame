@@ -369,7 +369,8 @@ async function auditStatute(law, byKey) {
   if (official) {
     row.officialN = official.articles.length;
     const officialStructure = regulation ? null : sequenceReport(official.articles);
-    const live = !String(official.via || "").startsWith("archive");
+    const viaName = String(official.via || "");
+    const live = viaName === "direct" || viaName === "moj-gateway" || viaName.startsWith("moj-search");
     if (!regulation && officialStructure) {
       const officialGaps = new Set(officialStructure.gaps);
       const unexplained = structural.gaps.filter((gap) => !officialGaps.has(gap));
@@ -527,9 +528,11 @@ async function auditHadith() {
 
 async function drafterDistinct() {
   const draft = await readFile(path.join(root, "apps", "api", "src", "domain", "draft.ts"), "utf8");
+  const guard = await readFile(path.join(root, "apps", "api", "src", "domain", "draft-guard.ts"), "utf8");
+  const drafting = `${draft}\n${guard}`;
   const validator = await readFile(path.join(root, "apps", "api", "src", "domain", "citations.ts"), "utf8");
   const defects = [];
-  if (!draft.includes("citationLabel(article.number)") || !draft.includes("article.lawNameAr") || !draft.includes("textHash(article.textAr)")) {
+  if (!drafting.includes("citationLabel(article.number)") || !drafting.includes("article.lawNameAr") || !drafting.includes("textHash(article.textAr)")) {
     defects.push("drafter citation must include the statute name, the full article label, and the text hash");
   }
   if (!validator.includes("statute:")) defects.push("validator must reject an article number that belongs to another statute");
@@ -636,7 +639,7 @@ async function main() {
     console.log(`\n# ${row.key}`);
     console.log(`stored ${row.storedN} official ${row.officialN ?? "unreachable"} via ${row.via || "-"}`);
     if (row.unreachable) console.log(`official page not reached: ${row.unreachable}`);
-    if (String(row.via).startsWith("archive")) console.log(`live page not reached; archive ${row.via}; text differences ${row.archiveDiffs || 0} reported, not failed`);
+    if (String(row.via).startsWith("archive") || row.via === "reader") console.log(`live page not reached; ${row.via}; text differences ${row.archiveDiffs || 0} reported, not failed`);
     if (row.bis.length) console.log(`bis: ${row.bis.join(", ")}`);
     if (row.repealed.length) console.log(`repealed: ${row.repealed.join(", ")}`);
     if (row.notes.length) console.log(`official heading kept as published: ${row.notes.join(", ")}`);

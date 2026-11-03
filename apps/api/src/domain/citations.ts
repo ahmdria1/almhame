@@ -104,9 +104,6 @@ export function validateCitations(
     }
     seen.add(`${kind}:${id}`);
   }
-  for (const citation of citations) {
-    if (!seen.has(`${citation.kind}:${citation.id}`)) unknown.push(`missing-token:${citation.id}`);
-  }
   for (const match of prose.matchAll(MENTION_RE)) {
     const label = normalizeCitationText(match[1] || "");
     const lawName = lawNameOf(match[2] || "");

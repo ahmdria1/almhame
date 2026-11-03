@@ -10,7 +10,8 @@ import { jurisdictionOf, priceForMemoType, type CourtType as Court, type MemoTyp
 import { CorpusService } from "./corpus.service";
 import { InfectedUpload, scanInstream } from "./domain/clamd";
 import { knownArticle, textHash, validateCitations, type CitationRef } from "./domain/citations";
-import { composeDraft, readSlots } from "./domain/draft";
+import { readSlots } from "./domain/draft";
+import { draftPrompt, humanMemo, reviewModelDraft, type DraftPacket } from "./domain/draft-guard";
 import { decryptBytes, encryptBytes } from "./domain/envelope";
 import { halalasToSar, nextInvoiceNumber, splitVatInclusive, zatcaQrBase64 } from "./domain/invoice";
 import { estimateTokens, readGeneric, routeModel, writeGeneric, type RouteDecision } from "./domain/model-route";
@@ -305,7 +306,7 @@ export class WorkService {
     filled.facts = await this.maybeRewriteFacts(filled.facts, allowed, decision);
     const org = user.orgId ? await this.kernel.prisma.organization.findUnique({ where: { id: user.orgId } }) : null;
     const letterhead = (await this.kernel.plan(user.planCode, place.code)).letterhead ? org?.letterheadName || "" : "";
-    const draftBody = composeDraft({
+    const packet: DraftPacket = {
       court: chat.court,
       memoType: chat.memoType as MemoKind,
       slots: filled,
@@ -317,11 +318,27 @@ export class WorkService {
       letterhead,
       title: template.titleAr,
       courtHeading,
-    });
-    const known = await this.knownSet(draftBody.citations);
-    const grounds = draftBody.body.includes("ثانيًا:") ? draftBody.body.slice(draftBody.body.indexOf("ثانيًا:")) : draftBody.body;
-    const verdict = validateCitations(grounds, draftBody.citations, known);
-    if (!verdict.ok) fail("CITATION_REJECTED", 422, verdict.unknown.join(","));
+    };
+    let draftBody = humanMemo(packet);
+    const prompt = draftPrompt(packet);
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const raw = await this.complete({ ...decision, turns: [{ role: "user", text: attempt === 0 ? prompt : `${prompt}\nأعد الكتابة ملتزمًا بالنصوص حرفيًا.` }] });
+      if (!raw) break;
+      const reviewed = reviewModelDraft(raw, packet);
+      if (reviewed.ok) {
+        draftBody = reviewed.draft;
+        break;
+      }
+    }
+    const groundsOf = (body: string) => (body.includes("ثانيًا:") ? body.slice(body.indexOf("ثانيًا:")) : body);
+    let known = await this.knownSet(draftBody.citations);
+    let verdict = validateCitations(groundsOf(draftBody.body), draftBody.citations, known);
+    if (!verdict.ok) {
+      draftBody = humanMemo(packet);
+      known = await this.knownSet(draftBody.citations);
+      verdict = validateCitations(groundsOf(draftBody.body), draftBody.citations, known);
+      if (!verdict.ok) fail("CITATION_REJECTED", 422, verdict.unknown.join(","));
+    }
     const memo = await this.kernel.prisma.$transaction(async (tx) => {
       const current = await tx.user.findUnique({ where: { id: userId } });
       if (!current) fail("NOT_FOUND", 404, "Account was not found");
