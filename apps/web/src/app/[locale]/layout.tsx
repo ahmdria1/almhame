@@ -13,7 +13,7 @@ const cairo = Cairo({
   display: "swap",
   variable: "--font-cairo",
   adjustFontFallback: true,
-  preload: false,
+  preload: true,
 });
 
 export const viewport: Viewport = {
