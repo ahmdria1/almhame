@@ -8,6 +8,7 @@ import {
   CreditCard,
   Folder,
   Globe,
+  Scale,
   LogOut,
   Plug,
   Search,
@@ -67,6 +68,7 @@ export function AccountMenu() {
   const items = [
     ["/app/wallet", "nav.wallet", Wallet],
     ["/app/memos", "nav.memos", Folder],
+    ["/app/tracked", "nav.tracked", Scale],
     ["/app/saved", "nav.saved", Bookmark],
     ["/app/integrations", "nav.integrations", Plug],
     ["/app/plans", "nav.subscription", CreditCard],
@@ -95,7 +97,7 @@ export function AccountMenu() {
             <p className="mt-2 text-sm text-teal-700">{t("menu.memosLeft", { phrase: memoCountPhrase(locale, user.memoRemaining) })}</p>
           </div>
           {items.map(([href, key, Icon]) => (
-            <Link key={key} href={href} data-testid={`menu-${key.split(".")[1]}`} className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold hover:bg-ink-100 dark:hover:bg-white/5" onClick={() => setOpen(false)}>
+            <Link key={key} href={href} data-testid={`menu-${key.split(".")[1]}`} className="flex min-h-11 items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold hover:bg-ink-100 dark:hover:bg-white/5" onClick={() => setOpen(false)}>
               <Icon size={16} /> {t(key)}
             </Link>
           ))}

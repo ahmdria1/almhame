@@ -56,7 +56,15 @@ export default function WorkspacePage() {
   }
 
   useEffect(() => {
-    loadList().catch(() => undefined);
+    const params = new URLSearchParams(window.location.search);
+    loadList().catch(() => undefined).finally(() => {
+      const memo = params.get("memo");
+      const courtParam = params.get("court");
+      const caseNumber = params.get("caseNumber");
+      if (memo && (MEMO_TYPES as readonly string[]).includes(memo)) setMemoType(memo as MemoType);
+      if (courtParam && (COURTS as readonly string[]).includes(courtParam)) setCourt(courtParam as CourtType);
+      if (caseNumber) setText(`${t("track.number")}: ${caseNumber}`);
+    });
   }, []);
 
   async function createChat() {
@@ -225,14 +233,14 @@ export default function WorkspacePage() {
         </div>
         <div className="sticky bottom-0 border-t border-ink-200 bg-canvas p-3 dark:border-white/10 dark:bg-navy-900">
           <div className="mb-2 flex gap-2">
-            <select data-testid="memo-type-select" className="rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-navy-800" value={memoType} onChange={(event) => {
+            <select data-testid="memo-type-select" className="min-h-11 rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-navy-800" value={memoType} onChange={(event) => {
               const next = event.target.value as MemoType;
               setMemoType(next);
               if (active) void client.updateChat(active, { memoType: next }).then(() => loadList(active)).catch((err) => setError(userFacingError(err, t)));
             }}>
               {MEMO_TYPES.map((item) => <option key={item} value={item}>{t(`memos.${item}`)}</option>)}
             </select>
-            <select data-testid="court-select" className="rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-navy-800" value={court} onChange={(event) => {
+            <select data-testid="court-select" className="min-h-11 rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-navy-800" value={court} onChange={(event) => {
               const next = event.target.value as CourtType;
               setCourt(next);
               if (active) void client.updateChat(active, { court: next }).then(() => loadList(active)).catch((err) => setError(userFacingError(err, t)));

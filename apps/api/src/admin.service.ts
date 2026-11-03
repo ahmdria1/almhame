@@ -13,6 +13,7 @@ import { PlanCode } from "@prisma/client";
 import { CorpusService } from "./corpus.service";
 import { ScoutService } from "./scout.service";
 import { shapeCostReport } from "./domain/model-route";
+import { najizStatus } from "./domain/najiz";
 import { fail } from "./http-error";
 import { Kernel } from "./kernel";
 
@@ -220,6 +221,7 @@ export class AdminService {
       paymentGateway: cfg.paymentGateway,
       smsProvider: cfg.smsProvider,
       smtpConfigured: Boolean(cfg.smtpHost && cfg.smtpFrom),
+      najiz: najizStatus(cfg),
       emailDebug: cfg.emailDebug,
       vatRate: VAT_RATE,
       gatewayFeeRate: GATEWAY_FEE_RATE,

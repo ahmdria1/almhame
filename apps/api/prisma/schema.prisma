@@ -99,6 +99,9 @@ model User {
   hearings     Hearing[]
   notifications Notification[]
   exportJobs   ExportJob[]
+  trackedCases TrackedCase[]
+  courtNotices CourtNotice[]
+  notificationPreference NotificationPreference?
 }
 
 model Organization {
@@ -148,6 +151,60 @@ model AdminAccount {
   emailVerifiedAt DateTime?
   createdAt       DateTime       @default(now())
   challenges      OtpChallenge[]
+}
+
+model TrackedCase {
+  id            String   @id @default(cuid())
+  userId        String
+  caseKey       String
+  caseNumberEnc String
+  court         String
+  role          String
+  status        String   @default("pending_link")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  filings       CaseFiling[]
+
+  @@unique([userId, caseKey])
+  @@index([caseKey])
+}
+
+model CaseFiling {
+  id               String    @id @default(cuid())
+  caseId           String
+  externalId       String
+  titleEnc         String
+  filerEnc         String
+  filedAt          DateTime
+  responseDeadline DateTime?
+  sourceHash       String
+  createdAt        DateTime  @default(now())
+  trackedCase      TrackedCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  notice           CourtNotice?
+
+  @@unique([caseId, externalId])
+  @@index([caseId, filedAt])
+}
+
+model CourtNotice {
+  id        String    @id @default(cuid())
+  userId    String
+  filingId  String    @unique
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  filing    CaseFiling @relation(fields: [filingId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model NotificationPreference {
+  userId String  @id
+  inApp  Boolean @default(true)
+  email  Boolean @default(true)
+  sms    Boolean @default(false)
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model CaseFile {

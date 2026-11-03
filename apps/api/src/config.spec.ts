@@ -54,6 +54,10 @@ describe("production boot guard", () => {
     expect(local.clamavRequired).toBe(false);
     expect(local.clamavHost).toBe("");
     expect(local.smtpFrom).toBe("no-reply@emuhami.com");
+    expect(local.najizBaseUrl).toBe("");
+    expect(local.najizClientId).toBe("");
+    expect(local.najizTokenPath).toBe("");
+    expect(local.najizCaseQueryPath).toBe("");
     expect(local.cookieDomain).toBe("");
     expect(local.corsOrigins).toEqual(expect.arrayContaining(["https://emuhami.com", "https://admin.emuhami.com", "http://127.0.0.1:4720"]));
     const live = loadConfig({ ...base, NODE_ENV: "production", SMTP_FROM: "desk@emuhami.com", COOKIE_DOMAIN: ".emuhami.com" });
@@ -75,6 +79,27 @@ describe("production boot guard", () => {
     expect(compose).toContain("--maxmemory\", \"256mb\"");
     expect(compose).toContain("--max-old-space-size=768");
     expect(compose).toContain("--max-old-space-size=640");
+  });
+
+  it("boots with the court link unset and refuses a partial Najiz setup", () => {
+    expect(() => assertProductionProviders(production())).not.toThrow();
+    expect(() => assertProductionProviders(production({
+      najizBaseUrl: "https://developers.najiz.sa",
+      najizClientId: "id",
+      najizClientSecret: "secret",
+      najizCallbackSecret: "callback",
+      najizTokenPath: "/token",
+      najizCaseQueryPath: "/cases?caseNumber={caseNumber}&court={court}",
+    }))).not.toThrow();
+    expect(() => assertProductionProviders(production({
+      najizBaseUrl: "https://developers.najiz.sa",
+      najizClientId: "id",
+      najizClientSecret: "secret",
+      najizCallbackSecret: "callback",
+      najizTokenPath: "/token",
+      najizCaseQueryPath: "/cases",
+    }))).toThrow(/NAJIZ/);
+    expect(() => assertProductionProviders(production({ najizBaseUrl: "https://developers.najiz.sa" }))).toThrow(/NAJIZ/);
   });
 
   it("ignores the guard outside production", () => {

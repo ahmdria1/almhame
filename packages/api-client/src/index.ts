@@ -321,4 +321,39 @@ export class ElawyerClient {
   addMember(input: { name: string; phone: string; email: string }) {
     return this.request("/org/members", { method: "POST", body: JSON.stringify(input) });
   }
+
+  tracked() {
+    return this.request("/tracked") as Promise<{
+      connected: boolean;
+      cases: { id: string; caseNumber: string; court: CourtType; role: string; status: string; filings: number; updatedAt: string }[];
+    }>;
+  }
+
+  addTracked(input: { caseNumber: string; court: CourtType | string; role: string }) {
+    return this.request("/tracked", { method: "POST", body: JSON.stringify(input) }) as Promise<{
+      case: { id: string; caseNumber: string; court: string; role: string; status: string; connected: boolean };
+    }>;
+  }
+
+  trackedCase(id: string) {
+    return this.request(`/tracked/${id}`) as Promise<{
+      connected: boolean;
+      case: {
+        id: string;
+        caseNumber: string;
+        court: string;
+        role: string;
+        status: string;
+        filings: { id: string; externalId: string; title: string; filer: string; filedAt: string; responseDeadline: string | null }[];
+      };
+    }>;
+  }
+
+  trackedSettings() {
+    return this.request("/tracked-settings") as Promise<{ inApp: boolean; email: boolean; sms: boolean; connected: boolean }>;
+  }
+
+  saveTrackedSettings(input: { inApp: boolean; email: boolean; sms: boolean }) {
+    return this.request("/tracked-settings", { method: "PATCH", body: JSON.stringify(input) }) as Promise<{ inApp: boolean; email: boolean; sms: boolean }>;
+  }
 }

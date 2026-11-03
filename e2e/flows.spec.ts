@@ -102,6 +102,23 @@ test("sandbox wallet top-up", async ({ page }) => {
   await expect(page.getByText("100.00 ر.س").first()).toBeVisible();
 });
 
+test("add a tracked case and see the court link is not live", async ({ page }) => {
+  await signUp(page, "tracked");
+  await page.getByTestId("account-menu").click();
+  await page.getByTestId("menu-tracked").click();
+  await expect(page.getByTestId("tracked-notice")).toContainText("ربط المحكمة");
+  await page.getByTestId("tracked-number").fill("4455123");
+  await page.getByTestId("tracked-court").selectOption("labor");
+  await page.getByTestId("tracked-role").selectOption("plaintiff");
+  await page.getByTestId("tracked-submit").click();
+  await expect(page.getByTestId("tracked-row")).toContainText("4455123");
+  await page.getByTestId("tracked-row").click();
+  await expect(page.getByTestId("tracked-empty-filings")).toBeVisible();
+  await expect(page.getByTestId("draft-reply")).toHaveAttribute("href", /memo=reply/);
+  await expect(page.getByTestId("draft-reply")).toHaveAttribute("href", /4455123/);
+  await expect(page.getByText("مذكرة جواب")).toHaveCount(0);
+});
+
 test("admin session cannot read user content", async ({ request }) => {
   const { execFileSync } = await import("child_process");
   const { readFileSync } = await import("fs");
