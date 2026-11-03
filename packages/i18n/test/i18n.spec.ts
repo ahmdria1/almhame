@@ -22,6 +22,18 @@ describe("locales", () => {
     }
   });
 
+  it("keeps the same keys in every locale and does not copy English except proper nouns", () => {
+    const proper = new Set(["Google Drive", "OneDrive", "SAR", "Ahmed Alamrani"]);
+    for (const locale of LOCALES) {
+      expect(Object.keys(dictionaries[locale]).sort()).toEqual(arKeys);
+      if (locale === "en") continue;
+      for (const key of arKeys) {
+        const value = dictionaries[locale][key];
+        if (value === dictionaries.en[key]) expect(proper.has(value)).toBe(true);
+      }
+    }
+  });
+
   it("resolves direction and interpolation", () => {
     expect(dirFor("ar")).toBe("rtl");
     expect(dirFor("ur")).toBe("rtl");
