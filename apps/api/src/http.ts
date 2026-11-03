@@ -578,6 +578,12 @@ export class AdminController {
     return this.admin.audit();
   }
 
+  @Get("costs")
+  async costs(@Req() req: Request) {
+    await adminIdFrom(this.jwt, req);
+    return this.admin.costs();
+  }
+
   @Get("settings")
   async settings(@Req() req: Request) {
     await adminIdFrom(this.jwt, req);

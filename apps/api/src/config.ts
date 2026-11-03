@@ -12,6 +12,8 @@ export interface AppConfig {
   modelBaseUrl: string;
   modelApiKey: string;
   modelName: string;
+  chatModel: string;
+  draftModel: string;
   embeddingProvider: string;
   embeddingBaseUrl: string;
   embeddingApiKey: string;
@@ -93,6 +95,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     modelBaseUrl: env.MODEL_BASE_URL || "",
     modelApiKey: env.MODEL_API_KEY || "",
     modelName: env.MODEL_NAME || "draft-model",
+    chatModel: env.CHAT_MODEL || "chat-model",
+    draftModel: env.DRAFT_MODEL || env.MODEL_NAME || "draft-model",
     embeddingProvider: env.EMBEDDING_PROVIDER || "mock",
     embeddingBaseUrl: env.EMBEDDING_BASE_URL || "",
     embeddingApiKey: env.EMBEDDING_API_KEY || "",

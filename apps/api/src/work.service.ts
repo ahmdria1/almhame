@@ -6,13 +6,14 @@ import path from "path";
 import { promisify } from "util";
 import { Injectable } from "@nestjs/common";
 import { IntegrationProvider, MemoType, Prisma, User } from "@prisma/client";
-import { jurisdictionOf, priceForMemoType, type CourtType as Court, type MemoType as MemoKind } from "@elawyer/types";
+import { jurisdictionOf, priceForMemoType, type CourtType as Court, type MemoType as MemoKind, type PlanCode } from "@elawyer/types";
 import { CorpusService } from "./corpus.service";
 import { InfectedUpload, scanInstream } from "./domain/clamd";
 import { knownArticle, textHash, validateCitations, type CitationRef } from "./domain/citations";
 import { composeDraft, readSlots } from "./domain/draft";
 import { decryptBytes, encryptBytes } from "./domain/envelope";
 import { halalasToSar, nextInvoiceNumber, splitVatInclusive, zatcaQrBase64 } from "./domain/invoice";
+import { estimateTokens, readGeneric, routeModel, writeGeneric, type RouteDecision } from "./domain/model-route";
 import { chatQuota, chatsCounted, courtAllowed, memoQuota } from "./domain/plans";
 import { signSandbox } from "./domain/payments";
 import { inspectPdf, kindFromMime, MAX_UPLOAD_BYTES, reencodeImage, sanitizeFilename, sniffUpload, takeUploadSlot } from "./domain/uploads";
@@ -226,13 +227,27 @@ export class WorkService {
         data: { titleEnc: this.kernel.enc(dek, clean.slice(0, 80)), updatedAt: new Date() },
       });
     }
+    const decision = await this.routeFor(user.id, user.planCode, "chat", texts.map((text) => ({ role: "user" as const, text })), 0);
+    const stage = slots.ready ? "ready" : slots.facts.length < 30 ? "facts" : slots.plaintiff ? "defendant" : "plaintiff";
+    const reused = readGeneric(stage) === slots.question;
+    if (!reused) writeGeneric(stage, slots.question);
+    const remote = await this.complete(decision);
+    const counselText = remote || slots.question;
+    await this.noteUsage(
+      user.id,
+      user.planCode,
+      "chat",
+      estimateTokens(decision.prefix) + estimateTokens(counselText) + estimateTokens(clean),
+      decision.degraded,
+      reused && !remote,
+    );
     const counsel = await this.kernel.prisma.message.create({
-      data: { chatId, userId, role: "counsel", contentEnc: this.kernel.enc(dek, slots.question) },
+      data: { chatId, userId, role: "counsel", contentEnc: this.kernel.enc(dek, counselText) },
     });
     return {
       readyToDraft: slots.ready,
       user: { id: userMessage.id, role: "user", content: clean, createdAt: userMessage.createdAt.toISOString() },
-      counsel: { id: counsel.id, role: "counsel", content: slots.question, createdAt: counsel.createdAt.toISOString() },
+      counsel: { id: counsel.id, role: "counsel", content: counselText, createdAt: counsel.createdAt.toISOString() },
     };
   }
 
@@ -258,16 +273,25 @@ export class WorkService {
     const courtHeading = headings?.[chat.court];
     if (!template || !courtHeading) fail("VALIDATION", 400, "No document template for this court");
     const retrieved = await this.corpus.retrieve(chat.court, filled.facts, place.code, chat.memoType);
-    const allowed = [...retrieved.substantive, ...retrieved.procedural].map((article) => article.number);
-    filled.facts = await this.maybeRewriteFacts(filled.facts, allowed);
+    const decision = await this.routeFor(
+      user.id,
+      user.planCode,
+      "draft",
+      texts.map((text) => ({ role: "user" as const, text })),
+      retrieved.substantive.length + retrieved.procedural.length,
+    );
+    const substantive = retrieved.substantive.slice(0, decision.articleLimit);
+    const procedural = (decision.degraded ? [] : retrieved.procedural).slice(0, decision.articleLimit);
+    const allowed = [...substantive, ...procedural].map((article) => article.number);
+    filled.facts = await this.maybeRewriteFacts(filled.facts, allowed, decision);
     const org = user.orgId ? await this.kernel.prisma.organization.findUnique({ where: { id: user.orgId } }) : null;
     const letterhead = (await this.kernel.plan(user.planCode, place.code)).letterhead ? org?.letterheadName || "" : "";
     const draftBody = composeDraft({
       court: chat.court,
       memoType: chat.memoType as MemoKind,
       slots: filled,
-      articles: retrieved.substantive,
-      procedural: retrieved.procedural,
+      articles: substantive,
+      procedural,
       sharia: retrieved.sharia,
       notice: retrieved.notice,
       letterhead,
@@ -322,6 +346,14 @@ export class WorkService {
       });
       return created;
     });
+    await this.noteUsage(
+      userId,
+      user.planCode,
+      "draft",
+      estimateTokens(decision.prefix) + estimateTokens(filled.facts) + allowed.length * 8,
+      decision.degraded,
+      false,
+    );
     return this.getMemo(userId, memo.id);
   }
 
@@ -885,11 +917,81 @@ export class WorkService {
     };
   }
 
-  private async maybeRewriteFacts(facts: string, allowedNumbers: string[]) {
+  private async routeFor(userId: string, planCode: string, purpose: "chat" | "draft", turns: { role: "user" | "assistant"; text: string }[], articleCount: number) {
+    const used = await this.monthTokens(userId);
+    return routeModel({
+      purpose,
+      plan: (planCode === "basic" || planCode === "pro" ? planCode : "free") as PlanCode,
+      usedTokens: used,
+      turns,
+      articleCount,
+      chatModel: this.kernel.config.chatModel,
+      draftModel: this.kernel.config.draftModel,
+    });
+  }
+
+  private period() {
+    return new Date().toISOString().slice(0, 7);
+  }
+
+  private async monthTokens(userId: string) {
+    try {
+      const sum = await this.kernel.prisma.tokenLedger.aggregate({
+        where: { userId, period: this.period() },
+        _sum: { tokens: true },
+      });
+      return sum._sum.tokens || 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  private async noteUsage(userId: string, planCode: string, purpose: string, tokens: number, degraded: boolean, cached: boolean) {
+    if (tokens < 1) return;
+    try {
+      await this.kernel.prisma.tokenLedger.create({
+        data: { userId, planCode, purpose, tokens, degraded, cached, period: this.period() },
+      });
+    } catch {
+      return;
+    }
+  }
+
+  private async complete(decision: RouteDecision): Promise<string | null> {
+    if (this.kernel.config.llmProvider !== "remote") return null;
+    if (!this.kernel.config.modelBaseUrl || !this.kernel.config.modelApiKey) return null;
+    if (decision.turns.length === 0) return null;
+    try {
+      const response = await fetch(`${this.kernel.config.modelBaseUrl.replace(/\/$/, "")}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.kernel.config.modelApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: decision.model,
+          temperature: 0,
+          messages: [
+            { role: "system", content: decision.prefix },
+            ...decision.turns.map((turn) => ({ role: turn.role, content: turn.text })),
+          ],
+        }),
+      });
+      if (!response.ok) return null;
+      const payload = (await response.json()) as { choices?: { message?: { content?: string } }[] };
+      return payload.choices?.[0]?.message?.content?.trim() || null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async maybeRewriteFacts(facts: string, allowedNumbers: string[], decision: RouteDecision) {
     if (this.kernel.config.llmProvider !== "remote") return facts;
     if (!this.kernel.config.modelBaseUrl || !this.kernel.config.modelApiKey) {
       fail("MODEL_NOT_CONFIGURED", 503, "Model endpoint is not configured");
     }
+    const numbers = allowedNumbers.slice(0, decision.articleLimit);
+    const shown = decision.degraded ? facts.slice(0, 400) : facts;
     const response = await fetch(`${this.kernel.config.modelBaseUrl.replace(/\/$/, "")}/chat/completions`, {
       method: "POST",
       headers: {
@@ -897,14 +999,14 @@ export class WorkService {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: this.kernel.config.modelName,
+        model: decision.model,
         temperature: 0,
         messages: [
+          { role: "system", content: decision.prefix },
           {
-            role: "system",
-            content: `Rewrite the facts in formal Arabic. Do not introduce article numbers. Numbers already present may stay only if they are in this list: ${allowedNumbers.join(",") || "none"}. Return JSON {"facts":"..."}.`,
+            role: "user",
+            content: `Rewrite the facts in formal Arabic. Do not introduce article numbers. Numbers already present may stay only if they are in this list: ${numbers.join(",") || "none"}. Return JSON {"facts":"..."}.\n${shown}`,
           },
-          { role: "user", content: facts },
         ],
       }),
     });

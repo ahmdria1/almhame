@@ -11,6 +11,7 @@ import {
 } from "@elawyer/types";
 import { PlanCode } from "@prisma/client";
 import { CorpusService } from "./corpus.service";
+import { shapeCostReport } from "./domain/model-route";
 import { fail } from "./http-error";
 import { Kernel } from "./kernel";
 
@@ -162,6 +163,24 @@ export class AdminService {
       createdAt: row.createdAt.toISOString(),
       ip: row.ip,
     }));
+  }
+
+  async costs() {
+    const grouped = await this.kernel.prisma.tokenLedger.groupBy({
+      by: ["planCode", "purpose", "degraded", "cached"],
+      _sum: { tokens: true },
+      _count: { _all: true },
+    });
+    return shapeCostReport(
+      grouped.map((row) => ({
+        planCode: row.planCode,
+        purpose: row.purpose,
+        degraded: row.degraded,
+        cached: row.cached,
+        tokens: row._sum.tokens || 0,
+        count: row._count._all,
+      })),
+    );
   }
 
   settings() {

@@ -517,6 +517,21 @@ model PlanSetting {
   @@id([jurisdiction, code])
 }
 
+model TokenLedger {
+  id        String   @id @default(cuid())
+  userId    String
+  planCode  String
+  purpose   String
+  tokens    Int
+  degraded  Boolean  @default(false)
+  cached    Boolean  @default(false)
+  period    String
+  createdAt DateTime @default(now())
+
+  @@index([userId, period])
+  @@index([period, planCode])
+}
+
 model IngestionRun {
   id         String    @id @default(cuid())
   source     String
