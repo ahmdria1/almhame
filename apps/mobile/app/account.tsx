@@ -57,7 +57,7 @@ const styles = StyleSheet.create({
   section: { marginTop: 20, fontWeight: "700", color: colors.navy700, textAlign: "right", writingDirection: "rtl" },
   lang: { marginTop: 8, minHeight: 44, color: colors.slate700, textAlign: "right", writingDirection: "rtl" },
   link: { marginTop: 16, minHeight: 44, color: colors.teal600, fontWeight: "700", textAlign: "right", writingDirection: "rtl" },
-  button: { marginTop: 24, backgroundColor: colors.navy700, borderRadius: 14, minHeight: 48, padding: 14, alignItems: "center", justifyContent: "center" },
-  delete: { marginTop: 12, backgroundColor: colors.danger, borderRadius: 14, minHeight: 48, padding: 14, alignItems: "center", justifyContent: "center" },
+  button: { marginTop: 24, backgroundColor: colors.navy700, borderRadius: 14, minHeight: 56, padding: 14, alignItems: "center", justifyContent: "center" },
+  delete: { marginTop: 12, backgroundColor: colors.danger, borderRadius: 14, minHeight: 56, padding: 14, alignItems: "center", justifyContent: "center" },
   buttonText: { color: "white", fontWeight: "700" },
 });

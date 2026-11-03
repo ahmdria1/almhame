@@ -35,7 +35,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 28, fontWeight: "700", color: colors.navy700, textAlign: "right" },
   label: { marginTop: 16, fontWeight: "700", color: colors.navy700, textAlign: "right" },
   input: { marginTop: 8, backgroundColor: "white", borderRadius: 14, minHeight: 48, paddingHorizontal: 14, textAlign: "right" },
-  button: { marginTop: 16, backgroundColor: colors.navy700, borderRadius: 14, minHeight: 48, alignItems: "center", justifyContent: "center" },
+  button: { marginTop: 16, backgroundColor: colors.navy700, borderRadius: 14, minHeight: 56, alignItems: "center", justifyContent: "center" },
   buttonText: { color: "white", fontWeight: "700" },
   note: { marginTop: 12, color: colors.teal700, textAlign: "right" },
 });

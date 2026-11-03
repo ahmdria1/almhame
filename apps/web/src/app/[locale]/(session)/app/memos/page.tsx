@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { AccountFrame } from "@/components/account-frame";
 import { Skeleton } from "@/components/skeleton";
 import { useApp } from "@/lib/providers";
 
@@ -33,8 +34,7 @@ export default function MemosPage() {
     return () => observer.disconnect();
   }, [page, pages]);
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="text-3xl font-bold text-navy-700 dark:text-white">{t("nav.memos")}</h1>
+    <AccountFrame title={t("nav.memos")}>
       {failed && rows === null ? (
         <div className="mt-6">
           <p className="text-ink-700">{t("common.error")}</p>
@@ -43,7 +43,7 @@ export default function MemosPage() {
       ) : rows === null ? <Skeleton className="mt-6 h-24" /> : rows.length === 0 ? <p className="mt-6 text-ink-500">{t("memo.empty")}</p> : (
         <div className="mt-6 grid gap-3">
           {rows.map((row) => (
-            <Link key={row.id} href={`/app/memos/${row.id}`} className="paper flex items-center justify-between rounded-2xl border border-ink-200 px-4 py-4 dark:border-white/10">
+            <Link key={row.id} href={`/app/memos/${row.id}`} className="paper flex min-h-14 items-center justify-between rounded-2xl border border-ink-200 px-4 py-4 dark:border-white/10">
               <div>
                 <p className="font-semibold">{row.title}</p>
                 <p className="text-sm text-ink-500">{t(`courts.${row.court}`)} · {t(`memos.${row.memoType}`)}</p>
@@ -54,6 +54,6 @@ export default function MemosPage() {
         </div>
       )}
       <div ref={more} className="h-8" />
-    </main>
+    </AccountFrame>
   );
 }

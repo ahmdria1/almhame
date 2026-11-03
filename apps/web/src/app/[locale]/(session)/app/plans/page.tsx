@@ -2,6 +2,7 @@
 
 import { SERVICE_CODES, SERVICE_PRICES_HALALAS, type PlanOffer, type ServiceCode } from "@elawyer/types";
 import { useEffect, useState } from "react";
+import { AccountFrame } from "@/components/account-frame";
 import { useApp } from "@/lib/providers";
 
 const SERVICE_KEY: Record<ServiceCode, string> = {
@@ -25,9 +26,8 @@ export default function PlansPage() {
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-navy-700 dark:text-white">{t("plans.title")}</h1>
+    <AccountFrame title={t("plans.title")}>
+      <div className="flex items-center justify-end">
         <div className="rounded-full bg-ink-100 p-1 text-sm font-semibold dark:bg-white/10">
           <button type="button" className={`inline-flex min-h-11 items-center rounded-full px-4 ${!yearly ? "bg-white dark:bg-navy-700" : ""}`} onClick={() => setYearly(false)}>{t("plans.monthly")}</button>
           <button type="button" className={`inline-flex min-h-11 items-center rounded-full px-4 ${yearly ? "bg-white dark:bg-navy-700" : ""}`} onClick={() => setYearly(true)}>{t("plans.yearly")}</button>
@@ -72,6 +72,6 @@ export default function PlansPage() {
           </li>
         ))}
       </ul>
-    </main>
+    </AccountFrame>
   );
 }

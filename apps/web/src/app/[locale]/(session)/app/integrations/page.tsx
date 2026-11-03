@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AccountFrame } from "@/components/account-frame";
 import { Button } from "@/components/ui";
 import { useApp } from "@/lib/providers";
 
@@ -18,10 +19,8 @@ export default function IntegrationsPage() {
   useEffect(() => { client.integrations().then((result) => setItems(result.items)).catch(() => undefined); }, [client]);
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-8">
-      <h1 className="text-3xl font-bold text-navy-700 dark:text-white">{t("integrations.title")}</h1>
-      <p className="text-ink-500">{t("integrations.subtitle")}</p>
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
+    <AccountFrame title={t("integrations.title")} subtitle={t("integrations.subtitle")}>
+      <div className="grid gap-4 md:grid-cols-2">
         {items.map((item) => {
           const copy = COPY[item.provider as keyof typeof COPY];
           return (
@@ -46,6 +45,6 @@ export default function IntegrationsPage() {
         })}
       </div>
       {note ? <p className="mt-4 text-sm text-teal-700">{note}</p> : null}
-    </main>
+    </AccountFrame>
   );
 }

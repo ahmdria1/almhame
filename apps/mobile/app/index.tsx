@@ -14,8 +14,8 @@ export default function Splash() {
   return (
     <View style={styles.screen}>
       <Image source={require("../assets/icon.png")} style={styles.mark} />
-      <Text style={styles.title}>المحامي الإلكتروني المتقدم</Text>
-      <Text style={styles.sub}>صياغة للجهات القضائية السعودية</Text>
+      <Text style={styles.title}>المحامي الإلكتروني</Text>
+      <Text style={styles.sub}>المتقدم</Text>
       <Link href="/onboarding" asChild>
         <Pressable style={styles.button}><Text style={styles.buttonText}>ابدأ</Text></Pressable>
       </Link>
@@ -24,10 +24,10 @@ export default function Splash() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.navy900, alignItems: "center", justifyContent: "center", padding: 24 },
-  mark: { width: 96, height: 96, borderRadius: 24, marginBottom: 24 },
-  title: { color: "white", fontSize: 28, fontWeight: "700", textAlign: "center" },
-  sub: { color: colors.slate300, marginTop: 8, textAlign: "center" },
-  button: { marginTop: 32, backgroundColor: "white", borderRadius: 14, paddingHorizontal: 28, paddingVertical: 12 },
-  buttonText: { color: colors.navy700, fontWeight: "700" },
+  screen: { flex: 1, backgroundColor: colors.navy700, alignItems: "center", justifyContent: "center", padding: 24 },
+  mark: { width: 104, height: 104, marginBottom: 20 },
+  title: { color: "white", fontSize: 32, lineHeight: 48, fontWeight: "700", textAlign: "center" },
+  sub: { color: colors.teal300, marginTop: 4, fontSize: 20, fontWeight: "700", textAlign: "center" },
+  button: { marginTop: 32, backgroundColor: "white", borderRadius: 14, minHeight: 56, paddingHorizontal: 32, alignItems: "center", justifyContent: "center" },
+  buttonText: { color: colors.navy700, fontWeight: "700", fontSize: 18 },
 });

@@ -133,6 +133,6 @@ const styles = StyleSheet.create({
   icon: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   status: { paddingHorizontal: 16, color: colors.slate900 },
   error: { paddingHorizontal: 16, color: "#b42318" },
-  draft: { margin: 12, backgroundColor: colors.navy700, borderRadius: 14, padding: 14, alignItems: "center" },
+  draft: { margin: 12, backgroundColor: colors.navy700, borderRadius: 14, minHeight: 56, alignItems: "center", justifyContent: "center" },
   primaryText: { color: "white", fontWeight: "700" },
 });

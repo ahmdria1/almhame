@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
   card: { backgroundColor: "white", borderRadius: 16, padding: 16, marginBottom: 10 },
   name: { fontWeight: "700", color: colors.navy700 },
   price: { marginTop: 6, fontSize: 22, fontWeight: "700", color: colors.navy900 },
-  button: { marginTop: 12, backgroundColor: colors.navy700, borderRadius: 12, minHeight: 48, alignItems: "center", justifyContent: "center" },
+  button: { marginTop: 12, backgroundColor: colors.navy700, borderRadius: 14, minHeight: 56, alignItems: "center", justifyContent: "center" },
   buttonText: { color: "white", fontWeight: "700" },
   note: { marginTop: 12, color: colors.danger, textAlign: "right" },
 });

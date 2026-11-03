@@ -156,19 +156,19 @@ export default function WorkspacePage() {
   ] as const;
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] flex-col lg:grid lg:grid-cols-[300px_minmax(0,1fr)_280px]">
-      <div className="flex border-b border-ink-200 lg:hidden dark:border-white/10">
+    <div className="flex min-h-[calc(100vh-5rem)] flex-col bg-canvas lg:grid lg:grid-cols-[300px_minmax(0,1fr)_300px] dark:bg-navy-900">
+      <div className="flex gap-2 border-b border-ink-200 p-2 lg:hidden dark:border-white/10">
         {tabs.map(([key, label]) => (
-          <button key={key} type="button" className={`min-h-11 flex-1 px-2 text-sm font-semibold ${tab === key ? "border-b-2 border-navy-700 text-navy-700" : "text-ink-500"}`} onClick={() => setTab(key)}>
+          <button key={key} type="button" className={`min-h-11 flex-1 rounded-full px-2 text-sm font-semibold ${tab === key ? "bg-teal-100 text-teal-700" : "bg-white text-ink-500"}`} onClick={() => setTab(key)}>
             {t(label)}
           </button>
         ))}
-        <button type="button" aria-label={t("workspace.chats")} className="grid min-h-11 min-w-11 place-items-center text-navy-700" onClick={() => setDrawer(true)}>
+        <button type="button" aria-label={t("workspace.chats")} className="grid min-h-11 min-w-11 place-items-center rounded-full bg-white text-navy-700" onClick={() => setDrawer(true)}>
           <List size={18} />
         </button>
       </div>
       <aside className={`${tab === "memo" || tab === "sources" ? "block" : "hidden"} border-ink-200 p-4 lg:block lg:border-e dark:border-white/10`}>
-        <div className={tab === "memo" ? "block" : "hidden lg:block"}>
+        <div className={`rounded-3xl border border-ink-200 bg-white p-4 dark:border-white/10 dark:bg-navy-800 ${tab === "memo" ? "block" : "hidden lg:block"}`}>
           <p className="text-sm font-semibold text-ink-500">{t("workspace.summary")}</p>
           <dl className="mt-3 grid gap-2 text-sm">
             <div><dt className="text-ink-400">{t("workspace.court")}</dt><dd className="font-semibold">{t(`courts.${court}`)}</dd></div>
@@ -177,7 +177,7 @@ export default function WorkspacePage() {
           </dl>
           <p className="mt-4 text-xs text-ink-500">{t("workspace.completeness")} {completeness}%</p>
           <div className="mt-1 h-2 rounded-full bg-ink-100"><div className="h-2 rounded-full bg-teal-600" style={{ width: `${completeness}%` }} /></div>
-          <Button data-testid="draft-button" className="mt-4 w-full" onClick={draft} disabled={!active || drafting}>{t("workspace.draft")}</Button>
+          <Button data-testid="draft-button" className="mt-4 h-14 w-full rounded-[14px] text-base" onClick={draft} disabled={!active || drafting}>{t("workspace.draft")}</Button>
           {drafting ? <p data-testid="draft-status" className="mt-2 text-sm text-navy-700">{draftStage === 0 ? t("workspace.drafting") : t("workspace.draftReview")}</p> : null}
           {error ? <p className="mt-2 text-sm text-danger">{error}</p> : null}
         </div>
@@ -213,17 +213,18 @@ export default function WorkspacePage() {
         <div className="flex-1 space-y-3 overflow-auto p-4">
           {messages.length === 0 ? (
             <div className="paper mx-auto mt-10 max-w-lg rounded-3xl border border-ink-200 p-6 text-center dark:border-white/10">
-              <h2 className="text-xl font-semibold">{t("workspace.emptyTitle")}</h2>
+              <h2 className="text-xl font-semibold text-ink-900 dark:text-white">{t("workspace.emptyTitle")}</h2>
               <p className="mt-2 text-sm leading-7 text-ink-500">{t("workspace.emptyBody")}</p>
             </div>
           ) : messages.map((message) => (
             <div key={message.id} className={message.role === "user" ? "ms-auto max-w-[80%] rounded-2xl bg-navy-700 px-4 py-3 text-sm leading-7 text-white" : "me-auto flex max-w-[80%] gap-2"}>
-              {message.role === "counsel" ? <span className="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-teal-100 text-teal-700"><Scale size={16} /></span> : null}
+              {message.role === "counsel" ? <span className="mt-1 grid size-8 shrink-0 place-items-center rounded-full bg-teal-100 text-teal-700"><Scale size={16} /></span> : null}
               <p className={message.role === "counsel" ? "rounded-2xl border border-ink-200 bg-white px-4 py-3 text-sm leading-7 dark:border-white/10 dark:bg-navy-800" : ""}>{message.content}</p>
             </div>
           ))}
         </div>
-        <div className="sticky bottom-0 border-t border-ink-200 bg-canvas p-3 dark:border-white/10 dark:bg-navy-900">
+        <div className="sticky bottom-0 p-3">
+          <div className="rounded-3xl border border-ink-200 bg-white p-3 dark:border-white/10 dark:bg-navy-800">
           <div className="mb-2 flex gap-2">
             <select data-testid="memo-type-select" className="rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-navy-800" value={memoType} onChange={(event) => {
               const next = event.target.value as MemoType;
@@ -248,23 +249,24 @@ export default function WorkspacePage() {
           </div>
           {uploading ? <p className="mt-2 text-xs text-ink-500">{t("workspace.uploading")}</p> : null}
           <div id="voice-slot" className="mt-2" />
+          </div>
         </div>
       </section>
       {drawer ? <button type="button" aria-label={t("common.cancel")} className="fixed inset-0 z-40 bg-navy-900/40 lg:hidden" onClick={() => setDrawer(false)} /> : null}
       <aside className={`${drawer ? "fixed inset-y-0 end-0 z-50 flex w-[min(100%,20rem)] flex-col overflow-auto bg-white shadow-card dark:bg-navy-900 lg:static lg:z-auto lg:w-auto lg:bg-transparent lg:shadow-none" : "hidden"} border-ink-200 p-4 lg:flex lg:flex-col lg:border-s dark:border-white/10`}>
         {drawer ? <button type="button" className="mb-3 min-h-11 text-start text-sm font-semibold text-navy-700 lg:hidden" onClick={() => setDrawer(false)}>{t("common.back")}</button> : null}
-        <Button data-testid="new-chat" className="w-full" onClick={() => void createChat()}>{t("workspace.newChat")}</Button>
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("workspace.search")} className="mt-3 h-11 w-full rounded-xl border border-ink-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-navy-800" />
+        <Button data-testid="new-chat" className="h-14 w-full rounded-[14px]" onClick={() => void createChat()}>{t("workspace.newChat")}</Button>
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("workspace.search")} className="mt-3 h-11 w-full rounded-xl border border-ink-200 bg-ink-100 px-3 text-sm dark:border-white/10 dark:bg-navy-800" />
         <div className="mt-3 grid gap-2">
           {visible.map((chat) => (
-            <button key={chat.id} type="button" onClick={() => { setDrawer(false); void openChat(chat.id); }} className={`min-h-11 rounded-2xl px-3 py-3 text-start text-sm ${chat.id === active ? "bg-brand-100 text-navy-700" : "hover:bg-ink-100 dark:hover:bg-white/5"}`}>
+            <button key={chat.id} type="button" onClick={() => { setDrawer(false); void openChat(chat.id); }} className={`min-h-11 rounded-2xl border px-3 py-3 text-start text-sm ${chat.id === active ? "border-teal-100 bg-teal-100 text-teal-700" : "border-ink-200 bg-white hover:bg-ink-100 dark:border-white/10 dark:bg-navy-800 dark:hover:bg-white/5"}`}>
               <span className="block font-semibold">{chat.title}</span>
               <span className="text-xs text-ink-500">{t(`courts.${chat.court}`)}</span>
             </button>
           ))}
         </div>
         {user?.planCode === "free" ? (
-          <div className="mt-4 rounded-2xl bg-teal-100 p-3 text-sm text-teal-700">
+          <div className="mt-4 rounded-2xl border border-teal-100 bg-teal-100 p-3 text-sm text-teal-700">
             <p>{t("workspace.remaining", { left, total: freeLimit ?? 5 })}</p>
             <Link href="/app/plans" className="mt-2 inline-block font-semibold">{t("workspace.upgrade")}</Link>
           </div>

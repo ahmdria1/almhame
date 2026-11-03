@@ -37,8 +37,8 @@ export default function Login() {
 const styles = StyleSheet.create({
   screen: { flex: 1, padding: 24, justifyContent: "center", backgroundColor: colors.canvas },
   title: { fontSize: 28, fontWeight: "700", color: colors.navy700, marginBottom: 16 },
-  input: { backgroundColor: "white", borderWidth: 1, borderColor: colors.slate200, borderRadius: 14, padding: 12 },
-  button: { marginTop: 16, backgroundColor: colors.navy700, borderRadius: 14, padding: 14, alignItems: "center" },
-  buttonText: { color: "white", fontWeight: "700" },
-  link: { marginTop: 16, color: colors.teal600, textAlign: "center" },
+  input: { backgroundColor: "white", borderWidth: 1, borderColor: colors.slate300, borderRadius: 12, minHeight: 48, paddingHorizontal: 16, textAlign: "right" },
+  button: { marginTop: 16, backgroundColor: colors.navy700, borderRadius: 14, minHeight: 56, alignItems: "center", justifyContent: "center" },
+  buttonText: { color: "white", fontWeight: "700", fontSize: 18 },
+  link: { marginTop: 16, minHeight: 44, color: colors.blue500, textAlign: "center", fontWeight: "600" },
 });

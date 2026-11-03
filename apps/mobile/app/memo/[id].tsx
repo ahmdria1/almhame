@@ -23,7 +23,7 @@ export default function MemoPreview() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "white" },
+  screen: { flex: 1, backgroundColor: colors.canvas },
   title: { fontSize: 24, fontWeight: "700", color: colors.navy700, marginBottom: 12 },
   body: { fontSize: 16, lineHeight: 28, color: colors.slate900, textAlign: "right" },
 });

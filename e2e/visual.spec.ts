@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync } from "fs";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
@@ -90,4 +91,45 @@ test("workspace uses tabs at 390 and columns at 1440", async ({ page }) => {
   await expect(page.getByTestId("new-chat")).toBeVisible();
   await expect(page.getByTestId("draft-button")).toBeVisible();
   await page.screenshot({ path: `${shots}/ui-after-chat-1440.png`, fullPage: false });
+});
+
+const accountScreens = ["wallet", "memos", "saved", "integrations", "settings", "plans"] as const;
+
+test("account screens keep their headings", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/signup");
+  await page.screenshot({ path: `${shots}/ui-signup-1440.png`, fullPage: false });
+  await signUp(page);
+  for (const name of accountScreens) {
+    await page.goto(`/app/${name}`);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    const box = await page.getByRole("heading", { level: 1 }).boundingBox();
+    expect(box?.height || 0).toBeGreaterThan(0);
+    await page.screenshot({ path: `${shots}/ui-${name}-1440.png`, fullPage: false });
+  }
+});
+
+test("admin overview uses the live totals", async ({ page, request }) => {
+  const outbox = outboxDir;
+  execFileSync("psql", [process.env.DATABASE_URL || "postgresql://elawyer:elawyer@127.0.0.1:5432/elawyer", "-c", 'DELETE FROM "OtpChallenge" WHERE "adminId" IS NOT NULL; DELETE FROM "AdminAccount";'], { stdio: "ignore" });
+  const email = "visual-admin@example.sa";
+  const created = JSON.parse(execFileSync("node", ["dist/cli.js", "create-admin", "--email", email], {
+    cwd: "apps/api",
+    env: { ...process.env, NODE_ENV: "test", OUTBOX_DIR: outbox, DATABASE_URL: process.env.DATABASE_URL || "postgresql://elawyer:elawyer@127.0.0.1:5432/elawyer" },
+    encoding: "utf8",
+  })) as { challengeId: string };
+  const mail = JSON.parse(readFileSync(path.join(outbox, `admin_activate-${email}.json`), "utf8")) as { code: string };
+  const activated = await request.post("http://127.0.0.1:4710/api/admin/activate", {
+    data: { challengeId: created.challengeId, code: mail.code, password: "test-admin-pass" },
+  });
+  expect(activated.ok()).toBeTruthy();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("http://127.0.0.1:4730");
+  await page.screenshot({ path: `${shots}/ui-admin-login-1440.png`, fullPage: false });
+  await page.getByTestId("admin-email").fill(email);
+  await page.getByTestId("admin-password").fill("test-admin-pass");
+  await page.getByRole("button", { name: "دخول" }).click();
+  await page.waitForURL(/\/dashboard/);
+  await expect(page.getByRole("heading", { level: 2, name: "نظرة عامة" })).toBeVisible();
+  await page.screenshot({ path: `${shots}/ui-admin-dashboard-1440.png`, fullPage: false });
 });
