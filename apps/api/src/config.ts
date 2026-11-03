@@ -1,3 +1,5 @@
+import { najizConnected, najizParts } from "./domain/najiz";
+
 export interface AppConfig {
   databaseUrl: string;
   jwtSecret: string;
@@ -51,6 +53,12 @@ export interface AppConfig {
   smtpUser: string;
   smtpPass: string;
   smtpFrom: string;
+  najizBaseUrl: string;
+  najizClientId: string;
+  najizClientSecret: string;
+  najizCallbackSecret: string;
+  najizTokenPath: string;
+  najizCaseQueryPath: string;
   cookieDomain: string;
   consentVersion: string;
   fontPath: string;
@@ -135,6 +143,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     smtpUser: env.SMTP_USER || "",
     smtpPass: env.SMTP_PASS || "",
     smtpFrom: env.SMTP_FROM || DEFAULT_SMTP_FROM,
+    najizBaseUrl: env.NAJIZ_BASE_URL || "",
+    najizClientId: env.NAJIZ_CLIENT_ID || "",
+    najizClientSecret: env.NAJIZ_CLIENT_SECRET || "",
+    najizCallbackSecret: env.NAJIZ_CALLBACK_SECRET || "",
+    najizTokenPath: env.NAJIZ_TOKEN_PATH || "",
+    najizCaseQueryPath: env.NAJIZ_CASE_QUERY_PATH || "",
     cookieDomain: cookieDomainOf(env),
     consentVersion: env.PDPL_CONSENT_VERSION || "2026-01",
     fontPath: env.FONT_PATH || "",
@@ -182,6 +196,8 @@ export function assertProductionProviders(config: AppConfig): void {
   if (config.otpPepper === DEV_OTP_PEPPER || config.otpPepper.length < 32) blocked.push("OTP_PEPPER");
   const kmsBytes = Buffer.from(config.kmsMasterKey, "base64");
   if (config.kmsMasterKey === DEV_KMS_MASTER_KEY || kmsBytes.length < 32) blocked.push("KMS_MASTER_KEY");
+  const configured = najizParts(config).filter((value) => value.length > 0).length;
+  if (configured > 0 && !najizConnected(config)) blocked.push("NAJIZ");
   if (blocked.length) {
     throw new Error(`Refusing to boot with mock or missing providers: ${blocked.join(", ")}`);
   }

@@ -12,6 +12,7 @@ type Settings = {
   paymentGateway: string;
   smsProvider: string;
   smtpConfigured: boolean;
+  najiz: string;
   emailDebug: boolean;
   vatRate: number;
   gatewayFeeRate: number;
@@ -26,6 +27,7 @@ const LABELS: Record<string, string> = {
   paymentGateway: "بوابة الدفع",
   smsProvider: "مزود الرسائل",
   smtpConfigured: "البريد مهيأ",
+  najiz: "ربط المحكمة",
   emailDebug: "إظهار رمز التحقق في الاستجابة",
 };
 
@@ -47,6 +49,7 @@ export default function SettingsPage() {
     paymentGateway: data.paymentGateway,
     smsProvider: data.smsProvider,
     smtpConfigured: data.smtpConfigured,
+    najiz: data.najiz,
     emailDebug: data.emailDebug,
   };
   return (

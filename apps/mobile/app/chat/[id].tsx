@@ -12,7 +12,7 @@ import { client } from "../../src/api";
 const t = (key: string) => translate("ar", key);
 
 export default function ChatScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, caseNumber } = useLocalSearchParams<{ id: string; caseNumber?: string }>();
   const router = useRouter();
   const [messages, setMessages] = useState<{ id: string; role: string; content: string }[]>([]);
   const [text, setText] = useState("");
@@ -29,11 +29,12 @@ export default function ChatScreen() {
   }, [drafting]);
 
   useEffect(() => {
+    if (caseNumber) setText(`${t("track.number")}: ${caseNumber}`);
     client().chat(String(id)).then((result) => {
       setMessages(result.messages);
       setCaseId(result.caseFile?.id || "");
     }).catch(() => undefined);
-  }, [id]);
+  }, [id, caseNumber]);
 
   async function sendFile(uri: string, name: string, type: string) {
     setUploading(true);

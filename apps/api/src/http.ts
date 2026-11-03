@@ -128,7 +128,7 @@ export class CheckoutDto {
   idempotencyKey?: string;
 }
 
-async function userIdFrom(jwt: JwtService, req: Request) {
+export async function userIdFrom(jwt: JwtService, req: Request) {
   const header = req.headers.authorization || "";
   const bearer = header.startsWith("Bearer ") ? header.slice(7) : "";
   const token = bearer || req.cookies?.elw_access || "";

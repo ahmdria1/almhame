@@ -26,6 +26,7 @@ export default function Home() {
       ))}
       <View style={styles.row}>
         <Link href="/memos" style={styles.link}>{translate("ar", "nav.memos")}</Link>
+        <Link href="/tracked" style={styles.link}>{translate("ar", "nav.tracked")}</Link>
         <Link href="/wallet" style={styles.link}>{translate("ar", "nav.wallet")}</Link>
         <Link href="/plans" style={styles.link}>{translate("ar", "nav.plans")}</Link>
         <Link href="/account" style={styles.link}>{translate("ar", "nav.account")}</Link>
@@ -43,5 +44,5 @@ const styles = StyleSheet.create({
   card: { marginTop: 10, backgroundColor: "white", borderRadius: 16, padding: 14 },
   cardTitle: { fontWeight: "700", color: colors.navy700 },
   row: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 20 },
-  link: { color: colors.teal700, fontWeight: "700" },
+  link: { color: colors.teal700, fontWeight: "700", minHeight: 44 },
 });

@@ -49,7 +49,7 @@ export function issueCsrf(req: Request, res: Response, secure: boolean, domain =
   return token;
 }
 
-const CSRF_EXEMPT = new Set(["/api/payments/webhook", "/api/payments/callback"]);
+const CSRF_EXEMPT = new Set(["/api/payments/webhook", "/api/payments/callback", "/api/najiz/callback"]);
 
 export function csrfMiddleware(req: Request, res: Response, next: NextFunction) {
   const method = req.method.toUpperCase();

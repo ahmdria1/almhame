@@ -14,6 +14,8 @@ import { Kernel } from "./kernel";
 import { PrismaService } from "./prisma.service";
 import { ReminderService } from "./reminders.service";
 import { CacheService } from "./cache.service";
+import { CaseAlertController } from "./case-alert.controller";
+import { CaseAlertService } from "./case-alert.service";
 import { CaseService } from "./case.service";
 import { ChatService } from "./chat.service";
 import { MemoService } from "./memo.service";
@@ -42,7 +44,7 @@ import { WorkService } from "./work.service";
       }),
     }),
   ],
-  controllers: [HealthController, AuthController, ProductController, PaymentController, AdminController],
+  controllers: [HealthController, AuthController, ProductController, PaymentController, AdminController, CaseAlertController],
   providers: [
     PrismaService,
     Kernel,
@@ -55,6 +57,7 @@ import { WorkService } from "./work.service";
     ChatService,
     MemoService,
     CaseService,
+    CaseAlertService,
     ReferralService,
     ScoutService,
     WeeklyService,

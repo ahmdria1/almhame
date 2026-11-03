@@ -6,7 +6,9 @@ import path from "path";
 import { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { draftCheckRecord } from "../src/domain/draft-guard";
+import { canonicalFiling, signCallback } from "../src/domain/najiz";
 import { redactSentryEvent } from "../src/instrument";
+import { Kernel } from "../src/kernel";
 import { createApp } from "../src/main";
 import { WorkService } from "../src/work.service";
 import { AuthService } from "../src/auth.service";
@@ -590,5 +592,88 @@ describe("api integration", () => {
       failureType: "quote",
       quoteSpan: "وجب دفع الأجر",
     });
+  });
+
+  it("keeps a tracked case with its owner and dedupes a signed filing", async () => {
+    const owner = await account();
+    const other = await account();
+    const caseNumber = `4455${seq}`;
+    await request(app.getHttpServer()).get("/api/tracked").expect(401);
+    const empty = await request(app.getHttpServer()).get("/api/tracked").set("Authorization", `Bearer ${owner.token}`).expect(200);
+    expect(empty.body.connected).toBe(false);
+    expect(empty.body.cases).toEqual([]);
+    const added = await request(app.getHttpServer())
+      .post("/api/tracked")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ caseNumber, court: "labor", role: "plaintiff" })
+      .expect(201);
+    expect(added.body.case.status).toBe("pending_link");
+    const stored = await prisma.trackedCase.findFirst({ where: { userId: owner.userId } });
+    expect(stored?.caseNumberEnc).toBeTruthy();
+    expect(stored?.caseNumberEnc).not.toContain(caseNumber);
+    const denied = await request(app.getHttpServer()).get(`/api/tracked/${added.body.case.id}`).set("Authorization", `Bearer ${other.token}`).expect(404);
+    expect(JSON.stringify(denied.body)).not.toContain(caseNumber);
+    const callback = await request(app.getHttpServer())
+      .post("/api/najiz/callback")
+      .send({ caseNumber, court: "labor", externalId: "ext-1", title: "مذكرة", filer: "خصم", filedAt: "2024-03-14T09:00:00.000Z" })
+      .expect(503);
+    expect(callback.body.error.code).toBe("NAJIZ_NOT_CONNECTED");
+    expect(await prisma.caseFiling.count({ where: { caseId: added.body.case.id } })).toBe(0);
+
+    await prisma.otpChallenge.deleteMany({ where: { adminId: { not: null } } });
+    await prisma.adminAccount.deleteMany();
+    const invited = await app.get(AuthService).inviteAdmin(`tracked-admin-${seq}@example.sa`);
+    await request(app.getHttpServer()).post("/api/admin/activate").send({ challengeId: invited.challengeId, code: invited.debugCode, password: "test-admin-pass" }).expect(201);
+    const admin = await request(app.getHttpServer()).post("/api/admin/login").send({ email: `tracked-admin-${seq}@example.sa`, password: "test-admin-pass" }).expect(201);
+    const token = admin.body.accessToken as string;
+    await request(app.getHttpServer()).get("/api/tracked").set("Authorization", `Bearer ${token}`).expect(401);
+    const settings = await request(app.getHttpServer()).get("/api/admin/settings").set("Authorization", `Bearer ${token}`).expect(200);
+    expect(settings.body.najiz).toBe("not connected");
+    expect(JSON.stringify(settings.body)).not.toContain(caseNumber);
+    const operations = await request(app.getHttpServer()).get("/api/admin/operations").set("Authorization", `Bearer ${token}`).expect(200);
+    expect(JSON.stringify(operations.body)).not.toContain(caseNumber);
+
+    const outboxDir = mkdtempSync(path.join(tmpdir(), "case-alerts-"));
+    const kernel = app.get(Kernel);
+    kernel.config.outboxDir = outboxDir;
+    kernel.config.najizBaseUrl = "https://developers.najiz.sa";
+    kernel.config.najizClientId = "id";
+    kernel.config.najizClientSecret = "secret";
+    kernel.config.najizCallbackSecret = "callback-secret";
+    kernel.config.najizTokenPath = "/oauth/token";
+    kernel.config.najizCaseQueryPath = "/cases/query?caseNumber={caseNumber}&court={court}";
+    const body = {
+      caseNumber,
+      court: "labor",
+      externalId: "ext-9",
+      title: "مذكرة الخصم",
+      filer: "شركة أفق",
+      filedAt: "2024-03-14T09:00:00.000Z",
+      responseDeadline: null,
+    };
+    const payload = canonicalFiling(body);
+    await request(app.getHttpServer()).post("/api/najiz/callback").set("x-najiz-signature", "00").send(body).expect(401);
+    const first = await request(app.getHttpServer()).post("/api/najiz/callback").set("x-najiz-signature", signCallback("callback-secret", payload)).send(body).expect(201);
+    expect(first.body.created).toBe(1);
+    const second = await request(app.getHttpServer()).post("/api/najiz/callback").set("x-najiz-signature", signCallback("callback-secret", payload)).send(body).expect(201);
+    expect(second.body.created).toBe(0);
+    expect(await prisma.caseFiling.count({ where: { caseId: added.body.case.id } })).toBe(1);
+    const detail = await request(app.getHttpServer()).get(`/api/tracked/${added.body.case.id}`).set("Authorization", `Bearer ${owner.token}`).expect(200);
+    expect(detail.body.case.filings).toHaveLength(1);
+    expect(detail.body.case.filings[0].responseDeadline).toBeNull();
+    const hidden = await request(app.getHttpServer()).get("/api/tracked").set("Authorization", `Bearer ${other.token}`).expect(200);
+    expect(JSON.stringify(hidden.body)).not.toContain(caseNumber);
+    const mail = JSON.parse(readFileSync(path.join(outboxDir, `case_filing-${owner.email}.json`), "utf8")) as { html: string; subject: string };
+    expect(mail.subject).toContain(caseNumber);
+    expect(mail.html).toContain("مذكرة الخصم");
+    expect(mail.html).toContain("شركة أفق");
+    expect(mail.html).toContain("Cairo");
+    expect(mail.html).not.toContain("آخر موعد");
+    kernel.config.najizBaseUrl = "";
+    kernel.config.najizClientId = "";
+    kernel.config.najizClientSecret = "";
+    kernel.config.najizCallbackSecret = "";
+    kernel.config.najizTokenPath = "";
+    kernel.config.najizCaseQueryPath = "";
   });
 });

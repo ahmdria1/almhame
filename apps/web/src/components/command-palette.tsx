@@ -6,6 +6,7 @@ import { useApp } from "@/lib/providers";
 
 const LINKS = [
   ["/app/memos", "nav.memos"],
+  ["/app/tracked", "nav.tracked"],
   ["/app/cases", "cases.title"],
   ["/app/plans", "nav.plans"],
   ["/app/wallet", "nav.wallet"],
@@ -39,7 +40,7 @@ export function CommandPalette() {
             <li key={href}>
               <button
                 type="button"
-                className="w-full rounded-2xl px-3 py-2 text-start font-semibold hover:bg-ink-100 dark:hover:bg-white/10"
+                className="min-h-11 w-full rounded-2xl px-3 py-2 text-start font-semibold hover:bg-ink-100 dark:hover:bg-white/10"
                 onClick={() => {
                   setOpen(false);
                   router.push(href);

@@ -33,7 +33,7 @@ export async function createApp() {
   app.enableCors({
     origin: config.corsOrigins,
     credentials: true,
-    allowedHeaders: ["Content-Type", "Authorization", "X-CSRF-Token", "X-Signature"],
+      allowedHeaders: ["Content-Type", "Authorization", "X-CSRF-Token", "X-Signature", "X-Najiz-Signature"],
   });
   const instance = app.getHttpAdapter().getInstance();
   instance.set("trust proxy", 1);

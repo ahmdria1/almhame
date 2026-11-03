@@ -5,14 +5,18 @@ import { useRouter } from "expo-router";
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { clearToken, client } from "../src/api";
 
-const LINKS = ["nav.wallet", "nav.memos", "nav.saved", "nav.integrations", "nav.subscription", "nav.settings"];
+const LINKS = ["nav.wallet", "nav.memos", "nav.tracked", "nav.saved", "nav.integrations", "nav.subscription", "nav.settings"];
 
 export default function Account() {
   const router = useRouter();
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ padding: 20 }}>
       <Text style={styles.title}>{translate("ar", "nav.account")}</Text>
-      {LINKS.map((item) => (
+      {LINKS.map((item) => item === "nav.tracked" ? (
+        <Pressable key={item} onPress={() => router.push("/tracked")} style={styles.itemButton}>
+          <Text style={[styles.item, styles.itemInButton]}>{translate("ar", item)}</Text>
+        </Pressable>
+      ) : (
         <Text key={item} style={styles.item}>{translate("ar", item)}</Text>
       ))}
       <Text style={styles.section}>{translate("ar", "settings.language")}</Text>
@@ -46,6 +50,8 @@ export default function Account() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.canvas },
   title: { fontSize: 28, fontWeight: "700", color: colors.navy700, textAlign: "right", writingDirection: "rtl" },
+  itemButton: { marginTop: 12 },
+  itemInButton: { marginTop: 0 },
   item: { marginTop: 12, backgroundColor: "white", borderRadius: 14, padding: 14, minHeight: 44, fontWeight: "600", textAlign: "right", writingDirection: "rtl" },
   section: { marginTop: 20, fontWeight: "700", color: colors.navy700, textAlign: "right", writingDirection: "rtl" },
   lang: { marginTop: 8, minHeight: 44, color: colors.slate700, textAlign: "right", writingDirection: "rtl" },
