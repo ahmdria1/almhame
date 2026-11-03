@@ -9,7 +9,7 @@ type WithDefault = { defaultProps?: { style?: object } };
 
 export default function RootLayout() {
   const [client] = useState(() => new QueryClient());
-  const [loaded] = useFonts({ Cairo: require("../../assets/fonts/Cairo-Variable.ttf") });
+  const [loaded] = useFonts({ Cairo: require("../assets/fonts/Cairo-Variable.ttf") });
   if (!loaded) return null;
   const text = Text as unknown as WithDefault;
   const input = TextInput as unknown as WithDefault;
