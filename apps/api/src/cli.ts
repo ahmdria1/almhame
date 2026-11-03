@@ -28,7 +28,13 @@ async function main() {
       process.stdout.write(`${JSON.stringify(result)}\n`);
       return;
     }
-    throw new Error("Use create-admin --email or import-corpus");
+    if (command === "import-judgments") {
+      const corpus = app.get(CorpusService);
+      const result = await corpus.importJudgmentFiles();
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+      return;
+    }
+    throw new Error("Use create-admin --email, import-corpus, or import-judgments");
   } finally {
     await app.close();
   }
@@ -40,7 +46,7 @@ void main().catch((error) => {
     const body = error.getResponse();
     message = typeof body === "object" && body && "message" in body ? String((body as { message: string }).message) : error.message;
   } else if (error instanceof Error) {
-    message = error.message;
+    message = error.stack || error.message;
   }
   process.stderr.write(`${message}\n`);
   process.exit(1);

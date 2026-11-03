@@ -7,6 +7,7 @@ type Corpus = {
   laws: number;
   articles: number;
   sharia: number;
+  judgments: number;
   sampleArticles: number;
   byLaw: { key: string; nameAr: string; articles: number; issuedHijri: string; sourceUrl: string; statusLabel: string }[];
   shariaByKind: Record<string, number>;
@@ -32,7 +33,7 @@ export default function CorpusPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold text-navy-700">قاعدة الأنظمة</h2>
-          <p className="mt-1 text-sm text-ink-500">{data.laws} نظامًا، {data.articles} مادة، {data.sharia} مصدرًا شرعيًا. سجلات غير موثّقة: {data.sampleArticles}.</p>
+          <p className="mt-1 text-sm text-ink-500">{data.laws} نظامًا، {data.articles} مادة، {data.sharia} مصدرًا شرعيًا، {data.judgments} حكمًا. سجلات غير موثّقة: {data.sampleArticles}.</p>
         </div>
         <button
           type="button"

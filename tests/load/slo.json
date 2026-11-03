@@ -1,0 +1,9 @@
+{
+  "health": { "p95Ms": 800, "errorRate": 0.01 },
+  "signup": { "p95Ms": 3000, "errorRate": 0.01 },
+  "login": { "p95Ms": 2000, "errorRate": 0.01 },
+  "chat": { "p95Ms": 2000, "errorRate": 0.01 },
+  "draft": { "p95Ms": 8000, "errorRate": 0.01 },
+  "search": { "p95Ms": 2000, "errorRate": 0.01 },
+  "pricing": { "p95Ms": 2000, "errorRate": 0.01 }
+}

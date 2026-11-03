@@ -274,6 +274,7 @@ model Judgment {
   ruling                  String   @default("")
   fullText                String
   rawHtml                 String   @default("")
+  subject                 String   @default("")
   principleNo             String   @default("")
   principleText           String   @default("")
   statutesCited           Json?
@@ -635,5 +636,6 @@ model IngestionRun {
   laws       Int       @default(0)
   articles   Int       @default(0)
   sharia     Int       @default(0)
+  judgments  Int       @default(0)
   note       String    @default("")
 }

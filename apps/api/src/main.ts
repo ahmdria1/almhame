@@ -22,12 +22,21 @@ export async function createApp() {
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
+          baseUri: ["'self'"],
+          objectSrc: ["'none'"],
           scriptSrc: ["'self'", "'unsafe-inline'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", "data:"],
           formAction: ["'self'", "https:"],
           frameAncestors: ["'none'"],
+          connectSrc: ["'self'"],
         },
       },
+      referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+      crossOriginOpenerPolicy: { policy: "same-origin" },
+      crossOriginResourcePolicy: { policy: "same-origin" },
+      permittedCrossDomainPolicies: { permittedPolicies: "none" },
+      frameguard: { action: "deny" },
     }),
   );
   app.enableCors({
