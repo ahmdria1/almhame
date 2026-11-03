@@ -4,6 +4,7 @@ import { LOCALES } from "@elawyer/types";
 import { LANGUAGE_NAMES } from "@elawyer/i18n";
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+import { AccountFrame } from "@/components/account-frame";
 import { Button, Input } from "@/components/ui";
 import { useApp } from "@/lib/providers";
 import { pagePath } from "@/seo/catalog";
@@ -20,8 +21,8 @@ export default function SettingsPage() {
   }
 
   return (
-    <main className="mx-auto grid max-w-5xl gap-4 px-4 py-8">
-      <h1 className="text-3xl font-bold text-navy-700 dark:text-white">{t("settings.title")}</h1>
+    <AccountFrame title={t("settings.title")}>
+      <div className="grid gap-4">
       <form onSubmit={save} className="paper rounded-3xl border border-ink-200 p-5 dark:border-white/10">
         <h2 className="font-semibold">{t("settings.profile")}</h2>
         <label className="mt-3 block text-sm font-semibold">{t("auth.name")}<Input value={name} onChange={(event) => setName(event.target.value)} className="mt-1" /></label>
@@ -74,6 +75,7 @@ export default function SettingsPage() {
           }}>{t("settings.delete")}</Button>
         </div>
       </section>
-    </main>
+      </div>
+    </AccountFrame>
   );
 }

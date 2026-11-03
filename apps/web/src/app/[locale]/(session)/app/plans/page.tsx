@@ -2,6 +2,7 @@
 
 import { SERVICE_CODES, SERVICE_PRICES_HALALAS, type PlanOffer, type ServiceCode } from "@elawyer/types";
 import { useEffect, useState } from "react";
+import { AccountFrame } from "@/components/account-frame";
 import { useApp } from "@/lib/providers";
 
 const SERVICE_KEY: Record<ServiceCode, string> = {
@@ -25,12 +26,11 @@ export default function PlansPage() {
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-navy-700 dark:text-white">{t("plans.title")}</h1>
+    <AccountFrame title={t("plans.title")}>
+      <div className="flex items-center justify-end">
         <div className="rounded-full bg-ink-100 p-1 text-sm font-semibold dark:bg-white/10">
-          <button type="button" className={`rounded-full px-3 py-1 ${!yearly ? "bg-white dark:bg-navy-700" : ""}`} onClick={() => setYearly(false)}>{t("plans.monthly")}</button>
-          <button type="button" className={`rounded-full px-3 py-1 ${yearly ? "bg-white dark:bg-navy-700" : ""}`} onClick={() => setYearly(true)}>{t("plans.yearly")}</button>
+          <button type="button" className={`inline-flex min-h-11 items-center rounded-full px-4 ${!yearly ? "bg-white dark:bg-navy-700" : ""}`} onClick={() => setYearly(false)}>{t("plans.monthly")}</button>
+          <button type="button" className={`inline-flex min-h-11 items-center rounded-full px-4 ${yearly ? "bg-white dark:bg-navy-700" : ""}`} onClick={() => setYearly(true)}>{t("plans.yearly")}</button>
         </div>
       </div>
       <div className="mt-6 grid gap-4 md:grid-cols-3">
@@ -44,7 +44,7 @@ export default function PlansPage() {
               <p className="mt-3 text-4xl font-bold">{(price / 100).toFixed(0)}</p>
               <p className="text-sm opacity-80">{yearly ? t("common.year") : t("plans.perMonth")}</p>
               <p className="mt-3 text-sm leading-7 opacity-80">{t(`plans.${plan.code}Desc`)}</p>
-              <button type="button" disabled={current || plan.code === "free"} onClick={() => void choose(plan)} className={`mt-5 w-full rounded-xl px-3 py-2 text-sm font-semibold ${plan.code === "pro" ? "bg-white text-navy-700" : "bg-navy-700 text-white"}`}>
+              <button type="button" disabled={current || plan.code === "free"} onClick={() => void choose(plan)} className={`mt-5 inline-flex min-h-12 w-full items-center justify-center rounded-xl px-3 text-sm font-semibold ${plan.code === "pro" ? "bg-white text-navy-700" : "bg-navy-700 text-white"}`}>
                 {current ? t("plans.current") : t("plans.choose")}
               </button>
             </article>
@@ -59,7 +59,7 @@ export default function PlansPage() {
             {code === "review" || code === "chat_pack" ? (
               <button
                 type="button"
-                className="rounded-xl bg-navy-700 px-3 py-2 text-xs font-semibold text-white"
+                className="inline-flex min-h-11 items-center rounded-xl bg-navy-700 px-4 text-sm font-semibold text-white"
                 onClick={() => {
                   void client.checkout({ purpose: "service", serviceCode: code }).then((result) => {
                     window.location.href = result.redirectUrl;
@@ -72,6 +72,6 @@ export default function PlansPage() {
           </li>
         ))}
       </ul>
-    </main>
+    </AccountFrame>
   );
 }

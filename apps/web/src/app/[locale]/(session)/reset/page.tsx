@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useState } from "react";
 import { AuthShell } from "@/components/auth-shell";
@@ -39,6 +40,7 @@ function ResetForm() {
         {error ? <p className="text-sm text-danger">{error}</p> : null}
         <Button type="submit">{t("auth.resetSubmit")}</Button>
       </form>
+      <p className="mt-4 text-center"><Link className="inline-flex min-h-11 items-center font-semibold text-brand-500" href="/login">{t("nav.login")}</Link></p>
     </AuthShell>
   );
 }

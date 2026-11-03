@@ -31,8 +31,9 @@ export default function AdminLogin() {
           <input data-testid="admin-password" name="password" type="password" className="mt-1 h-12 w-full rounded-xl border px-3" />
         </label>
         {error ? <p className="mt-2 text-sm text-red-700">{error}</p> : null}
-        <button className="mt-4 h-12 w-full rounded-xl bg-navy-700 font-semibold text-white" type="submit">دخول</button>
+        <button className="mt-4 h-14 w-full rounded-[14px] bg-navy-700 text-lg font-semibold text-white" type="submit">دخول</button>
         <p className="mt-3 text-xs text-ink-500">أول مسؤول يُنشأ بأمر لمرة واحدة، ثم يُفعَّل من رابط البريد. هذه اللوحة لا تعرض محتوى القضايا.</p>
+        <a href="/activate" className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-teal-700">تفعيل الإدارة</a>
       </form>
     </main>
   );

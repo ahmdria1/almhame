@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useState } from "react";
 import { AuthShell } from "@/components/auth-shell";
@@ -52,6 +53,7 @@ function OtpForm() {
       >
         {t("auth.resend")}
       </button>
+      <p className="mt-2 text-center"><Link className="inline-flex min-h-11 items-center font-semibold text-brand-500" href="/signup">{t("auth.signupTitle")}</Link></p>
     </AuthShell>
   );
 }

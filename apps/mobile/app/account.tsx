@@ -1,19 +1,28 @@
 import { LANGUAGE_NAMES, translate } from "@elawyer/i18n";
 import { colors } from "@elawyer/tokens";
 import { LOCALES } from "@elawyer/types";
-import { useRouter } from "expo-router";
+import { Link, useRouter } from "expo-router";
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { clearToken, client } from "../src/api";
+import { Hub } from "../src/nav";
 
-const LINKS = ["nav.wallet", "nav.memos", "nav.saved", "nav.integrations", "nav.subscription", "nav.settings"];
+const LINKS = [
+  ["/wallet", "nav.wallet"],
+  ["/memos", "nav.memos"],
+  ["/saved", "nav.saved"],
+  ["/integrations", "nav.integrations"],
+  ["/plans", "nav.subscription"],
+  ["/settings", "nav.settings"],
+] as const;
 
 export default function Account() {
   const router = useRouter();
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ padding: 20 }}>
       <Text style={styles.title}>{translate("ar", "nav.account")}</Text>
-      {LINKS.map((item) => (
-        <Text key={item} style={styles.item}>{translate("ar", item)}</Text>
+      <Hub />
+      {LINKS.map(([href, key]) => (
+        <Link key={href} href={href} style={styles.item}>{translate("ar", key)}</Link>
       ))}
       <Text style={styles.section}>{translate("ar", "settings.language")}</Text>
       <View>
@@ -46,11 +55,11 @@ export default function Account() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.canvas },
   title: { fontSize: 28, fontWeight: "700", color: colors.navy700, textAlign: "right", writingDirection: "rtl" },
-  item: { marginTop: 12, backgroundColor: "white", borderRadius: 14, padding: 14, minHeight: 44, fontWeight: "600", textAlign: "right", writingDirection: "rtl" },
+  item: { marginTop: 12, backgroundColor: "white", borderRadius: 14, padding: 14, minHeight: 48, fontWeight: "600", textAlign: "right", writingDirection: "rtl", color: colors.navy700 },
   section: { marginTop: 20, fontWeight: "700", color: colors.navy700, textAlign: "right", writingDirection: "rtl" },
   lang: { marginTop: 8, minHeight: 44, color: colors.slate700, textAlign: "right", writingDirection: "rtl" },
   link: { marginTop: 16, minHeight: 44, color: colors.teal600, fontWeight: "700", textAlign: "right", writingDirection: "rtl" },
-  button: { marginTop: 24, backgroundColor: colors.navy700, borderRadius: 14, minHeight: 48, padding: 14, alignItems: "center", justifyContent: "center" },
-  delete: { marginTop: 12, backgroundColor: colors.danger, borderRadius: 14, minHeight: 48, padding: 14, alignItems: "center", justifyContent: "center" },
+  button: { marginTop: 24, backgroundColor: colors.navy700, borderRadius: 14, minHeight: 56, padding: 14, alignItems: "center", justifyContent: "center" },
+  delete: { marginTop: 12, backgroundColor: colors.danger, borderRadius: 14, minHeight: 56, padding: 14, alignItems: "center", justifyContent: "center" },
   buttonText: { color: "white", fontWeight: "700" },
 });

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Button, Input } from "@/components/ui";
@@ -48,6 +49,7 @@ export default function CasePage() {
   if (!detail) return <p className="p-8 text-ink-500">{t("common.loading")}</p>;
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
+      <Link href="/app/cases" className="inline-flex min-h-11 items-center text-sm font-semibold text-teal-700">{t("common.back")}</Link>
       <h1 className="text-3xl font-bold text-navy-700 dark:text-white">{detail.title}</h1>
       <p className="text-ink-500">{t(`courts.${detail.court}`)}</p>
       {health ? (
@@ -61,7 +63,7 @@ export default function CasePage() {
           <h2 className="font-semibold">{t("cases.docs")}</h2>
           {detail.documents.map((doc) => <p key={doc.id} className="mt-2 text-sm">{doc.filename}</p>)}
           <h2 className="mt-4 font-semibold">{t("cases.memos")}</h2>
-          {detail.memos.map((memo) => <p key={memo.id} className="mt-2 text-sm">{memo.title}</p>)}
+          {detail.memos.map((memo) => <Link key={memo.id} href={`/app/memos/${memo.id}`} className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-navy-700">{memo.title}</Link>)}
         </section>
         <section className="rounded-3xl border border-ink-200 p-4 dark:border-white/10">
           <h2 className="font-semibold">{t("cases.hearings")}</h2>

@@ -37,6 +37,7 @@ export default function Signup() {
         <Text style={styles.buttonText}>أرسل رمز البريد</Text>
       </Pressable>
       <Link href="/login" style={styles.link}>لديك حساب؟ دخول</Link>
+      <Link href="/" style={styles.link}>رجوع</Link>
     </View>
   );
 }
@@ -44,11 +45,11 @@ export default function Signup() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.canvas, padding: 24, justifyContent: "center" },
   title: { fontSize: 28, fontWeight: "700", color: colors.navy700, marginBottom: 16 },
-  input: { backgroundColor: "white", borderWidth: 1, borderColor: colors.slate200, borderRadius: 14, padding: 12, marginBottom: 10 },
-  consent: { color: colors.slate700, marginVertical: 8 },
+  input: { backgroundColor: "white", borderWidth: 1, borderColor: colors.slate300, borderRadius: 12, minHeight: 48, paddingHorizontal: 16, marginBottom: 10, textAlign: "right" },
+  consent: { color: colors.slate700, marginVertical: 8, minHeight: 44, textAlign: "right" },
   error: { color: colors.danger },
-  button: { backgroundColor: colors.navy700, borderRadius: 14, padding: 14, alignItems: "center", marginTop: 8 },
-  buttonText: { color: "white", fontWeight: "700" },
+  button: { backgroundColor: colors.navy700, borderRadius: 14, minHeight: 56, alignItems: "center", justifyContent: "center", marginTop: 8 },
+  buttonText: { color: "white", fontWeight: "700", fontSize: 18 },
   legalRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
   link: { marginTop: 16, color: colors.teal600, textAlign: "center" },
 });

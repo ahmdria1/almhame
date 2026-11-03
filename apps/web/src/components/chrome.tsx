@@ -3,8 +3,10 @@
 import { LANGUAGE_NAMES, memoCountPhrase } from "@elawyer/i18n";
 import type { Locale } from "@elawyer/types";
 import {
+  Archive,
   Bell,
   Bookmark,
+  Briefcase,
   CreditCard,
   Folder,
   Globe,
@@ -12,6 +14,7 @@ import {
   Plug,
   Search,
   Settings,
+  Share2,
   Wallet,
 } from "lucide-react";
 import Link from "next/link";
@@ -26,7 +29,7 @@ export function LanguageMenu() {
   const [open, setOpen] = useState(false);
   return (
     <div className="relative">
-      <button data-testid="lang-switch" className="flex min-h-11 min-w-11 items-center gap-1 rounded-full border border-ink-200 px-3 text-sm font-semibold text-navy-700 dark:border-white/10 dark:text-white" onClick={() => setOpen((value) => !value)} type="button">
+      <button data-testid="lang-switch" className="flex h-11 min-w-11 items-center gap-2 rounded-xl border border-ink-300 bg-white px-3.5 text-sm font-semibold text-ink-900 dark:border-white/10 dark:bg-navy-800 dark:text-white" onClick={() => setOpen((value) => !value)} type="button">
         <Globe size={16} />
         <span className="hidden sm:inline">{languages[locale]}</span>
       </button>
@@ -36,7 +39,7 @@ export function LanguageMenu() {
             <button
               key={code}
               data-testid={`lang-${code}`}
-              className={cn("block w-full rounded-xl px-3 py-2 text-start text-sm", code === locale && "bg-teal-100 text-teal-700")}
+              className={cn("flex min-h-11 w-full items-center rounded-xl px-3 text-start text-sm", code === locale && "bg-teal-100 text-teal-700")}
               type="button"
               onClick={() => {
                 setLocale(code as Locale);
@@ -67,14 +70,17 @@ export function AccountMenu() {
   const items = [
     ["/app/wallet", "nav.wallet", Wallet],
     ["/app/memos", "nav.memos", Folder],
+    ["/app/cases", "cases.title", Briefcase],
     ["/app/saved", "nav.saved", Bookmark],
+    ["/app/vault", "vault.title", Archive],
     ["/app/integrations", "nav.integrations", Plug],
     ["/app/plans", "nav.subscription", CreditCard],
+    ["/app/referral", "referral.title", Share2],
     ["/app/settings", "nav.settings", Settings],
   ] as const;
   return (
     <div className="flex items-center gap-2">
-      <button aria-label={t("bell.label")} className="grid min-h-11 min-w-11 place-items-center rounded-full text-ink-500" type="button" onClick={() => setShowNotes((value) => !value)}>
+      <button aria-label={t("bell.label")} className="grid size-11 place-items-center rounded-full bg-ink-100 text-ink-700 dark:bg-white/5" type="button" onClick={() => setShowNotes((value) => !value)}>
         <Bell size={18} />
       </button>
       {showNotes ? (
@@ -83,7 +89,7 @@ export function AccountMenu() {
           {notes.length === 0 ? <p className="text-sm text-ink-500">{t("notif.empty")}</p> : notes.map((item) => <p key={item.id} className="border-t border-ink-100 py-2 text-sm">{item.title}</p>)}
         </div>
       ) : null}
-      <button data-testid="account-menu" className="flex items-center gap-2 rounded-full border border-ink-200 py-1 pe-3 ps-1 dark:border-white/10" type="button" onClick={() => setOpen((value) => !value)}>
+      <button data-testid="account-menu" className="flex h-11 items-center gap-2 rounded-full bg-ink-100 py-1 pe-3.5 ps-1 dark:bg-white/5" type="button" onClick={() => setOpen((value) => !value)}>
         <span className="grid h-8 w-8 place-items-center rounded-full bg-navy-700 text-xs font-bold text-white">{user.name.slice(0, 2)}</span>
         <span className="hidden text-sm font-semibold sm:inline">{user.name}</span>
       </button>
@@ -95,13 +101,13 @@ export function AccountMenu() {
             <p className="mt-2 text-sm text-teal-700">{t("menu.memosLeft", { phrase: memoCountPhrase(locale, user.memoRemaining) })}</p>
           </div>
           {items.map(([href, key, Icon]) => (
-            <Link key={key} href={href} data-testid={`menu-${key.split(".")[1]}`} className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold hover:bg-ink-100 dark:hover:bg-white/5" onClick={() => setOpen(false)}>
+            <Link key={key} href={href} data-testid={`menu-${key.startsWith("nav.") ? key.split(".")[1] : key.split(".")[0]}`} className="flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold hover:bg-ink-100 dark:hover:bg-white/5" onClick={() => setOpen(false)}>
               <Icon size={16} /> {t(key)}
             </Link>
           ))}
           <button
             data-testid="menu-logout"
-            className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-danger"
+            className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-sm font-semibold text-danger"
             type="button"
             onClick={async () => {
               await logout();
@@ -121,13 +127,13 @@ export function AppHeader() {
   const router = useRouter();
   const [q, setQ] = useState("");
   return (
-    <header className="sticky top-0 z-40 flex h-16 items-center gap-3 border-b border-ink-200 bg-white/90 px-4 backdrop-blur dark:border-white/10 dark:bg-navy-900/90">
+    <header className="sticky top-0 z-40 flex h-20 items-center gap-3 border-b border-ink-200 bg-white px-4 md:px-8 dark:border-white/10 dark:bg-navy-900">
       <Link href="/app" className="flex items-center gap-2">
-        <Logo size={32} />
-        <span className="hidden font-bold text-navy-700 md:inline dark:text-white">{t("app.name")}</span>
+        <Logo size={40} />
+        <span className="hidden text-xl font-semibold text-ink-900 md:inline dark:text-white">{t("app.name")}</span>
       </Link>
       <form
-        className="mx-auto hidden w-full max-w-md items-center gap-2 rounded-full bg-ink-100 px-3 py-2 text-sm text-ink-500 md:flex dark:bg-white/5"
+        className="mx-auto hidden h-11 w-full max-w-md items-center gap-2 rounded-xl bg-ink-100 px-4 text-base text-ink-500 md:flex dark:bg-white/5"
         onSubmit={(event) => {
           event.preventDefault();
           router.push(`/app/memos?q=${encodeURIComponent(q)}`);

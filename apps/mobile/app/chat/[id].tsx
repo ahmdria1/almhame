@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { client } from "../../src/api";
+import { Hub } from "../../src/nav";
 
 const t = (key: string) => translate("ar", key);
 
@@ -120,6 +121,7 @@ export default function ChatScreen() {
       }}>
         <Text style={styles.primaryText}>{t("workspace.draft")}</Text>
       </Pressable>
+      <Hub />
     </View>
   );
 }
@@ -133,6 +135,6 @@ const styles = StyleSheet.create({
   icon: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   status: { paddingHorizontal: 16, color: colors.slate900 },
   error: { paddingHorizontal: 16, color: "#b42318" },
-  draft: { margin: 12, backgroundColor: colors.navy700, borderRadius: 14, padding: 14, alignItems: "center" },
+  draft: { margin: 12, backgroundColor: colors.navy700, borderRadius: 14, minHeight: 56, alignItems: "center", justifyContent: "center" },
   primaryText: { color: "white", fontWeight: "700" },
 });

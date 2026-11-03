@@ -1,4 +1,5 @@
 {
+  "analytics.allow": "Count visits",
   "app.name": "Advanced E-Lawyer",
   "app.platformBadge": "A Saudi platform for legal drafting",
   "auth.consent": "I agree to process my data to draft and store my files, and I can export or delete the account later.",

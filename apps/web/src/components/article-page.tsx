@@ -1,26 +1,12 @@
-import { memoCountPhrase, translate } from "@elawyer/i18n";
-import { COURTS, PLAN_CODES, PUBLISHED_PLANS, SERVICE_CODES, SERVICE_PRICES_HALALAS, type Locale, type ServiceCode } from "@elawyer/types";
+import { translate } from "@elawyer/i18n";
+import { COURTS, type Locale } from "@elawyer/types";
 import { JsonLd } from "@/components/json-ld";
+import { PlanCards, ServiceLinks } from "@/components/public-offers";
 import { PublicFooter, PublicHeader } from "@/components/public-chrome";
 import { DOC_IDS, authPath, pagePath, type PageRef } from "@/seo/catalog";
 import { COPY, courtName, docName, pageBody, pageCopy, searchCatalog } from "@/seo/copy";
 import { jsonLdFor } from "@/seo/jsonld";
 import { contactEmail } from "@/seo/site";
-
-function sar(halalas: number): string {
-  const value = halalas / 100;
-  return Number.isInteger(value) ? String(value) : value.toFixed(2);
-}
-
-const PLAN_KEY = { free: "plans.freeName", basic: "plans.basicName", pro: "plans.proName" } as const;
-const PLAN_DESC = { free: "plans.freeDesc", basic: "plans.basicDesc", pro: "plans.proDesc" } as const;
-const SERVICE_KEY: Record<ServiceCode, string> = {
-  review: "plans.serviceReview",
-  defense: "plans.serviceDefense",
-  lawsuit: "plans.serviceClaim",
-  objection: "plans.serviceObjection",
-  chat_pack: "plans.serviceChatPack",
-};
 
 export function ArticlePage({ locale, page }: { locale: Locale; page: Exclude<PageRef, { kind: "home" }> }) {
   const copy = pageCopy(locale, page);
@@ -41,7 +27,7 @@ export function ArticlePage({ locale, page }: { locale: Locale; page: Exclude<Pa
                   {index === copy.crumbs.length - 1 ? (
                     <span>{crumb.name}</span>
                   ) : (
-                    <a href={crumb.path} className="text-teal-700">{crumb.name}</a>
+                    <a href={crumb.path} className="inline-flex min-h-11 items-center text-teal-700">{crumb.name}</a>
                   )}
                 </li>
               ))}
@@ -69,7 +55,7 @@ export function ArticlePage({ locale, page }: { locale: Locale; page: Exclude<Pa
               <ul className="mt-4 grid gap-2">
                 {COURTS.map((court) => (
                   <li key={court}>
-                    <a className="text-teal-700" href={pagePath(locale, { kind: "court", id: court })}>{courtName(locale, court)}</a>
+                    <a className="inline-flex min-h-11 items-center text-teal-700" href={pagePath(locale, { kind: "court", id: court })}>{courtName(locale, court)}</a>
                   </li>
                 ))}
               </ul>
@@ -81,7 +67,7 @@ export function ArticlePage({ locale, page }: { locale: Locale; page: Exclude<Pa
               <ul className="mt-4 grid gap-2">
                 {DOC_IDS.map((id) => (
                   <li key={id}>
-                    <a className="text-teal-700" href={pagePath(locale, { kind: "doc", id })}>{docName(locale, id)}</a>
+                    <a className="inline-flex min-h-11 items-center text-teal-700" href={pagePath(locale, { kind: "doc", id })}>{docName(locale, id)}</a>
                   </li>
                 ))}
               </ul>
@@ -98,28 +84,13 @@ export function ArticlePage({ locale, page }: { locale: Locale; page: Exclude<Pa
 }
 
 function PlanList({ locale }: { locale: Locale }) {
-  const t = (key: string, vars?: Record<string, string | number>) => translate(locale, key, vars);
+  const t = (key: string) => translate(locale, key);
   return (
     <div className="mt-8 grid gap-4">
       <p className="text-sm text-ink-700">{COPY.vat[locale]}</p>
-      {PLAN_CODES.map((code) => {
-        const plan = PUBLISHED_PLANS[code];
-        return (
-          <section key={code} className="rounded-3xl border border-ink-200 bg-white p-5">
-            <h2 className="text-xl font-semibold text-navy-700">{t(PLAN_KEY[code])}</h2>
-            <p className="mt-2 text-3xl font-bold text-navy-700">{sar(plan.priceHalalas)} {t("common.sar")}</p>
-            <p className="mt-2 text-sm leading-7 text-ink-700">{t(PLAN_DESC[code])}</p>
-            <p className="mt-2 text-sm text-ink-700">{memoCountPhrase(locale, plan.memoLimit)}</p>
-            <p className="text-sm text-ink-700">{plan.chatLimit == null ? COPY.unlimited[locale] : t("plans.chats", { count: plan.chatLimit })}</p>
-          </section>
-        );
-      })}
-      <ul className="space-y-1 text-sm text-ink-700">
-        <li>{t("plans.payg")}</li>
-        {SERVICE_CODES.map((code) => (
-          <li key={code}>{t(SERVICE_KEY[code], { price: sar(SERVICE_PRICES_HALALAS[code]) })}</li>
-        ))}
-      </ul>
+      <PlanCards locale={locale} />
+      <h2 className="text-xl font-semibold text-navy-700">{t("plans.payg")}</h2>
+      <ServiceLinks locale={locale} />
     </div>
   );
 }

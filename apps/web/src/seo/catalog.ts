@@ -99,6 +99,10 @@ export function authPath(locale: Locale, path: "/login" | "/signup" | "/app"): s
   return locale === "ar" ? path : `/${locale}${path}`;
 }
 
+export function securityPath(locale: Locale): string {
+  return locale === "ar" ? "/security" : `/${locale}/security`;
+}
+
 function findId<T extends string>(locale: Locale, ids: readonly T[], value: string): T | null {
   return ids.find((id) => slug(locale, id as SlugId) === value) ?? null;
 }

@@ -56,5 +56,15 @@ export default defineConfig({
         NEXT_PUBLIC_API_URL: "http://127.0.0.1:4710/api",
       },
     },
+    {
+      command: "pnpm --filter @elawyer/admin start",
+      url: "http://127.0.0.1:4730",
+      reuseExistingServer: true,
+      timeout: 180000,
+      env: {
+        ...process.env,
+        NEXT_PUBLIC_API_URL: "http://127.0.0.1:4710/api",
+      },
+    },
   ],
 });

@@ -2,7 +2,7 @@ import { LANGUAGE_NAMES, translate } from "@elawyer/i18n";
 import { LOCALES, type Locale } from "@elawyer/types";
 import Image from "next/image";
 import { COPY, brandName } from "@/seo/copy";
-import { authPath, pagePath, type PageRef } from "@/seo/catalog";
+import { authPath, pagePath, securityPath, type PageRef } from "@/seo/catalog";
 
 function href(locale: Locale, page: PageRef, hash?: string): string {
   const path = pagePath(locale, page);
@@ -20,19 +20,20 @@ export function PublicHeader({ locale, page }: { locale: Locale; page: PageRef }
     [pagePath(locale, { kind: "top", id: "pricing" }), "nav.plans"],
     [pagePath(locale, { kind: "top", id: "faq" }), "nav.faq"],
   ] as const;
+  const here = pagePath(locale, page);
   return (
     <header className="sticky top-0 z-40 border-b border-ink-200/80 bg-white">
       <a href="#content" className="sr-only focus:not-sr-only focus:fixed focus:start-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-navy-700 focus:px-4 focus:py-2 focus:text-white">
         {COPY.skip[locale]}
       </a>
       <div data-testid="public-header" className="mx-auto flex h-16 max-w-6xl flex-nowrap items-center gap-3 px-4">
-        <a href={home} className="flex min-w-0 items-center gap-2">
-          <Image src="/brand/node-scale.svg" alt="" width={34} height={34} priority unoptimized />
+        <a href={home} className="flex min-h-11 min-w-0 items-center gap-2">
+          <Image src="/brand/node-scale.svg" alt="ميزان العقدة" width={34} height={34} priority unoptimized />
           <span className="hidden truncate text-[15px] font-bold text-navy-700 sm:inline sm:max-w-[10rem] lg:max-w-none">{name}</span>
         </a>
         <nav aria-label={COPY.menu[locale]} className="hidden flex-1 items-center justify-center gap-6 text-sm font-semibold text-ink-700 lg:flex">
           {links.map(([path, key]) => (
-            <a key={key} href={path} className="hover:text-teal-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">
+            <a key={key} href={path} aria-current={path === here ? "page" : undefined} className={`inline-flex min-h-11 items-center hover:text-teal-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 ${path === here ? "text-teal-700" : ""}`}>
               {label(locale, key)}
             </a>
           ))}
@@ -71,14 +72,14 @@ export function PublicHeader({ locale, page }: { locale: Locale; page: PageRef }
                   hrefLang={code}
                   lang={code}
                   aria-current={code === locale ? "true" : undefined}
-                  className={`block rounded-xl px-3 py-2 text-sm ${code === locale ? "bg-teal-100 text-teal-700" : "text-navy-700"}`}
+                  className={`flex min-h-11 items-center rounded-xl px-3 text-sm ${code === locale ? "bg-teal-100 text-teal-700" : "text-navy-700"}`}
                 >
                   {LANGUAGE_NAMES[code]}
                 </a>
               ))}
             </div>
           </details>
-          <a href={authPath(locale, "/login")} className="hidden min-h-12 items-center px-3 text-sm font-semibold text-navy-700 sm:inline-flex">
+          <a href={authPath(locale, "/login")} className="hidden min-h-11 items-center px-3 text-sm font-semibold text-teal-700 sm:inline-flex">
             {label(locale, "nav.login")}
           </a>
           <a href={authPath(locale, "/signup")} data-testid="start-free" className="hidden min-h-11 items-center whitespace-nowrap rounded-xl bg-navy-700 px-3 text-sm font-semibold text-white md:inline-flex">
@@ -119,6 +120,7 @@ export function PublicFooter({ locale }: { locale: Locale }) {
         [pagePath(locale, { kind: "top", id: "privacy" }), COPY.privacy[locale]],
         [pagePath(locale, { kind: "top", id: "terms" }), COPY.terms[locale]],
         [pagePath(locale, { kind: "top", id: "faq" }), COPY.faq[locale]],
+        [securityPath(locale), label(locale, "security.title")],
       ],
     },
   ] as const;
@@ -126,8 +128,8 @@ export function PublicFooter({ locale }: { locale: Locale }) {
     <footer className="border-t border-ink-200 bg-white">
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 md:grid-cols-4">
         <div>
-          <a href={pagePath(locale, { kind: "home" })} className="flex items-center gap-2">
-            <Image src="/brand/node-scale.svg" alt="" width={32} height={32} unoptimized />
+          <a href={pagePath(locale, { kind: "home" })} className="inline-flex min-h-11 items-center gap-2">
+            <Image src="/brand/node-scale.svg" alt="ميزان العقدة" width={32} height={32} unoptimized />
             <span className="font-bold text-navy-700">{name}</span>
           </a>
           <p className="mt-3 text-sm leading-7 text-ink-700">{label(locale, "footer.blurb")}</p>
@@ -138,7 +140,7 @@ export function PublicFooter({ locale }: { locale: Locale }) {
             <ul className="mt-3 grid gap-2 text-sm text-ink-700">
               {group.links.map(([path, text]) => (
                 <li key={path}>
-                  <a href={path} className="hover:text-teal-700">{text}</a>
+                  <a href={path} className="inline-flex min-h-11 items-center hover:text-teal-700">{text}</a>
                 </li>
               ))}
             </ul>

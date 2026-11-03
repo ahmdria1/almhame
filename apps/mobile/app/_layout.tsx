@@ -37,6 +37,9 @@ export default function RootLayout() {
         <Stack.Screen name="plans" options={{ title: translate("ar", "plans.title") }} />
         <Stack.Screen name="wallet" options={{ title: translate("ar", "wallet.title") }} />
         <Stack.Screen name="memos" options={{ title: translate("ar", "nav.memos") }} />
+        <Stack.Screen name="saved" options={{ title: translate("ar", "nav.saved") }} />
+        <Stack.Screen name="integrations" options={{ title: translate("ar", "nav.integrations") }} />
+        <Stack.Screen name="settings" options={{ title: translate("ar", "nav.settings") }} />
         <Stack.Screen name="chat/[id]" options={{ title: translate("ar", "workspace.tabPrepare") }} />
         <Stack.Screen name="memo/[id]" options={{ title: translate("ar", "workspace.tabMemo") }} />
       </Stack>

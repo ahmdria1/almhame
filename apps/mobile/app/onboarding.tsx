@@ -1,4 +1,5 @@
 import { colors } from "@elawyer/tokens";
+import { translate } from "@elawyer/i18n";
 import { Link } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -26,6 +27,8 @@ export default function Onboarding() {
           <Text style={styles.buttonText}>التالي</Text>
         </Pressable>
       )}
+      <Link href="/login" style={styles.link}>{translate("ar", "nav.login")}</Link>
+      <Link href="/" style={styles.link}>{translate("ar", "common.back")}</Link>
     </View>
   );
 }
@@ -35,6 +38,7 @@ const styles = StyleSheet.create({
   kicker: { color: colors.teal600, fontWeight: "700" },
   title: { marginTop: 12, fontSize: 32, fontWeight: "700", color: colors.navy700 },
   body: { marginTop: 12, fontSize: 16, lineHeight: 28, color: colors.slate500 },
-  button: { marginTop: 28, backgroundColor: colors.navy700, borderRadius: 14, padding: 14, alignItems: "center" },
-  buttonText: { color: "white", fontWeight: "700" },
+  button: { marginTop: 28, backgroundColor: colors.navy700, borderRadius: 14, minHeight: 56, paddingHorizontal: 24, alignItems: "center", justifyContent: "center" },
+  buttonText: { color: "white", fontWeight: "700", fontSize: 18 },
+  link: { marginTop: 16, minHeight: 44, color: colors.blue500, fontWeight: "700", textAlign: "center" },
 });

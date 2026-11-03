@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { Button } from "@/components/ui";
@@ -25,6 +26,7 @@ function Sandbox() {
           if (result.status === "paid") window.location.href = "/app/wallet";
         }}>{t("pay.confirm")}</Button>
         {status ? <p className="mt-3 text-sm">{status}</p> : null}
+        <Link href="/app/wallet" className="mt-4 inline-flex min-h-11 items-center font-semibold text-teal-700">{t("common.back")}</Link>
       </div>
     </main>
   );

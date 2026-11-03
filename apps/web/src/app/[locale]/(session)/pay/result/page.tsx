@@ -13,7 +13,7 @@ function Result() {
     <main className="grid min-h-screen place-items-center">
       <div className="text-center">
         <h1 className="text-2xl font-bold">{ok ? t("pay.success") : t("pay.fail")}</h1>
-        <Link href="/app/wallet" className="mt-4 inline-block text-teal-700">{t("nav.wallet")}</Link>
+        <Link href="/app/wallet" className="mt-4 inline-flex min-h-11 items-center font-semibold text-teal-700">{t("nav.wallet")}</Link>
       </div>
     </main>
   );
