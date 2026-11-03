@@ -435,17 +435,19 @@ describe("draft guard", () => {
   });
 
   it.each(MEMO_TYPES)("ends the %s memo with the court closing block", (memoType) => {
-    const role = memoType === "defense" ? "المدّعى عليه" : memoType === "appeal" ? "المعترض" : memoType === "reply" ? "مقدم المذكرة" : "المدّعي";
+    const heading = memoType === "appeal" ? "مقدم اللائحة" : memoType === "lawsuit" ? "مقدم الصحيفة" : "مقدم المذكرة";
+    const role = memoType === "defense" ? "المدّعى عليه" : memoType === "appeal" ? "المعترض" : "المدّعي";
     const name = memoType === "defense" ? "شركة أفق" : "خالد بن سامي";
     for (const body of [humanMemo(packet(memoType)).body, closingFromReview(memoType)]) {
       const trimmed = body.trimEnd();
       const block = trimmed.slice(trimmed.lastIndexOf("والله يحفظكم ويرعاكم"));
       expect(trimmed.endsWith(closingBlock(packet(memoType)))).toBe(true);
-      expect(trimmed.endsWith("التوقيع")).toBe(true);
+      expect(trimmed.endsWith("التوقيع:")).toBe(true);
       expect(block.startsWith("والله يحفظكم ويرعاكم،،")).toBe(true);
-      expect(block).toContain(role);
-      expect(block).toContain(name);
-      expect(block.indexOf("التاريخ")).toBeLessThan(block.indexOf("التوقيع"));
+      expect(block).toContain(`${heading}: ${name}`);
+      expect(block).toContain(`${role}: ${name}`);
+      expect(block).toContain("التاريخ:");
+      expect(block.indexOf("التاريخ:")).toBeLessThan(block.indexOf("التوقيع:"));
       expect(trimmed.indexOf("الطلبات")).toBeLessThan(trimmed.lastIndexOf("والله يحفظكم ويرعاكم"));
       expect(trimmed.split("والله يحفظكم ويرعاكم").length - 1).toBe(1);
     }
@@ -453,12 +455,17 @@ describe("draft guard", () => {
 
   it("leaves the filer line blank when the filing has no name", () => {
     const draft = humanMemo(packet("lawsuit", {
-      slots: { plaintiff: "", defendant: "شركة أفق", facts, requests: "إلزام المدّعى عليه بأجر شهر أغسطس." },
+      slots: { plaintiff: " ", defendant: "شركة أفق", facts, requests: "إلزام المدّعى عليه بأجر شهر أغسطس." },
     }));
     const block = draft.body.slice(draft.body.lastIndexOf("والله يحفظكم ويرعاكم"));
-    expect(block).toContain("المدّعي\n\nالتاريخ");
+    expect(block).toContain("مقدم الصحيفة:\nالمدّعي:\nالتاريخ:\nالتوقيع:");
     expect(block).not.toContain("المذكور");
     expect(block).not.toContain("شركة أفق");
+    const byDefendant = humanMemo(packet("reply", {
+      slots: { plaintiff: "", defendant: "شركة أفق", facts: replyFacts, requests: "رد ما جاء في مذكرة الخصم." },
+    }));
+    expect(byDefendant.body).toContain("مقدم المذكرة: شركة أفق");
+    expect(byDefendant.body).toContain("المدّعى عليه: شركة أفق");
   });
 
   it("rejects the stock phrases that do not answer the case", () => {

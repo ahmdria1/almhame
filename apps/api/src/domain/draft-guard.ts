@@ -453,21 +453,33 @@ function asksToChargeDefendant(text: string): boolean {
 }
 
 function filerName(packet: DraftPacket): string {
-  const raw = packet.memoType === "defense" ? packet.slots.defendant : packet.slots.plaintiff;
+  const defendantFiles = packet.memoType === "defense" || (packet.memoType === "reply" && !packet.slots.plaintiff.trim());
+  const raw = defendantFiles ? packet.slots.defendant : packet.slots.plaintiff;
   const name = raw.trim();
   if (!name || name === "المذكور في الوقائع") return "";
   return name;
 }
 
-function capacityLines(packet: DraftPacket): string[] {
-  if (packet.memoType === "defense") return ["مقدم المذكرة", "المدّعى عليه"];
-  if (packet.memoType === "appeal") return ["مقدم المذكرة", "المعترض"];
-  if (packet.memoType === "reply") return ["مقدم المذكرة"];
-  return ["مقدم المذكرة", "المدّعي"];
+function filerHeading(packet: DraftPacket): string {
+  if (packet.memoType === "appeal") return "مقدم اللائحة";
+  if (packet.memoType === "lawsuit") return "مقدم الصحيفة";
+  return "مقدم المذكرة";
+}
+
+function filerCapacity(packet: DraftPacket): string {
+  if (packet.memoType === "defense") return "المدّعى عليه";
+  if (packet.memoType === "appeal") return "المعترض";
+  if (packet.memoType === "reply" && !packet.slots.plaintiff.trim() && packet.slots.defendant.trim()) return "المدّعى عليه";
+  return "المدّعي";
+}
+
+function labeled(label: string, value: string): string {
+  return value ? `${label}: ${value}` : `${label}:`;
 }
 
 export function closingBlock(packet: DraftPacket): string {
-  return ["والله يحفظكم ويرعاكم،،", "", ...capacityLines(packet), filerName(packet), "التاريخ", "", "التوقيع"].join("\n");
+  const name = filerName(packet);
+  return ["والله يحفظكم ويرعاكم،،", "", labeled(filerHeading(packet), name), labeled(filerCapacity(packet), name), "التاريخ:", "التوقيع:"].join("\n");
 }
 
 function ensureSignature(packet: DraftPacket, body: string): string {
