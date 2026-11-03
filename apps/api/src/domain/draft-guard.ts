@@ -177,7 +177,7 @@ export function repairQuotes(text: string, packet: DraftPacket): { text: string;
     failures.push(draftCheckRecord({ recordId: hit.id, articleNumber: hit.number || "", statute: hit.statute, failureType: "quote", quoteSpan: span.inner }));
     next = `${next.slice(0, span.start)}«${hit.text}»${next.slice(span.end)}`;
   }
-  const tail = /((?:نصت\s+)?المادة\s*\(((?:[^()]|\([^()]*\))*)\)(?:\s*من\s+[^\n:«"]{0,120})?\s*[:：]\s*)([^\n«"]+)/g;
+  const tail = /((?:نصت\s+)?المادة\s*\(((?:[^()]|\([^()]*\))*)\)(?:\s*من\s+[^\n:«"]{0,120})?\s*[:：]\s*)([^\s«"\n][^\n«"]*)/g;
   const tails = [];
   let found: RegExpExecArray | null;
   while ((found = tail.exec(next))) {

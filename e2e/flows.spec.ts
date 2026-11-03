@@ -1,5 +1,8 @@
 import { readFileSync } from "fs";
+import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
+
+const outboxDir = process.env.OUTBOX_DIR || path.join(process.cwd(), "data", "outbox");
 
 const API = "http://127.0.0.1:4710/api";
 
@@ -18,7 +21,7 @@ async function signUp(page: Page, label: string) {
   await page.getByTestId("signup-consent").check();
   await page.getByTestId("signup-submit").click();
   await page.waitForURL(/\/otp/);
-  const mail = JSON.parse(readFileSync(`/workspace/data/outbox/email_verify-${email}.json`, "utf8")) as { code: string };
+  const mail = JSON.parse(readFileSync(path.join(outboxDir, `email_verify-${email}.json`), "utf8")) as { code: string };
   expect(mail.code).toMatch(/^\d{6}$/);
   const code = mail.code;
   await page.getByTestId("otp-input").fill(code);
@@ -105,10 +108,10 @@ test("admin session cannot read user content", async ({ request }) => {
   execFileSync("psql", [process.env.DATABASE_URL || "postgresql://elawyer:elawyer@127.0.0.1:5432/elawyer", "-c", 'DELETE FROM "OtpChallenge" WHERE "adminId" IS NOT NULL; DELETE FROM "AdminAccount";'], { stdio: "ignore" });
   const created = JSON.parse(execFileSync("node", ["dist/cli.js", "create-admin", "--email", "e2e-admin@example.sa"], {
     cwd: "apps/api",
-    env: { ...process.env, NODE_ENV: "test", OUTBOX_DIR: "/workspace/data/outbox", DATABASE_URL: process.env.DATABASE_URL || "postgresql://elawyer:elawyer@127.0.0.1:5432/elawyer" },
+    env: { ...process.env, NODE_ENV: "test", OUTBOX_DIR: outboxDir, DATABASE_URL: process.env.DATABASE_URL || "postgresql://elawyer:elawyer@127.0.0.1:5432/elawyer" },
     encoding: "utf8",
   })) as { challengeId: string };
-  const mail = JSON.parse(readFileSync("/workspace/data/outbox/admin_activate-e2e-admin@example.sa.json", "utf8")) as { code: string };
+  const mail = JSON.parse(readFileSync(path.join(outboxDir, "admin_activate-e2e-admin@example.sa.json"), "utf8")) as { code: string };
   const activated = await request.post(`${API}/admin/activate`, {
     data: { challengeId: created.challengeId, code: mail.code, password: "test-admin-pass" },
   });

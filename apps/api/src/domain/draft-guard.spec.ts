@@ -206,6 +206,7 @@ describe("draft guard", () => {
       expect(body).not.toContain("{{cite:");
       expect(body).not.toContain("https://");
       expect(body).toContain(`«${record!.textAr}»`);
+      expect(body.split(record!.textAr).length - 1).toBe(1);
       expect(reviewed.draft.citations).toEqual([{ kind: "article", id: "labor-77", number: record!.number }]);
       expect(headings(body).join(",")).toBe(headings(body).filter((item, index, all) => all.indexOf(item) === index).join(","));
       const fallback = humanMemo(source);
@@ -395,7 +396,16 @@ describe("official injection", () => {
     if (!reviewed.ok) return;
     expect(reviewed.draft.body).not.toContain("وجب دفع الأجر خلال أسبوع");
     expect(reviewed.draft.body).toContain(record!.textAr);
+    expect(reviewed.draft.body.split(record!.textAr).length - 1).toBe(1);
     expect(reviewed.failures.some((item) => item.failureType === "paraphrase")).toBe(true);
+    const afterColon = reviewModelDraft(
+      `بسم الله الرحمن الرحيم\nالمادة (77) من نظام العمل: إذا انتهت علاقة العمل وجب دفع الأجر خلال أسبوع.\n${facts}`,
+      packet("lawsuit"),
+    );
+    expect(afterColon.ok).toBe(true);
+    if (!afterColon.ok) return;
+    expect(afterColon.draft.body).not.toContain("وجب دفع الأجر خلال أسبوع");
+    expect(afterColon.draft.body.split(record!.textAr).length - 1).toBe(1);
   });
 
   it("keeps a failure log to the quoted span", () => {

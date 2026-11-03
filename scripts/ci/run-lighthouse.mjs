@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const THRESHOLDS = {
-  performance: 0.85,
+  performance: 0.9,
   accessibility: 0.95,
   "best-practices": 0.95,
   seo: 0.95,
