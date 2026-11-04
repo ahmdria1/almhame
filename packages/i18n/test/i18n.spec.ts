@@ -22,6 +22,26 @@ describe("locales", () => {
     }
   });
 
+  it("keeps placeholders aligned with Arabic and avoids copied English", () => {
+    const proper = new Set(["Google Drive", "OneDrive", "PDF", "Nafath", "Sharia"]);
+    const tokens = (value: string) => [...value.matchAll(/\{[a-zA-Z0-9_]+\}/g)].map((match) => match[0]).sort().join();
+    for (const locale of LOCALES) {
+      if (locale === "en") continue;
+      for (const [key, arabic] of Object.entries(dictionaries.ar)) {
+        const value = dictionaries[locale][key];
+        expect(tokens(value)).toBe(tokens(arabic));
+        if (locale !== "ar" && dictionaries.en[key] === value && /[A-Za-z]{4,}/.test(value) && !proper.has(value)) {
+          throw new Error(`${locale} ${key} copies English`);
+        }
+      }
+    }
+    expect(dirFor("ur")).toBe("rtl");
+    expect(dictionaries.ur["plans.oneTime"]).toMatch(/ادائیگی/);
+    expect(dictionaries.bn["plans.oneTime"]).toMatch(/পেমেন্ট|একবার/);
+    expect(dictionaries.hi["common.assistant"]).toMatch(/[\u0900-\u097F]/);
+    expect(dictionaries.tr["auth.notLawyer"]).toMatch(/avukat/);
+  });
+
   it("resolves direction and interpolation", () => {
     expect(dirFor("ar")).toBe("rtl");
     expect(dirFor("ur")).toBe("rtl");

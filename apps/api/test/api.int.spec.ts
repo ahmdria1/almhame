@@ -7,6 +7,7 @@ import { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { createApp } from "../src/main";
 import { AuthService } from "../src/auth.service";
+import { TranslationService } from "../src/translation.service";
 import { CorpusService } from "../src/corpus.service";
 import { PrismaService } from "../src/prisma.service";
 import { pingScanner } from "../src/domain/clamd";
@@ -284,6 +285,51 @@ describe("api integration", () => {
       SELECT indexname FROM pg_indexes WHERE indexname = 'CorpusEmbedding_embedding_hnsw'
     `;
     expect(indexes.map((row) => row.indexname)).toContain("CorpusEmbedding_embedding_hnsw");
+  });
+
+  it("translates an Arabic notice into the client language and blocks a broken locale", async () => {
+    const reader = await account();
+    await prisma.user.update({ where: { id: reader.userId }, data: { locale: "en" } });
+    let admin = await request(app.getHttpServer())
+      .post("/api/admin/login")
+      .send({ email: "admin@example.sa", password: "test-admin-pass" });
+    if (admin.status !== 201) {
+      await prisma.adminAccount.deleteMany();
+      const invited = await app.get(AuthService).inviteAdmin("admin@example.sa");
+      await request(app.getHttpServer())
+        .post("/api/admin/activate")
+        .send({ challengeId: invited.challengeId, code: invited.debugCode, password: "test-admin-pass" })
+        .expect(201);
+      admin = await request(app.getHttpServer())
+        .post("/api/admin/login")
+        .send({ email: "admin@example.sa", password: "test-admin-pass" })
+        .expect(201);
+    }
+    const token = admin.body.accessToken as string;
+    const service = app.get(TranslationService);
+    service.translator = async (locale, text) => (locale === "bn" ? "ناقص" : `${locale}:${text}`);
+    const saved = await request(app.getHttpServer())
+      .post("/api/admin/copy")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ scope: "notice", text: "تنبيه خلال {days} يوماً", priority: "normal" })
+      .expect(201);
+    const broken = saved.body.locales.find((row: { locale: string }) => row.locale === "bn");
+    expect(broken.status).toBe("failed");
+    const blocked = await request(app.getHttpServer())
+      .post(`/api/admin/copy/notice/${saved.body.sourceId}/publish`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(blocked.status).toBe(409);
+    await request(app.getHttpServer())
+      .patch(`/api/admin/copy/notice/${saved.body.sourceId}/bn`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ text: "সতর্কতা {days}" })
+      .expect(200);
+    await request(app.getHttpServer())
+      .post(`/api/admin/copy/notice/${saved.body.sourceId}/publish`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(201);
+    const notes = await request(app.getHttpServer()).get("/api/me/notifications").set("Authorization", `Bearer ${reader.token}`).expect(200);
+    expect(notes.body.items.some((item: { title: string }) => item.title.startsWith("en:") && item.title.includes("{days}"))).toBe(true);
   });
 
   it("burns a code after five wrong tries and limits verify by IP", async () => {
