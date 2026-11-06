@@ -48,6 +48,10 @@ describe("production boot guard", () => {
     expect(() => assertProductionProviders(production({ kmsMasterKey: Buffer.from("short").toString("base64") }))).toThrow(/KMS_MASTER_KEY/);
     expect(() => assertProductionProviders(production({ smsProvider: "mock" }))).toThrow(/SMS_SENDER/);
     expect(() => assertProductionProviders(production({ smsSender: "" }))).toThrow(/SMS_SENDER/);
+    expect(() => assertProductionProviders(production({ smsSender: "mock" }))).toThrow(/SMS_SENDER/);
+    expect(() => assertProductionProviders(production({ smsBaseUrl: "https://api.taqnyat.sa.evil.example" }))).toThrow(/SMS_SENDER/);
+    expect(() => assertProductionProviders(production({ smsBaseUrl: "http://api.taqnyat.sa" }))).toThrow(/SMS_SENDER/);
+    expect(() => assertProductionProviders(production({ smsBaseUrl: "" }))).not.toThrow();
     expect(() => assertProductionProviders(production({ integrationsMode: "stub" }))).toThrow(/INTEGRATIONS_MODE/);
     expect(() => assertProductionProviders(production({ paymentGateway: "sandbox" }))).toThrow(/PAYMENT_GATEWAY/);
   });

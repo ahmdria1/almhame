@@ -1,6 +1,7 @@
-import { AppConfig } from "../config";
+import type { AppConfig } from "../config";
 
 export const TAQNYAT_BASE = "https://api.taqnyat.sa";
+const TAQNYAT_HOST = "api.taqnyat.sa";
 
 export interface SmsProvider {
   send(to: string, body: string): Promise<void>;
@@ -13,10 +14,30 @@ export function taqnyatRecipient(phone: string): string {
   return digits;
 }
 
+export function officialTaqnyatUrl(baseUrl: string): URL | null {
+  const raw = baseUrl.trim() || TAQNYAT_BASE;
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" || url.hostname !== TAQNYAT_HOST || url.port !== "") return null;
+  return url;
+}
+
+export function taqnyatMessagesUrl(baseUrl: string): string | null {
+  const url = officialTaqnyatUrl(baseUrl);
+  if (!url) return null;
+  const path = url.pathname.replace(/\/+$/, "");
+  const messages = path.endsWith("/v1/messages") ? path : `${path}/v1/messages`;
+  return new URL(messages, url.origin).href;
+}
+
 export function smsSenderAccepted(provider: string, apiKey: string, sender: string, baseUrl: string): boolean {
   const name = sender.trim();
   if (provider !== "taqnyat" || !apiKey || !name || /^(test|mock|disabled|sandbox)$/i.test(name)) return false;
-  return (baseUrl || TAQNYAT_BASE).startsWith(TAQNYAT_BASE);
+  return officialTaqnyatUrl(baseUrl) !== null;
 }
 
 export class TaqnyatSmsProvider implements SmsProvider {
@@ -26,11 +47,10 @@ export class TaqnyatSmsProvider implements SmsProvider {
   ) {}
 
   async send(to: string, body: string): Promise<void> {
-    if (!smsSenderAccepted(this.config.smsProvider, this.config.smsApiKey, this.config.smsSender, this.config.smsBaseUrl || TAQNYAT_BASE)) {
+    const url = taqnyatMessagesUrl(this.config.smsBaseUrl);
+    if (!url || !smsSenderAccepted(this.config.smsProvider, this.config.smsApiKey, this.config.smsSender, this.config.smsBaseUrl)) {
       throw new Error("SMS provider is not configured");
     }
-    const base = (this.config.smsBaseUrl || TAQNYAT_BASE).replace(/\/$/, "");
-    const url = base.endsWith("/v1/messages") ? base : `${base}/v1/messages`;
     const response = await this.fetchImpl(url, {
       method: "POST",
       headers: {

@@ -1,3 +1,5 @@
+import { smsSenderAccepted } from "./domain/sms-provider";
+
 export interface AppConfig {
   databaseUrl: string;
   jwtSecret: string;
@@ -174,9 +176,7 @@ export function assertProductionProviders(config: AppConfig): void {
   const blocked: string[] = [];
   if (config.llmProvider === "mock") blocked.push("LLM_PROVIDER");
   if (config.embeddingProvider === "mock") blocked.push("EMBEDDING_PROVIDER");
-  const smsName = (config.smsSender || "").trim();
-  const smsBase = config.smsBaseUrl || "https://api.taqnyat.sa";
-  if (config.smsProvider !== "taqnyat" || !config.smsApiKey || !smsName || /^(test|mock|disabled|sandbox)$/i.test(smsName) || !smsBase.startsWith("https://api.taqnyat.sa")) {
+  if (!smsSenderAccepted(config.smsProvider, config.smsApiKey, config.smsSender, config.smsBaseUrl)) {
     blocked.push("SMS_SENDER");
   }
   if (config.integrationsMode !== "live" || !config.googleClientId || !config.googleClientSecret || !config.msClientId || !config.msClientSecret) {
