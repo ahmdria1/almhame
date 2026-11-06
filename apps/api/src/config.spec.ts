@@ -8,8 +8,19 @@ function production(overrides: Partial<AppConfig> = {}): AppConfig {
     nodeEnv: "production",
     llmProvider: "remote",
     embeddingProvider: "remote",
-    smsProvider: "disabled",
+    smsProvider: "taqnyat",
+    smsApiKey: "sms-key",
+    smsSender: "EMU",
+    smsBaseUrl: "https://api.taqnyat.sa",
     paymentGateway: "alrajhi",
+    alrajhiTranportalId: "tran",
+    alrajhiTranportalPassword: "pass",
+    alrajhiResourceKey: "0123456789abcdef",
+    integrationsMode: "live",
+    googleClientId: "google",
+    googleClientSecret: "google-secret",
+    msClientId: "ms",
+    msClientSecret: "ms-secret",
     smtpHost: "smtp.example.sa",
     smtpFrom: "noreply@example.sa",
     otpDebug: false,
@@ -35,6 +46,10 @@ describe("production boot guard", () => {
     expect(() => assertProductionProviders(production({ otpPepper: "short-pepper" }))).toThrow(/OTP_PEPPER/);
     expect(() => assertProductionProviders(production({ kmsMasterKey: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=" }))).toThrow(/KMS_MASTER_KEY/);
     expect(() => assertProductionProviders(production({ kmsMasterKey: Buffer.from("short").toString("base64") }))).toThrow(/KMS_MASTER_KEY/);
+    expect(() => assertProductionProviders(production({ smsProvider: "mock" }))).toThrow(/SMS_SENDER/);
+    expect(() => assertProductionProviders(production({ smsSender: "" }))).toThrow(/SMS_SENDER/);
+    expect(() => assertProductionProviders(production({ integrationsMode: "stub" }))).toThrow(/INTEGRATIONS_MODE/);
+    expect(() => assertProductionProviders(production({ paymentGateway: "sandbox" }))).toThrow(/PAYMENT_GATEWAY/);
   });
 
   it("marks production cookies secure", () => {

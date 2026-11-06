@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { createHash, randomUUID } from "crypto";
 import { CHAT_PACK_QUESTIONS, JURISDICTION_CATALOG, SERVICE_CODES, SERVICE_PRICES_HALALAS, jurisdictionOf, type ServiceCode } from "@elawyer/types";
 import { PlanCode } from "@prisma/client";
-import { buildTrandata, decryptTrandata, encryptTrandata } from "./domain/alrajhi";
+import { buildFollowupTrandata, buildTrandata, capturedAmount, decryptTrandata, encryptTrandata, postTranportal } from "./domain/alrajhi";
 import { PLAN_DEFS, yearlyHalalas } from "./domain/plans";
 import { halalasToSar, nextInvoiceNumber, splitVatInclusive, zatcaQrBase64 } from "./domain/invoice";
 import { sandboxSignatureOk, signSandbox } from "./domain/payments";
@@ -110,14 +110,100 @@ export class BillingService {
     const row = decoded[0] || {};
     const intent = await this.kernel.prisma.paymentIntent.findUnique({ where: { id: row.trackId } });
     if (!intent) fail("NOT_FOUND", 404, "Payment was not found");
-    const captured = row.result === "CAPTURED" || row.result === "SUCCESS";
-    const amountOk = row.amt === halalasToSar(intent.amountHalalas);
-    if (!captured || !amountOk) {
+    const transId = row.paymentId || row.transId || "";
+    const amount = halalasToSar(intent.amountHalalas);
+    const callback = capturedAmount(row);
+    if (!callback.captured || callback.amount !== amount || !transId) {
       await this.kernel.prisma.paymentIntent.update({ where: { id: intent.id }, data: { status: "failed" } });
       return { status: "failed" };
     }
-    await this.fulfill(intent.id, `paid:${intent.id}`);
+    const cfg = this.kernel.config;
+    let inquiry: Record<string, string>;
+    try {
+      inquiry = await postTranportal({
+        merchantUrl: cfg.alrajhiMerchantUrl,
+        tranportalId: cfg.alrajhiTranportalId,
+        resourceKey: secret,
+        responseUrl: cfg.alrajhiResponseUrl,
+        errorUrl: cfg.alrajhiErrorUrl,
+        plain: buildFollowupTrandata({
+          tranportalId: cfg.alrajhiTranportalId,
+          password: cfg.alrajhiTranportalPassword,
+          action: "8",
+          amountSar: amount,
+          trackId: intent.id,
+          transId,
+          responseUrl: cfg.alrajhiResponseUrl,
+          errorUrl: cfg.alrajhiErrorUrl,
+        }),
+      });
+    } catch {
+      fail("PAYMENT_REJECTED", 502, "The bank inquiry did not confirm this payment");
+    }
+    const confirmed = capturedAmount(inquiry);
+    if (!confirmed.captured || confirmed.amount !== amount) {
+      await this.kernel.prisma.paymentIntent.update({ where: { id: intent.id }, data: { status: "failed" } });
+      return { status: "failed" };
+    }
+    await this.fulfill(intent.id, `paid:${intent.id}`, transId);
     return { status: "paid" };
+  }
+
+  async refundPaid(intentId: string) {
+    const intent = await this.kernel.prisma.paymentIntent.findUnique({ where: { id: intentId } });
+    if (!intent) fail("NOT_FOUND", 404, "Payment was not found");
+    if (intent.status === "refunded") return { status: "refunded", duplicate: true };
+    if (intent.status !== "paid" || intent.gateway !== "alrajhi" || !intent.gatewayRef || intent.gatewayRef.startsWith("paid:")) {
+      fail("PAYMENT_REJECTED", 409, "This payment cannot be refunded");
+    }
+    const cfg = this.kernel.config;
+    const amount = halalasToSar(intent.amountHalalas);
+    let result: Record<string, string>;
+    try {
+      result = await postTranportal({
+        merchantUrl: cfg.alrajhiMerchantUrl,
+        tranportalId: cfg.alrajhiTranportalId,
+        resourceKey: cfg.alrajhiResourceKey,
+        responseUrl: cfg.alrajhiResponseUrl,
+        errorUrl: cfg.alrajhiErrorUrl,
+        plain: buildFollowupTrandata({
+          tranportalId: cfg.alrajhiTranportalId,
+          password: cfg.alrajhiTranportalPassword,
+          action: "2",
+          amountSar: amount,
+          trackId: intent.id,
+          transId: intent.gatewayRef,
+          responseUrl: cfg.alrajhiResponseUrl,
+          errorUrl: cfg.alrajhiErrorUrl,
+        }),
+      });
+    } catch {
+      fail("PAYMENT_REJECTED", 502, "The bank did not accept the refund");
+    }
+    if (!capturedAmount(result).captured) fail("PAYMENT_REJECTED", 502, "The bank did not accept the refund");
+    await this.kernel.prisma.$transaction(async (tx) => {
+      const updated = await tx.paymentIntent.updateMany({
+        where: { id: intent.id, status: "paid" },
+        data: { status: "refunded" },
+      });
+      if (updated.count === 0) return;
+      if (intent.purpose === "topup") {
+        await tx.wallet.update({
+          where: { userId: intent.userId },
+          data: { balanceHalalas: { decrement: intent.amountHalalas } },
+        });
+      }
+      await tx.walletTransaction.create({
+        data: {
+          userId: intent.userId,
+          type: "adjustment",
+          amountHalalas: -intent.amountHalalas,
+          idempotencyKey: `refund:${intent.id}`,
+          description: "Al Rajhi refund",
+        },
+      });
+    });
+    return { status: "refunded", duplicate: false };
   }
 
   hostedForm(intentId: string) {
@@ -162,7 +248,7 @@ export class BillingService {
     return { intentId, redirectUrl: `${this.kernel.config.webOrigin}/pay/sandbox/${intentId}?sig=${sig}` };
   }
 
-  private async fulfill(intentId: string, eventKey: string) {
+  private async fulfill(intentId: string, eventKey: string, gatewayRef = eventKey) {
     const intent = await this.kernel.prisma.paymentIntent.findUnique({ where: { id: intentId } });
     if (!intent) fail("NOT_FOUND", 404, "Payment was not found");
     if (intent.status === "paid") return { status: "paid", duplicate: true };
@@ -176,7 +262,7 @@ export class BillingService {
         await tx.paymentEvent.create({ data: { intentId, eventKey, payloadHash: hash } });
         const updated = await tx.paymentIntent.updateMany({
           where: { id: intentId, status: "pending" },
-          data: { status: "paid", gatewayRef: eventKey },
+          data: { status: "paid", gatewayRef },
         });
         if (updated.count === 0) return;
         const seq = await tx.invoiceSequence.upsert({

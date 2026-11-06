@@ -22,6 +22,78 @@ export function decryptTrandata(hex: string, resourceKey: string): string {
   return Buffer.concat([decipher.update(Buffer.from(hex, "hex")), decipher.final()]).toString("utf8");
 }
 
+export function buildFollowupTrandata(input: {
+  tranportalId: string;
+  password: string;
+  action: "2" | "8";
+  amountSar: string;
+  currencyCode?: string;
+  trackId: string;
+  transId: string;
+  responseUrl: string;
+  errorUrl: string;
+}): string {
+  return JSON.stringify([
+    {
+      id: input.tranportalId,
+      password: input.password,
+      action: input.action,
+      currencyCode: input.currencyCode ?? JURISDICTION_CATALOG.SA.numericCurrency,
+      amt: input.amountSar,
+      trackId: input.trackId,
+      transId: input.transId,
+      udf5: input.action === "8" ? "PaymentID" : "TrackID",
+      responseURL: input.responseUrl,
+      errorURL: input.errorUrl,
+      langid: "ar",
+    },
+  ]);
+}
+
+export function capturedAmount(row: Record<string, string>): { captured: boolean; amount: string } {
+  const result = (row.result || "").toUpperCase();
+  return { captured: result === "CAPTURED" || result === "SUCCESS" || result === "APPROVED", amount: row.amt || "" };
+}
+
+function readGatewayRow(payload: unknown): Record<string, string> {
+  const row = Array.isArray(payload) ? payload[0] : payload;
+  if (!row || typeof row !== "object") return {};
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(row as Record<string, unknown>)) {
+    if (value !== undefined && value !== null) out[key] = String(value);
+  }
+  return out;
+}
+
+export async function postTranportal(input: {
+  merchantUrl: string;
+  tranportalId: string;
+  resourceKey: string;
+  plain: string;
+  responseUrl: string;
+  errorUrl: string;
+  fetchImpl?: typeof fetch;
+}): Promise<Record<string, string>> {
+  const caller = input.fetchImpl || fetch;
+  const response = await caller(input.merchantUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify([
+      {
+        id: input.tranportalId,
+        trandata: encryptTrandata(input.plain, input.resourceKey),
+        responseURL: input.responseUrl,
+        errorURL: input.errorUrl,
+      },
+    ]),
+  });
+  if (!response.ok) throw new Error("alrajhi merchant");
+  const outer = readGatewayRow(await response.json());
+  if (outer.status && outer.status !== "1") throw new Error(outer.errorText || "alrajhi merchant");
+  if (!outer.trandata) return outer;
+  return readGatewayRow(JSON.parse(decryptTrandata(decodeURIComponent(outer.trandata), input.resourceKey)) as unknown);
+}
+
 export function buildTrandata(input: {
   tranportalId: string;
   password: string;

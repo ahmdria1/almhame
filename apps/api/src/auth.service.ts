@@ -2,7 +2,7 @@ import { DEFAULT_JURISDICTION, JURISDICTION_CATALOG, jurisdictionOf } from "@ela
 import { createHash, randomBytes } from "crypto";
 import { Injectable } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
-import bcrypt from "bcryptjs";
+import { hashPassword, passwordMatches } from "./domain/password";
 import { generateDek, wrapKey } from "./domain/envelope";
 import { generateOtpCode, hashOtp, isPhone, normalizePhone, otpMatches } from "./domain/otp";
 import { debugCodeResponseEnabled } from "./config";
@@ -33,7 +33,7 @@ export class AuthService {
         name: input.name.trim(),
         phone,
         email,
-        passwordHash: await bcrypt.hash(input.password, 10),
+        passwordHash: await hashPassword(input.password),
         consentAt: new Date(),
         consentVersion: this.kernel.config.consentVersion,
         jurisdiction: DEFAULT_JURISDICTION,
@@ -56,8 +56,11 @@ export class AuthService {
   async login(emailRaw: string, password: string, otp?: string, challengeId?: string) {
     const email = emailRaw.trim().toLowerCase();
     const user = await this.kernel.prisma.user.findUnique({ where: { email } });
-    if (!user?.passwordHash || !(await bcrypt.compare(password, user.passwordHash))) {
-      fail("UNAUTHENTICATED", 401, "Email or password is wrong");
+    if (!user?.passwordHash) fail("UNAUTHENTICATED", 401, "Email or password is wrong");
+    const check = await passwordMatches(password, user.passwordHash);
+    if (!check.ok) fail("UNAUTHENTICATED", 401, "Email or password is wrong");
+    if (check.rehash) {
+      await this.kernel.prisma.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(password) } });
     }
     if (!user.emailVerifiedAt) fail("EMAIL_UNVERIFIED", 403, "Confirm the email before signing in");
     if (user.mfaEnabled) {
@@ -98,7 +101,7 @@ export class AuthService {
     if (!challenge.userId) fail("OTP_INVALID", 400, "The code is wrong or expired");
     await this.kernel.prisma.user.update({
       where: { id: challenge.userId },
-      data: { passwordHash: await bcrypt.hash(password, 10) },
+      data: { passwordHash: await hashPassword(password) },
     });
     return { ok: true };
   }
@@ -143,7 +146,7 @@ export class AuthService {
       data: {
         email,
         name: "المسؤول",
-        passwordHash: await bcrypt.hash(randomBytes(32).toString("hex"), 10),
+        passwordHash: await hashPassword(randomBytes(32).toString("hex")),
       },
     });
     return this.issueEmail(null, admin.id, email, "admin_activate");
@@ -155,15 +158,18 @@ export class AuthService {
     if (!challenge.adminId) fail("OTP_INVALID", 400, "The code is wrong or expired");
     await this.kernel.prisma.adminAccount.update({
       where: { id: challenge.adminId },
-      data: { passwordHash: await bcrypt.hash(password, 10), emailVerifiedAt: new Date() },
+      data: { passwordHash: await hashPassword(password), emailVerifiedAt: new Date() },
     });
     return { ok: true };
   }
 
   async adminLogin(email: string, password: string) {
     const admin = await this.kernel.prisma.adminAccount.findUnique({ where: { email: email.toLowerCase() } });
-    if (!admin || !(await bcrypt.compare(password, admin.passwordHash))) {
-      fail("UNAUTHENTICATED", 401, "Admin sign-in failed");
+    if (!admin) fail("UNAUTHENTICATED", 401, "Admin sign-in failed");
+    const adminCheck = await passwordMatches(password, admin.passwordHash);
+    if (!adminCheck.ok) fail("UNAUTHENTICATED", 401, "Admin sign-in failed");
+    if (adminCheck.rehash) {
+      await this.kernel.prisma.adminAccount.update({ where: { id: admin.id }, data: { passwordHash: await hashPassword(password) } });
     }
     if (!admin.emailVerifiedAt) fail("EMAIL_UNVERIFIED", 403, "Confirm the admin email first");
     const accessToken = await this.jwt.signAsync({ sub: admin.id, role: "admin" }, { expiresIn: "8h" });
