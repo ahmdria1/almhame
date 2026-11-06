@@ -7,6 +7,7 @@ import { List, Mic, Paperclip, Scale, Send } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { FilePreview } from "@/components/file-preview";
 import { Button, Modal } from "@/components/ui";
 import { userFacingError } from "@/lib/errors";
 import { missingPieces } from "@/lib/memo-list";
@@ -33,7 +34,6 @@ export default function WorkspacePage() {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [preview, setPreview] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState("");
   const [dragging, setDragging] = useState(false);
   const [listError, setListError] = useState(false);
   const [drafting, setDrafting] = useState(false);
@@ -121,9 +121,7 @@ export default function WorkspacePage() {
   }
 
   function stageFile(file: File) {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreview(file);
-    setPreviewUrl(URL.createObjectURL(file));
     setProgress(0);
   }
 
@@ -134,9 +132,7 @@ export default function WorkspacePage() {
     setError("");
     try {
       await client.uploadDocument(caseId, file, file.name, (ratio) => setProgress(ratio));
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
       setPreview(null);
-      setPreviewUrl("");
       if (active) await openChat(active);
     } catch (err) {
       const key = err instanceof ApiError ? uploadErrorKey(err.code) : null;
@@ -228,15 +224,13 @@ export default function WorkspacePage() {
                 <p className="text-xs text-ink-400">{Math.ceil(doc.byteSize / 1024)} KB</p>
               </div>
             ))}
-            {preview && previewUrl ? (
+            {preview ? (
               <div className="rounded-2xl border border-ink-200 bg-white p-3 text-sm dark:border-white/10 dark:bg-navy-800">
                 <p className="font-semibold">{t("memo.preview")}</p>
-                <p className="mt-1 text-xs text-ink-500">{preview.name}</p>
-                {preview.type.startsWith("image/") ? <img src={previewUrl} alt={preview.name} className="mt-2 max-h-40 w-full rounded-xl object-contain" /> : null}
-                {preview.type === "application/pdf" ? <iframe title={preview.name} src={previewUrl} className="mt-2 h-40 w-full rounded-xl" /> : null}
+                <FilePreview file={preview} label={t("memo.preview")} />
                 <div className="mt-3 flex gap-2">
                   <Button type="button" disabled={uploading || !caseId} onClick={() => void attach(preview)}>{t("workspace.attach")}</Button>
-                  <Button type="button" variant="secondary" onClick={() => { URL.revokeObjectURL(previewUrl); setPreview(null); setPreviewUrl(""); }}>{t("common.cancel")}</Button>
+                  <Button type="button" variant="secondary" onClick={() => setPreview(null)}>{t("common.cancel")}</Button>
                 </div>
               </div>
             ) : null}
