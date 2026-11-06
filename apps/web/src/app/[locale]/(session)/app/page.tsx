@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Button, Modal } from "@/components/ui";
 import { userFacingError } from "@/lib/errors";
+import { draftWaitState, readPendingDraft } from "@/lib/draft-resume";
 import { missingPieces } from "@/lib/memo-list";
 import { useApp } from "@/lib/providers";
 
@@ -162,21 +163,69 @@ export default function WorkspacePage() {
     return () => clearTimeout(timer);
   }, [drafting]);
 
+  async function memoForChat(chatId: string) {
+    const first = await client.memos(1);
+    const rows = [...first.memos];
+    for (let page = 2; page <= first.totalPages && page <= 4; page += 1) {
+      const next = await client.memos(page);
+      rows.push(...next.memos);
+    }
+    return rows.find((row) => row.chatId === chatId) || null;
+  }
+
   async function draft() {
     if (!active || drafting) return;
     setError("");
     setDraftStage(0);
     setDrafting(true);
+    window.sessionStorage.setItem("elw-draft", JSON.stringify({ chatId: active, startedAt: Date.now() }));
     try {
       const result = await client.draft(active, false);
+      window.sessionStorage.removeItem("elw-draft");
       router.push(`/app/memos/${result.memo.id}`);
     } catch (err) {
+      window.sessionStorage.removeItem("elw-draft");
+      setDrafting(false);
       if (err instanceof ApiError && (err.code === "QUOTA_MEMOS" || err.code === "QUOTA_CHATS")) setQuota(true);
       else setError(userFacingError(err, t));
-    } finally {
-      setDrafting(false);
     }
   }
+
+  useEffect(() => {
+    if (!active) return;
+    const pending = readPendingDraft(window.sessionStorage.getItem("elw-draft"));
+    if (!pending || pending.chatId !== active) return;
+    const job = pending;
+    let stop = false;
+    let timer = 0;
+    setDrafting(true);
+    async function look() {
+      if (stop) return;
+      if (draftWaitState(job, Date.now()) === "expired") {
+        window.sessionStorage.removeItem("elw-draft");
+        setDrafting(false);
+        setError(t("workspace.draftRetry"));
+        return;
+      }
+      try {
+        const found = await memoForChat(job.chatId);
+        if (stop) return;
+        if (found) {
+          window.sessionStorage.removeItem("elw-draft");
+          router.push(`/app/memos/${found.id}`);
+          return;
+        }
+      } catch {
+        if (stop) return;
+      }
+      timer = window.setTimeout(() => { void look(); }, 2000);
+    }
+    void look();
+    return () => {
+      stop = true;
+      window.clearTimeout(timer);
+    };
+  }, [active, client, router, t]);
 
   const freeLimit = user?.planCode === "free" ? user.chatLimit ?? 5 : null;
   const left = freeLimit == null ? 0 : Math.max(0, freeLimit - (user?.chatCount ?? 0));

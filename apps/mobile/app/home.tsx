@@ -9,6 +9,7 @@ export default function Home() {
   const router = useRouter();
   const me = useQuery({ queryKey: ["me"], queryFn: () => client().me() });
   const chats = useQuery({ queryKey: ["chats"], queryFn: () => client().chats() });
+  const notes = useQuery({ queryKey: ["notifications"], queryFn: () => client().notifications() });
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ padding: 20 }}>
       <Text style={styles.kicker}>{translate("ar", "nav.home")}</Text>
@@ -23,6 +24,12 @@ export default function Home() {
         <Link key={chat.id} href={{ pathname: "/chat/[id]", params: { id: chat.id } }} style={styles.card}>
           <Text style={styles.cardTitle}>{chat.title}</Text>
         </Link>
+      ))}
+      <Text style={styles.kicker}>{translate("ar", "notif.title")}</Text>
+      {notes.isError ? <Text style={styles.empty}>{translate("ar", "common.error")}</Text> : null}
+      {(notes.data?.items || []).length === 0 && !notes.isLoading ? <Text style={styles.empty}>{translate("ar", "notif.empty")}</Text> : null}
+      {(notes.data?.items || []).map((item) => (
+        <Text key={item.id} style={styles.cardTitle}>{item.title}</Text>
       ))}
       <View style={styles.row}>
         <Link href="/memos" style={styles.link}>{translate("ar", "nav.memos")}</Link>
@@ -44,4 +51,5 @@ const styles = StyleSheet.create({
   cardTitle: { fontWeight: "700", color: colors.navy700 },
   row: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 20 },
   link: { color: colors.teal700, fontWeight: "700" },
+  empty: { marginTop: 8, color: colors.slate500 },
 });

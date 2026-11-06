@@ -61,19 +61,22 @@ export default function MemoEditorPage() {
   }, [body, id, savedBody, client, t]);
 
   async function save() {
-    try {
-      const result = await client.updateMemo(id, { body });
-      setMemo(result.memo);
-      setSavedBody(body);
-      setSavedAt(result.memo.updatedAt);
-      window.localStorage.removeItem(`memo:${id}`);
-      setMessage(t("memo.savedOk"));
-    } catch (err) {
-      setMessage(userFacingError(err, t));
-    }
+    if (body === savedBody) return;
+    const result = await client.updateMemo(id, { body });
+    setMemo(result.memo);
+    setSavedBody(body);
+    setSavedAt(result.memo.updatedAt);
+    window.localStorage.removeItem(`memo:${id}`);
+    setMessage(t("memo.savedOk"));
   }
 
   async function download(kind: "pdf" | "docx") {
+    try {
+      await save();
+    } catch (err) {
+      setMessage(userFacingError(err, t));
+      return;
+    }
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4710/api"}/memos/${id}/export.${kind}?locale=ar`, {
       credentials: "include",
     });
@@ -135,10 +138,10 @@ export default function MemoEditorPage() {
           <h1 className="text-xl font-bold">{memo.title}</h1>
           <span className="rounded-full bg-teal-100 px-2 py-1 text-xs font-semibold text-teal-700">{t("memo.draft")}</span>
           <div className="ms-auto flex gap-2">
-            <Button data-testid="save-memo" variant="secondary" onClick={() => void save()}>{t("memo.saveDraft")}</Button>
+            <Button data-testid="save-memo" variant="secondary" onClick={() => void save().catch((err) => setMessage(userFacingError(err, t)))}>{t("memo.saveDraft")}</Button>
             <Button data-testid="export-word" variant="secondary" disabled={!user?.features.word} title={user?.features.word ? undefined : t("errors.word")} onClick={() => void download("docx")}>{t("memo.exportWord")}</Button>
             <Button data-testid="export-pdf" onClick={() => void download("pdf")}>{t("memo.exportPdf")}</Button>
-            <Button variant="secondary" type="button" onClick={() => setShowPdf((value) => !value)}>{t("memo.preview")}</Button>
+            <Button variant="secondary" type="button" onClick={() => void save().then(() => setShowPdf((value) => !value)).catch((err) => setMessage(userFacingError(err, t)))}>{t("memo.preview")}</Button>
             <Button variant="secondary" type="button" onClick={() => setShowDiff((value) => !value)}>{t("memo.diff")}</Button>
           </div>
         </div>
