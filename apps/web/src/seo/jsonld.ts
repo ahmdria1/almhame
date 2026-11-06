@@ -1,10 +1,9 @@
 import { translate } from "@elawyer/i18n";
 import { JURISDICTION_CATALOG, PLAN_CODES, PUBLISHED_PLANS, type Locale } from "@elawyer/types";
 import { type PageRef, pagePath } from "./catalog";
+import { visibleFaqs } from "./faq-corpus";
 import { brandName, pageCopy } from "./copy";
 import { absoluteUrl } from "./site";
-
-const FAQ = ["1", "2", "3", "4"] as const;
 
 const PLAN_NAME: Record<(typeof PLAN_CODES)[number], string> = {
   free: "plans.freeName",
@@ -115,10 +114,10 @@ export function jsonLdFor(locale: Locale, page: PageRef): JsonLd {
   if (page.kind === "top" && page.id === "faq") {
     graph.push({
       "@type": "FAQPage",
-      mainEntity: FAQ.map((item) => ({
+      mainEntity: visibleFaqs(locale).map((item) => ({
         "@type": "Question",
-        name: translate(locale, `landing.q${item}`),
-        acceptedAnswer: { "@type": "Answer", text: translate(locale, `landing.a${item}`) },
+        name: item.question,
+        acceptedAnswer: { "@type": "Answer", text: item.answer },
       })),
     });
   }

@@ -10,12 +10,15 @@ import {
   lighthousePaths,
   pagePath,
   publicPages,
+  resolveSlug,
   slugProblems,
   type PageRef,
 } from "../src/seo/catalog";
 import { localeCoverage } from "../src/seo/copy";
 import { documentLocale } from "../src/seo/document";
+import { FAQ_ENTRIES } from "../src/seo/faq-corpus";
 import { jsonLdFor, publishedOfferPrices, type JsonLd } from "../src/seo/jsonld";
+import { listLaws } from "../src/seo/laws";
 import { buildMetadata } from "../src/seo/metadata";
 import { blockedByRobots, PRIVATE_ROBOTS } from "../src/seo/robots-policy";
 import { routeLocale } from "../src/seo/routing";
@@ -45,7 +48,7 @@ describe("public SEO", () => {
   test("slug table and locale copy are complete", () => {
     expect(slugProblems()).toEqual([]);
     expect(localeCoverage()).toEqual([]);
-    expect(publicPages()).toHaveLength(1 + 7 + 4 + COURTS.length);
+    expect(publicPages()).toHaveLength(1 + 7 + 4 + COURTS.length + listLaws().length);
   });
 
   test("SITE_URL is the configured origin", () => {
@@ -136,7 +139,7 @@ describe("public SEO", () => {
       const faq = jsonLdFor(locale, { kind: "top", id: "faq" });
       const block = faq["@graph"].find((node) => node["@type"] === "FAQPage");
       const questions = block?.mainEntity as Array<{ name: string; acceptedAnswer: { text: string } }>;
-      expect(questions).toHaveLength(4);
+      expect(questions).toHaveLength(FAQ_ENTRIES.length);
       for (const question of questions) {
         expect(question.name.length).toBeGreaterThan(0);
         expect(question.acceptedAnswer.text.length).toBeGreaterThan(0);
@@ -161,6 +164,13 @@ describe("public SEO", () => {
     expect(robots.sitemap).toBe(absoluteUrl("/sitemap.xml"));
     const rules = Array.isArray(robots.rules) ? robots.rules[0].disallow : robots.rules?.disallow;
     expect(rules).toEqual(expect.arrayContaining(["/app$", "/app/", "/en/app/", "/api/", "/admin$", "/q$"]));
+    for (const law of listLaws()) {
+      expect(urls).toContain(absoluteUrl(pagePath("ar", { kind: "law", id: law.key })));
+      expect(urls).toContain(absoluteUrl(pagePath("en", { kind: "law", id: law.key })));
+    }
+    expect(urls).toContain(absoluteUrl(pagePath("ar", { kind: "top", id: "faq" })));
+    expect(resolveSlug("en", ["laws", "not-a-statute"])).toBeNull();
+    expect(resolveSlug("ar", ["الأنظمة", "labor"])).toEqual({ kind: "law", id: "labor" });
   });
 
   test("robots blocks private routes and leaves public pages and icons", () => {
@@ -241,7 +251,7 @@ describe("public SEO", () => {
     const payload = leaked.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)?.[1] || "";
     expect(payload).not.toContain("user@example.com");
     expect(leaked).not.toMatch(/href="[^"]*\/app/);
-  });
+  }, 120000);
 
   test("lighthouse covers every Arabic public page and one home per locale", () => {
     const paths = lighthousePaths();

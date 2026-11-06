@@ -4,6 +4,9 @@ import { JsonLd } from "@/components/json-ld";
 import { PublicFooter, PublicHeader } from "@/components/public-chrome";
 import { DOC_IDS, authPath, pagePath, type PageRef } from "@/seo/catalog";
 import { COPY, courtName, docName, pageBody, pageCopy, searchCatalog } from "@/seo/copy";
+import { visibleFaqs } from "@/seo/faq-corpus";
+import { lawByKey } from "@/seo/laws";
+import { documentLocale } from "@/seo/document";
 import { jsonLdFor } from "@/seo/jsonld";
 import { contactEmail } from "@/seo/site";
 
@@ -53,6 +56,7 @@ export function ArticlePage({ locale, page }: { locale: Locale; page: Exclude<Pa
           ))}
           {page.kind === "top" && page.id === "pricing" ? <PlanList locale={locale} /> : null}
           {page.kind === "top" && page.id === "faq" ? <FaqList locale={locale} /> : null}
+          {page.kind === "law" ? <LawText id={page.id} /> : null}
           {page.kind === "top" && page.id === "contact" ? (
             email ? (
               <address className="mt-6 not-italic">
@@ -125,13 +129,34 @@ function PlanList({ locale }: { locale: Locale }) {
 }
 
 function FaqList({ locale }: { locale: Locale }) {
-  const t = (key: string) => translate(locale, key);
+  const items = visibleFaqs(locale);
   return (
-    <div className="mt-8 grid gap-6">
-      {["1", "2", "3", "4"].map((item) => (
-        <section key={item}>
-          <h2 className="text-xl font-semibold text-navy-700">{t(`landing.q${item}`)}</h2>
-          <p className="mt-2 leading-8 text-ink-700">{t(`landing.a${item}`)}</p>
+    <div className="mt-8 grid gap-6" dir={documentLocale(locale).dir}>
+      {items.map((item) => (
+        <section key={item.id}>
+          <h2 className="text-xl font-semibold text-navy-700">{item.question}</h2>
+          <div dir="rtl" lang="ar" className="mt-2">
+            {item.answer.split("\n").map((line, index) => (
+              <p key={`${item.id}-${index}`} className="leading-8 text-ink-700">{line}</p>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function LawText({ id }: { id: string }) {
+  const law = lawByKey(id);
+  if (!law) return null;
+  return (
+    <div className="mt-8 grid gap-6" dir="rtl" lang="ar">
+      {law.articles.map((article) => (
+        <section key={article.number}>
+          <h2 className="text-xl font-semibold text-navy-700">{article.number}</h2>
+          {article.textAr.split("\n").map((line, index) => (
+            <p key={`${article.number}-${index}`} className="mt-2 leading-8 text-ink-700">{line || " "}</p>
+          ))}
         </section>
       ))}
     </div>
