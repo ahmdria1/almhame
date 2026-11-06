@@ -11,6 +11,7 @@ const LINKS = [
   ["/dashboard/payments", "المدفوعات والفواتير"],
   ["/dashboard/memos", "المذكرات حسب المحكمة"],
   ["/dashboard/corpus", "قاعدة الأنظمة"],
+  ["/dashboard/statutes", "إضافة الأنظمة"],
   ["/dashboard/costs", "تكلفة التشغيل"],
   ["/dashboard/operations", "العمليات"],
   ["/dashboard/settings", "الإعدادات"],
