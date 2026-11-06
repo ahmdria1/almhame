@@ -45,33 +45,41 @@ export function MemoBrowser() {
 
   useEffect(() => {
     let cancel = false;
-    setFailed(false);
-    async function run() {
-      if (!filtering) {
-        const result = await client.memos(page);
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      setFailed(false);
+      async function run() {
         if (cancel) return;
-        setPages(result.totalPages);
-        setRows((current) => (page === 1 ? result.memos : [...(current || []), ...result.memos]));
-        return;
+        if (!filtering) {
+          const result = await client.memos(page);
+          if (cancel) return;
+          setPages(result.totalPages);
+          setRows((current) => (page === 1 ? result.memos : [...(current || []), ...result.memos]));
+          return;
+        }
+        const first = await client.memos(1);
+        if (cancel) return;
+        const all = [...first.memos];
+        for (let index = 2; index <= first.totalPages; index += 1) {
+          if (cancel) return;
+          const next = await client.memos(index);
+          all.push(...next.memos);
+        }
+        const searchIds = q.trim() ? (await client.search(q.trim(), controller.signal)).memos.map((memo) => memo.id) : null;
+        if (cancel) return;
+        setPages(1);
+        setRows(sortMemos(filterMemos(all, { q, court, memoType, from, to, searchIds }), order));
       }
-      const first = await client.memos(1);
-      const all = [...first.memos];
-      for (let index = 2; index <= first.totalPages; index += 1) {
-        const next = await client.memos(index);
-        all.push(...next.memos);
-      }
-      const searchIds = q.trim() ? (await client.search(q.trim())).memos.map((memo) => memo.id) : null;
-      if (cancel) return;
-      setPages(1);
-      setRows(sortMemos(filterMemos(all, { q, court, memoType, from, to, searchIds }), order));
-    }
-    run().catch(() => {
-      if (cancel) return;
-      if (page === 1) setRows(null);
-      setFailed(true);
-    });
+      run().catch((err: unknown) => {
+        if (cancel || (err instanceof DOMException && err.name === "AbortError")) return;
+        if (page === 1) setRows(null);
+        setFailed(true);
+      });
+    }, q.trim() ? 300 : 0);
     return () => {
       cancel = true;
+      controller.abort();
+      window.clearTimeout(timer);
     };
   }, [client, page, attempt, filtering, q, court, memoType, from, to, order]);
 

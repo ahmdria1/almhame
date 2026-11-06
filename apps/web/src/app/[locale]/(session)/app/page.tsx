@@ -36,6 +36,7 @@ export default function WorkspacePage() {
   const [previewUrl, setPreviewUrl] = useState("");
   const [dragging, setDragging] = useState(false);
   const [listError, setListError] = useState(false);
+  const [sending, setSending] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const [draftStage, setDraftStage] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -103,20 +104,27 @@ export default function WorkspacePage() {
   }
 
   async function send() {
-    if (!active || !text.trim()) return;
+    if (!active || !text.trim() || sending) return;
     const value = text;
     const optimistic = { id: `local-${Date.now()}`, role: "user", content: value };
+    setError("");
     setText("");
+    setSending(true);
     setMessages((current) => [...current, optimistic]);
     try {
       const result = await client.sendMessage(active, value);
-      setMessages((current) => [...current.filter((item) => item.id !== optimistic.id), result.user, result.counsel]);
+      setMessages((current) => {
+        if (!current.some((item) => item.id === optimistic.id)) return current;
+        return [...current.filter((item) => item.id !== optimistic.id), result.user, result.counsel];
+      });
       const detail = await client.chat(active);
       setParties({ plaintiff: detail.caseFile?.plaintiff || "", defendant: detail.caseFile?.defendant || "" });
     } catch (err) {
       setMessages((current) => current.filter((item) => item.id !== optimistic.id));
       setText(value);
       setError(userFacingError(err, t));
+    } finally {
+      setSending(false);
     }
   }
 
@@ -303,8 +311,9 @@ export default function WorkspacePage() {
             <input data-testid="chat-input" value={text} onChange={(event) => setText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void send(); }} placeholder={t("workspace.placeholder")} className="h-12 flex-1 rounded-2xl border border-ink-200 bg-white px-4 outline-none dark:border-white/10 dark:bg-navy-800" />
             <button aria-label={t("workspace.attach")} className="grid min-h-11 min-w-11 place-items-center text-ink-400 disabled:opacity-40" type="button" disabled={uploading || !caseId} onClick={() => fileRef.current?.click()}><Paperclip size={18} /></button>
             <button aria-label={t("memo.voice")} className="grid min-h-11 min-w-11 place-items-center text-ink-400" type="button" onClick={() => void recordVoice()}><Mic size={18} /></button>
-            <button data-testid="chat-send" className="grid h-12 w-12 min-h-11 min-w-11 place-items-center rounded-full bg-navy-700 text-white" type="button" onClick={() => void send()}><Send size={18} className="rtl:-scale-x-100" /></button>
+            <button data-testid="chat-send" className="grid h-12 w-12 min-h-11 min-w-11 place-items-center rounded-full bg-navy-700 text-white disabled:opacity-40" type="button" disabled={sending} onClick={() => void send()}><Send size={18} className="rtl:-scale-x-100" /></button>
           </div>
+          {sending ? <p className="mt-2 text-sm text-navy-700" data-testid="chat-waiting">{t("common.loading")}</p> : null}
           {uploading ? <p className="mt-2 text-xs text-ink-500">{t("workspace.uploading")} {Math.round(progress * 100)}%</p> : null}
           <div id="voice-slot" className="mt-2" />
         </div>

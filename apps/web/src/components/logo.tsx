@@ -1,6 +1,6 @@
 export function Logo({ size = 36, light = false }: { size?: number; light?: boolean }) {
-  const stroke = light ? "#F8FAFC" : "#17345F";
-  const node = light ? "#7CC8D4" : "#1F7A8C";
+  const stroke = light ? "#F6F8FB" : "#0B1E3B";
+  const node = light ? "#7FD4CB" : "#0F6B72";
   const nodes: Array<[number, number, number]> = [
     [32, 8, 4.5],
     [12, 20, 3.8],

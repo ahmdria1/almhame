@@ -52,14 +52,16 @@ export async function renderPdf(input: {
   body: string;
   fontPath: string;
   letterhead?: string;
+  dir?: "rtl" | "ltr";
 }): Promise<Buffer> {
   const font = readFileSync(input.fontPath).toString("base64");
   const paragraphs = `${input.letterhead ? `${input.letterhead}\n` : ""}${input.body}`
     .split("\n")
     .map((line) => `<p>${escapeHtml(line) || "&nbsp;"}</p>`)
     .join("");
+  const dir = input.dir === "ltr" ? "ltr" : "rtl";
   const html = `<!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="${dir === "ltr" ? "en" : "ar"}" dir="${dir}">
 <head>
 <meta charset="utf-8" />
 <style>

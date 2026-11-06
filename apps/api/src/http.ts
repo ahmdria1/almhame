@@ -349,13 +349,13 @@ export class ProductController {
 
   @Get("memos/:id/export.pdf")
   async exportPdf(@Req() req: Request, @Param("id") id: string, @Res() res: Response) {
-    const file = await this.work.exportMemo(await userIdFrom(this.jwt, req), id, "pdf");
+    const file = await this.work.exportMemo(await userIdFrom(this.jwt, req), id, "pdf", memoDir(req.query.locale));
     sendFile(res, file);
   }
 
   @Get("memos/:id/export.docx")
   async exportDocx(@Req() req: Request, @Param("id") id: string, @Res() res: Response) {
-    const file = await this.work.exportMemo(await userIdFrom(this.jwt, req), id, "docx");
+    const file = await this.work.exportMemo(await userIdFrom(this.jwt, req), id, "docx", memoDir(req.query.locale));
     sendFile(res, file);
   }
 
@@ -675,6 +675,11 @@ export class AdminController {
     await adminIdFrom(this.jwt, req);
     return this.corpus.startRefresh();
   }
+}
+
+function memoDir(locale: unknown): "rtl" | "ltr" {
+  const value = String(locale || "ar");
+  return value === "ur" || value === "pa" || value === "ar" ? "rtl" : "ltr";
 }
 
 function sendFile(res: Response, file: { filename: string; mime: string; bytes: Buffer }) {

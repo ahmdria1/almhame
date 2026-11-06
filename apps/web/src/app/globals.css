@@ -4,14 +4,14 @@
 
 :root {
   color-scheme: light;
-  background: #f8fafc;
-  color: #1e293b;
+  background: #f6f8fb;
+  color: #0a1424;
 }
 
 .dark {
   color-scheme: dark;
-  background: #0f1f3d;
-  color: #f8fafc;
+  background: #0b1e3b;
+  color: #f6f8fb;
 }
 
 html, body {
@@ -20,27 +20,27 @@ html, body {
 }
 
 body {
-  background: #f8fafc;
+  background: #f6f8fb;
 }
 
 .dark body {
-  background: #0f1f3d;
+  background: #0b1e3b;
 }
 
 ::selection {
-  background: #e1f2f5;
+  background: #e3e8ef;
 }
 
 :focus-visible {
-  outline: 2px solid #1F7A8C;
+  outline: 2px solid #0F6B72;
   outline-offset: 2px;
 }
 
 .paper {
   background: white;
-  color: #1e293b;
+  color: #0a1424;
 }
 .dark .paper {
-  background: #14284a;
-  color: #f8fafc;
+  background: #163a63;
+  color: #f6f8fb;
 }

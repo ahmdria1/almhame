@@ -505,7 +505,7 @@ export class WorkService {
     return this.getMemo(userId, memo.id);
   }
 
-  async exportMemo(userId: string, memoId: string, format: "pdf" | "docx") {
+  async exportMemo(userId: string, memoId: string, format: "pdf" | "docx", dir: "rtl" | "ltr" = "rtl") {
     const user = await this.fresh(userId);
     const plan = await this.kernel.plan(user.planCode, jurisdictionOf(user.jurisdiction).code);
     if (format === "docx" && !plan.word) {
@@ -520,7 +520,7 @@ export class WorkService {
     return {
       filename: `${memo.title}.pdf`,
       mime: "application/pdf",
-      bytes: await renderPdf({ title: memo.title, body: memo.body, letterhead, fontPath: fontFile(this.kernel.config.fontPath) }),
+      bytes: await renderPdf({ title: memo.title, body: memo.body, letterhead, fontPath: fontFile(this.kernel.config.fontPath), dir }),
     };
   }
 

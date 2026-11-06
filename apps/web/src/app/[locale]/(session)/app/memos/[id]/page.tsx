@@ -74,7 +74,7 @@ export default function MemoEditorPage() {
   }
 
   async function download(kind: "pdf" | "docx") {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4710/api"}/memos/${id}/export.${kind}`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4710/api"}/memos/${id}/export.${kind}?locale=ar`, {
       credentials: "include",
     });
     if (!response.ok) {

@@ -15,16 +15,16 @@ export default function RootLayout() {
   const input = TextInput as unknown as WithDefault;
   text.defaultProps = { ...text.defaultProps, style: [{ fontFamily: "Cairo" }, text.defaultProps?.style] };
   input.defaultProps = { ...input.defaultProps, style: [{ fontFamily: "Cairo" }, input.defaultProps?.style] };
-  const title = { fontFamily: "Cairo", color: "#17345F" };
+  const title = { fontFamily: "Cairo", color: "#0B1E3B" };
   return (
     <QueryClientProvider client={client}>
       <Stack
         screenOptions={{
           headerShown: true,
-          headerTintColor: "#17345F",
+          headerTintColor: "#0B1E3B",
           headerTitleStyle: title,
-          headerStyle: { backgroundColor: "#F8FAFC" },
-          contentStyle: { backgroundColor: "#F8FAFC" },
+          headerStyle: { backgroundColor: "#F6F8FB" },
+          contentStyle: { backgroundColor: "#F6F8FB" },
         }}
       >
         <Stack.Screen name="index" options={{ headerShown: false }} />

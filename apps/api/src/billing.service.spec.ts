@@ -7,7 +7,7 @@ describe("billing catalog", () => {
       plan: async (code: keyof typeof PLAN_DEFS) => PLAN_DEFS[code],
     } as never);
     const result = await service.plans();
-    expect(result.plans.map((plan) => plan.priceHalalas)).toEqual([0, 9900, 24900]);
+    expect(result.plans.map((plan) => plan.priceHalalas)).toEqual([0, 3900, 11900]);
     expect(result.services.map((item) => item.priceHalalas)).toEqual([2900, 4900, 5900, 6900, 1900]);
     expect(result.plans).toHaveLength(3);
   });
