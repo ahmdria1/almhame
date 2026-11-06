@@ -1,5 +1,4 @@
 import { COURTS, LOCALES, type CourtType, type Locale } from "@elawyer/types";
-import { listLaws } from "./laws";
 
 export const TOP_IDS = ["pricing", "faq", "privacy", "terms", "about", "contact", "search"] as const;
 export type TopId = (typeof TOP_IDS)[number];
@@ -81,7 +80,6 @@ export function publicPages(): PageRef[] {
     ...TOP_IDS.map((id) => ({ kind: "top" as const, id })),
     ...DOC_IDS.map((id) => ({ kind: "doc" as const, id })),
     ...COURTS.map((id) => ({ kind: "court" as const, id })),
-    ...listLaws().map((law) => ({ kind: "law" as const, id: law.key })),
   ];
 }
 
@@ -121,8 +119,8 @@ export function resolveSlug(locale: Locale, parts: string[]): PageRef | null {
     const id = findId(locale, COURTS, parts[1]);
     return id ? { kind: "court", id } : null;
   }
-  if (parts.length === 2 && parts[0] === slug(locale, "laws")) {
-    return listLaws().some((law) => law.key === parts[1]) ? { kind: "law", id: parts[1] } : null;
+  if (parts.length === 2 && parts[0] === slug(locale, "laws") && /^[a-z0-9-]+$/.test(parts[1] || "")) {
+    return { kind: "law", id: parts[1] };
   }
   return null;
 }

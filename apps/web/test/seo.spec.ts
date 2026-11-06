@@ -22,7 +22,7 @@ import { listLaws } from "../src/seo/laws";
 import { buildMetadata } from "../src/seo/metadata";
 import { blockedByRobots, PRIVATE_ROBOTS } from "../src/seo/robots-policy";
 import { routeLocale } from "../src/seo/routing";
-import { buildRobots, buildSitemap } from "../src/seo/sitemap-data";
+import { buildRobots, buildSitemap, indexablePages } from "../src/seo/sitemap-data";
 import { absoluteUrl, siteUrl } from "../src/seo/site";
 
 const BANNED_SEGMENTS = ["app", "wallet", "memos", "saved", "integrations", "admin", "api", "login", "signup", "otp", "forgot", "reset", "pay", "q"];
@@ -48,7 +48,8 @@ describe("public SEO", () => {
   test("slug table and locale copy are complete", () => {
     expect(slugProblems()).toEqual([]);
     expect(localeCoverage()).toEqual([]);
-    expect(publicPages()).toHaveLength(1 + 7 + 4 + COURTS.length + listLaws().length);
+    expect(publicPages()).toHaveLength(1 + 7 + 4 + COURTS.length);
+    expect(indexablePages()).toHaveLength(publicPages().length + listLaws().length);
   });
 
   test("SITE_URL is the configured origin", () => {
@@ -63,7 +64,7 @@ describe("public SEO", () => {
     for (const locale of LOCALES) {
       const titles = new Set<string>();
       const descriptions = new Set<string>();
-      for (const page of publicPages()) {
+      for (const page of indexablePages()) {
         const meta = buildMetadata(locale, page);
         const title = titleOf(locale, page);
         const description = String(meta.description || "");
@@ -149,7 +150,7 @@ describe("public SEO", () => {
 
   test("sitemap lists every locale and leaves private routes out", () => {
     const entries = buildSitemap();
-    expect(entries).toHaveLength(publicPages().length * LOCALES.length);
+    expect(entries).toHaveLength(indexablePages().length * LOCALES.length);
     const urls = entries.map((entry) => entry.url);
     expect(new Set(urls).size).toBe(urls.length);
     for (const entry of entries) {
@@ -169,7 +170,8 @@ describe("public SEO", () => {
       expect(urls).toContain(absoluteUrl(pagePath("en", { kind: "law", id: law.key })));
     }
     expect(urls).toContain(absoluteUrl(pagePath("ar", { kind: "top", id: "faq" })));
-    expect(resolveSlug("en", ["laws", "not-a-statute"])).toBeNull();
+    expect(resolveSlug("en", ["laws", "not-a-statute"])).toEqual({ kind: "law", id: "not-a-statute" });
+    expect(listLaws().some((law) => law.key === "not-a-statute")).toBe(false);
     expect(resolveSlug("ar", ["الأنظمة", "labor"])).toEqual({ kind: "law", id: "labor" });
   });
 
@@ -181,7 +183,7 @@ describe("public SEO", () => {
       expect(blockedByRobots(path)).toBe(false);
     }
     for (const locale of LOCALES) {
-      for (const page of publicPages()) expect(blockedByRobots(pagePath(locale, page))).toBe(false);
+      for (const page of indexablePages()) expect(blockedByRobots(pagePath(locale, page))).toBe(false);
     }
   });
 
@@ -222,7 +224,7 @@ describe("public SEO", () => {
 
   test("rendered public pages have one h1, alt text, and valid JSON-LD", () => {
     for (const locale of LOCALES) {
-      for (const page of publicPages()) {
+      for (const page of indexablePages()) {
         const element =
           page.kind === "home"
             ? createElement(HomeView, { locale })

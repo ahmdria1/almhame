@@ -1,8 +1,18 @@
 import { createHash } from "crypto";
-import { readdirSync, readFileSync } from "fs";
+import { existsSync, readdirSync, readFileSync } from "fs";
 import { join } from "path";
 
-const LAW_DIR = join(__dirname, "../../../../corpus/official/boe");
+function lawDir(): string {
+  const candidates = [
+    join(process.cwd(), "corpus/official/boe"),
+    join(process.cwd(), "../../corpus/official/boe"),
+    join(__dirname, "../../../../corpus/official/boe"),
+    join(__dirname, "../../../../../corpus/official/boe"),
+  ];
+  const found = candidates.find((dir) => existsSync(dir));
+  if (!found) throw new Error("Official corpus directory was not found");
+  return found;
+}
 const SKIP = new Set(["blocked.json", "manifest-report.json"]);
 
 export type LawArticle = { number: string; textAr: string; sourceUrl?: string };
@@ -31,7 +41,7 @@ export function textHash(value: string): string {
 }
 
 function readLaw(file: string): LawRecord | null {
-  const raw = JSON.parse(readFileSync(join(LAW_DIR, file), "utf8")) as LawRecord;
+  const raw = JSON.parse(readFileSync(join(lawDir(), file), "utf8")) as LawRecord;
   if (!raw.key || !raw.nameAr || raw.isSample === true || !Array.isArray(raw.articles) || raw.articles.length === 0) return null;
   return raw;
 }
@@ -42,7 +52,7 @@ export function listLaws(): LawSummary[] {
 
 export function loadLaws(): LawRecord[] {
   if (cache) return cache;
-  const files = readdirSync(LAW_DIR).filter((name) => name.endsWith(".json") && !SKIP.has(name)).sort();
+  const files = readdirSync(lawDir()).filter((name) => name.endsWith(".json") && !SKIP.has(name)).sort();
   cache = files.map(readLaw).filter((law): law is LawRecord => law !== null).sort((a, b) => a.key.localeCompare(b.key));
   return cache;
 }

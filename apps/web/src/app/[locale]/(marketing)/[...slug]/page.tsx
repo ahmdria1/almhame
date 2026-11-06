@@ -2,7 +2,9 @@ import { LOCALES } from "@elawyer/types";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ArticlePage } from "@/components/article-page";
-import { isKnownLocale, publicPages, resolveSlug, slugParts } from "@/seo/catalog";
+import { isKnownLocale, resolveSlug, slugParts } from "@/seo/catalog";
+import { lawByKey } from "@/seo/laws";
+import { indexablePages } from "@/seo/sitemap-data";
 import { buildMetadata } from "@/seo/metadata";
 
 export const dynamicParams = true;
@@ -19,7 +21,7 @@ function decodeSlug(slug: string[]): string[] {
 
 export function generateStaticParams() {
   return LOCALES.flatMap((locale) =>
-    publicPages()
+    indexablePages()
       .filter((page) => page.kind !== "home" && !(page.kind === "top" && page.id === "search"))
       .map((page) => ({ locale, slug: slugParts(locale, page) })),
   );
@@ -34,6 +36,7 @@ export async function generateMetadata({
   if (!isKnownLocale(locale)) return {};
   const page = resolveSlug(locale, decodeSlug(slug));
   if (!page || (page.kind === "top" && page.id === "search")) return {};
+  if (page.kind === "law" && !lawByKey(page.id)) return {};
   return buildMetadata(locale, page);
 }
 
@@ -42,5 +45,6 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
   if (!isKnownLocale(locale)) notFound();
   const page = resolveSlug(locale, decodeSlug(slug));
   if (!page || page.kind === "home" || (page.kind === "top" && page.id === "search")) notFound();
+  if (page.kind === "law" && !lawByKey(page.id)) notFound();
   return <ArticlePage locale={locale} page={page} />;
 }
