@@ -1,6 +1,7 @@
 import { translate } from "@elawyer/i18n";
 import { LOCALES, type CourtType, type Locale } from "@elawyer/types";
 import { type DocId, type PageRef, pagePath, publicPages, type TopId } from "./catalog";
+import { lawByKey } from "./laws";
 
 export type L10n = Record<Locale, string>;
 
@@ -33,6 +34,7 @@ export const COPY = {
   home: L("الرئيسية", "Home", "سرورق", "मुखपृष्ठ", "مکھ صفحہ", "මුල් පිටුව", "প্রথম পাতা", "गृहपृष्ठ", "Tahanan", "Ana sayfa", "መነሻ"),
   pricing: L("الأسعار", "Pricing", "قیمتیں", "मूल्य", "قیمتاں", "මිල ගණන්", "মূল্য", "मूल्य", "Presyo", "Fiyatlar", "ዋጋ"),
   faq: L("الأسئلة", "Questions", "سوالات", "प्रश्न", "سوال", "ප්‍රශ්න", "প্রশ্ন", "प्रश्नहरू", "Mga tanong", "Sorular", "ጥያቄዎች"),
+  laws: L("الأنظمة", "Laws", "قوانین", "कानून", "قانون", "නීති", "আইন", "कानुन", "Batas", "Kanunlar", "ሕግ"),
   privacy: L("الخصوصية", "Privacy", "رازداری", "गोपनीयता", "نجی حیثیت", "පෞද්ගලිකත්වය", "গোপনীয়তা", "गोपनीयता", "Pribasidad", "Gizlilik", "ግላዊነት"),
   terms: L("الشروط", "Terms", "شرائط", "शर्तें", "شرطاں", "කොන්දේසි", "শর্তাবলি", "सर्तहरू", "Mga tuntunin", "Koşullar", "ውሎች"),
   about: L("عن المنصة", "About", "تعارف", "परिचय", "جان پچھان", "අප ගැන", "পরিচিতি", "बारेमा", "Tungkol", "Hakkında", "ስለ መድረኩ"),
@@ -386,6 +388,17 @@ export function pageCopy(locale: Locale, page: PageRef): PageCopy {
       crumbs: [home, { name, path: pagePath(locale, page) }],
     };
   }
+  if (page.kind === "law") {
+    const law = lawByKey(page.id);
+    const name = law?.nameAr || page.id;
+    const section = COPY.laws[locale];
+    return {
+      title: `${name} | ${section} | ${brand}`,
+      description: `${name}. ${law?.version || law?.effectiveDate || law?.sourceUrl || page.id}`,
+      h1: name,
+      crumbs: [home, { name: section, path: pagePath(locale, page) }],
+    };
+  }
   if (page.kind === "doc") {
     const name = docName(locale, page.id);
     const section = COPY.documents[locale];
@@ -418,6 +431,11 @@ export function pageBody(locale: Locale, page: PageRef): string[] {
   if (page.kind === "doc") return fill(COPY.docBody[locale], { name: docName(locale, page.id) }).split("\n");
   if (page.kind === "court") return fill(COPY.courtBody[locale], { name: courtName(locale, page.id) }).split("\n");
   if (page.kind === "top" && page.id === "pricing") return COPY.pricingBody[locale].split("\n");
+  if (page.kind === "law") {
+    const law = lawByKey(page.id);
+    if (!law) return [];
+    return [law.version, law.effectiveDate, law.sourceUrl].filter((line) => line && line.trim());
+  }
   if (page.kind === "top" && page.id === "faq") return [COPY.faqIntro[locale]];
   if (page.kind === "top" && (page.id === "privacy" || page.id === "terms")) {
     const registration = (process.env.LEGAL_REGISTRATION || "").trim();

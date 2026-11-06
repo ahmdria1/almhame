@@ -6,14 +6,15 @@ export type TopId = (typeof TOP_IDS)[number];
 export const DOC_IDS = ["lawsuit", "defense", "reply", "objection"] as const;
 export type DocId = (typeof DOC_IDS)[number];
 
-export const SECTION_IDS = ["documents", "courts"] as const;
+export const SECTION_IDS = ["documents", "courts", "laws"] as const;
 export type SectionId = (typeof SECTION_IDS)[number];
 
 export type PageRef =
   | { kind: "home" }
   | { kind: "top"; id: TopId }
   | { kind: "doc"; id: DocId }
-  | { kind: "court"; id: CourtType };
+  | { kind: "court"; id: CourtType }
+  | { kind: "law"; id: string };
 
 type SlugId = TopId | DocId | SectionId | CourtType;
 
@@ -27,6 +28,7 @@ const SLUGS: Record<SlugId, Record<Locale, string>> = {
   search: { ar: "بحث", en: "search", ur: "تلاش", hi: "खोज", pa: "کھوج", si: "සෙවුම", bn: "অনুসন্ধান", ne: "खोज", fil: "hanap", tr: "arama", am: "ፍለጋ" },
   documents: { ar: "المذكرات", en: "documents", ur: "دستاویزات", hi: "दस्तावेज", pa: "دستاویز", si: "ලේඛන", bn: "নথি", ne: "कागजात", fil: "dokumento", tr: "belgeler", am: "ሰነድ" },
   courts: { ar: "المحاكم", en: "courts", ur: "عدالتیں", hi: "न्यायालय", pa: "عدالتاں", si: "අධිකරණ", bn: "আদালত", ne: "अदालत", fil: "hukuman", tr: "mahkemeler", am: "ፍርድ-ቤት" },
+  laws: { ar: "الأنظمة", en: "laws", ur: "قوانین", hi: "कानून", pa: "قانون", si: "නීති", bn: "আইন", ne: "कानुन", fil: "batas", tr: "kanunlar", am: "ሕግ" },
   lawsuit: { ar: "صحيفة-دعوى", en: "lawsuit", ur: "دعوی", hi: "दावा", pa: "دعویٰ", si: "නඩුව", bn: "মামলা", ne: "मुद्दा", fil: "demanda", tr: "dava", am: "ክስ" },
   defense: { ar: "مذكرة-دفاع", en: "defense", ur: "دفاع", hi: "बचाव", pa: "بچاؤ", si: "ආරක්ෂාව", bn: "প্রতিরক্ষা", ne: "प्रतिरक्षा", fil: "depensa", tr: "savunma", am: "መከላከያ" },
   reply: { ar: "مذكرة-جوابية", en: "reply", ur: "جواب", hi: "उत्तर", pa: "جواب", si: "පිළිතුර", bn: "জবাব", ne: "जवाफ", fil: "sagot", tr: "cevap", am: "ምላሽ" },
@@ -85,6 +87,7 @@ export function slugParts(locale: Locale, page: PageRef): string[] {
   if (page.kind === "home") return [];
   if (page.kind === "top") return [slug(locale, page.id)];
   if (page.kind === "doc") return [slug(locale, "documents"), slug(locale, page.id)];
+  if (page.kind === "law") return [slug(locale, "laws"), page.id];
   return [slug(locale, "courts"), slug(locale, page.id)];
 }
 
@@ -115,6 +118,9 @@ export function resolveSlug(locale: Locale, parts: string[]): PageRef | null {
   if (parts.length === 2 && parts[0] === slug(locale, "courts")) {
     const id = findId(locale, COURTS, parts[1]);
     return id ? { kind: "court", id } : null;
+  }
+  if (parts.length === 2 && parts[0] === slug(locale, "laws") && /^[a-z0-9-]+$/.test(parts[1] || "")) {
+    return { kind: "law", id: parts[1] };
   }
   return null;
 }

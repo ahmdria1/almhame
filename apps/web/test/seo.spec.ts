@@ -10,16 +10,19 @@ import {
   lighthousePaths,
   pagePath,
   publicPages,
+  resolveSlug,
   slugProblems,
   type PageRef,
 } from "../src/seo/catalog";
 import { localeCoverage } from "../src/seo/copy";
 import { documentLocale } from "../src/seo/document";
+import { FAQ_ENTRIES } from "../src/seo/faq-corpus";
 import { jsonLdFor, publishedOfferPrices, type JsonLd } from "../src/seo/jsonld";
+import { listLaws } from "../src/seo/laws";
 import { buildMetadata } from "../src/seo/metadata";
 import { blockedByRobots, PRIVATE_ROBOTS } from "../src/seo/robots-policy";
 import { routeLocale } from "../src/seo/routing";
-import { buildRobots, buildSitemap } from "../src/seo/sitemap-data";
+import { buildRobots, buildSitemap, indexablePages } from "../src/seo/sitemap-data";
 import { absoluteUrl, siteUrl } from "../src/seo/site";
 
 const BANNED_SEGMENTS = ["app", "wallet", "memos", "saved", "integrations", "admin", "api", "login", "signup", "otp", "forgot", "reset", "pay", "q"];
@@ -46,6 +49,7 @@ describe("public SEO", () => {
     expect(slugProblems()).toEqual([]);
     expect(localeCoverage()).toEqual([]);
     expect(publicPages()).toHaveLength(1 + 7 + 4 + COURTS.length);
+    expect(indexablePages()).toHaveLength(publicPages().length + listLaws().length);
   });
 
   test("SITE_URL is the configured origin", () => {
@@ -60,7 +64,7 @@ describe("public SEO", () => {
     for (const locale of LOCALES) {
       const titles = new Set<string>();
       const descriptions = new Set<string>();
-      for (const page of publicPages()) {
+      for (const page of indexablePages()) {
         const meta = buildMetadata(locale, page);
         const title = titleOf(locale, page);
         const description = String(meta.description || "");
@@ -136,7 +140,7 @@ describe("public SEO", () => {
       const faq = jsonLdFor(locale, { kind: "top", id: "faq" });
       const block = faq["@graph"].find((node) => node["@type"] === "FAQPage");
       const questions = block?.mainEntity as Array<{ name: string; acceptedAnswer: { text: string } }>;
-      expect(questions).toHaveLength(4);
+      expect(questions).toHaveLength(FAQ_ENTRIES.length);
       for (const question of questions) {
         expect(question.name.length).toBeGreaterThan(0);
         expect(question.acceptedAnswer.text.length).toBeGreaterThan(0);
@@ -146,7 +150,7 @@ describe("public SEO", () => {
 
   test("sitemap lists every locale and leaves private routes out", () => {
     const entries = buildSitemap();
-    expect(entries).toHaveLength(publicPages().length * LOCALES.length);
+    expect(entries).toHaveLength(indexablePages().length * LOCALES.length);
     const urls = entries.map((entry) => entry.url);
     expect(new Set(urls).size).toBe(urls.length);
     for (const entry of entries) {
@@ -161,6 +165,14 @@ describe("public SEO", () => {
     expect(robots.sitemap).toBe(absoluteUrl("/sitemap.xml"));
     const rules = Array.isArray(robots.rules) ? robots.rules[0].disallow : robots.rules?.disallow;
     expect(rules).toEqual(expect.arrayContaining(["/app$", "/app/", "/en/app/", "/api/", "/admin$", "/q$"]));
+    for (const law of listLaws()) {
+      expect(urls).toContain(absoluteUrl(pagePath("ar", { kind: "law", id: law.key })));
+      expect(urls).toContain(absoluteUrl(pagePath("en", { kind: "law", id: law.key })));
+    }
+    expect(urls).toContain(absoluteUrl(pagePath("ar", { kind: "top", id: "faq" })));
+    expect(resolveSlug("en", ["laws", "not-a-statute"])).toEqual({ kind: "law", id: "not-a-statute" });
+    expect(listLaws().some((law) => law.key === "not-a-statute")).toBe(false);
+    expect(resolveSlug("ar", ["الأنظمة", "labor"])).toEqual({ kind: "law", id: "labor" });
   });
 
   test("robots blocks private routes and leaves public pages and icons", () => {
@@ -171,7 +183,7 @@ describe("public SEO", () => {
       expect(blockedByRobots(path)).toBe(false);
     }
     for (const locale of LOCALES) {
-      for (const page of publicPages()) expect(blockedByRobots(pagePath(locale, page))).toBe(false);
+      for (const page of indexablePages()) expect(blockedByRobots(pagePath(locale, page))).toBe(false);
     }
   });
 
@@ -212,7 +224,7 @@ describe("public SEO", () => {
 
   test("rendered public pages have one h1, alt text, and valid JSON-LD", () => {
     for (const locale of LOCALES) {
-      for (const page of publicPages()) {
+      for (const page of indexablePages()) {
         const element =
           page.kind === "home"
             ? createElement(HomeView, { locale })
@@ -241,7 +253,7 @@ describe("public SEO", () => {
     const payload = leaked.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)?.[1] || "";
     expect(payload).not.toContain("user@example.com");
     expect(leaked).not.toMatch(/href="[^"]*\/app/);
-  });
+  }, 120000);
 
   test("lighthouse covers every Arabic public page and one home per locale", () => {
     const paths = lighthousePaths();
