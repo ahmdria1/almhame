@@ -1,3 +1,5 @@
+import { smsSenderAccepted } from "./domain/sms-provider";
+
 export interface AppConfig {
   databaseUrl: string;
   jwtSecret: string;
@@ -25,6 +27,7 @@ export interface AppConfig {
   alrajhiTranportalPassword: string;
   alrajhiResourceKey: string;
   alrajhiHostedUrl: string;
+  alrajhiMerchantUrl: string;
   alrajhiResponseUrl: string;
   alrajhiErrorUrl: string;
   sellerName: string;
@@ -109,6 +112,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     alrajhiTranportalPassword: env.ALRAJHI_TRANPORTAL_PASSWORD || "",
     alrajhiResourceKey: env.ALRAJHI_RESOURCE_KEY || "",
     alrajhiHostedUrl: env.ALRAJHI_HOSTED_URL || "https://securepayments.alrajhibank.com.sa/pg/payment/hosted.htm",
+    alrajhiMerchantUrl: env.ALRAJHI_MERCHANT_URL || "https://securepayments.alrajhibank.com.sa/pg/payment/tranportal.htm",
     alrajhiResponseUrl: env.ALRAJHI_RESPONSE_URL || "",
     alrajhiErrorUrl: env.ALRAJHI_ERROR_URL || "",
     sellerName: env.SELLER_NAME || "المحامي الإلكتروني المتقدم",
@@ -172,7 +176,13 @@ export function assertProductionProviders(config: AppConfig): void {
   const blocked: string[] = [];
   if (config.llmProvider === "mock") blocked.push("LLM_PROVIDER");
   if (config.embeddingProvider === "mock") blocked.push("EMBEDDING_PROVIDER");
-  if (config.smsProvider === "mock") blocked.push("SMS_PROVIDER");
+  if (!smsSenderAccepted(config.smsProvider, config.smsApiKey, config.smsSender, config.smsBaseUrl)) {
+    blocked.push("SMS_SENDER");
+  }
+  if (config.integrationsMode !== "live" || !config.googleClientId || !config.googleClientSecret || !config.msClientId || !config.msClientSecret) {
+    blocked.push("INTEGRATIONS_MODE");
+  }
+  if (!config.alrajhiTranportalId || !config.alrajhiTranportalPassword || !config.alrajhiResourceKey) blocked.push("ALRAJHI_TRANPORTAL_ID");
   if (config.paymentGateway === "sandbox" || config.paymentGateway === "mock") blocked.push("PAYMENT_GATEWAY");
   if (!config.smtpHost || !config.smtpFrom) blocked.push("SMTP_HOST");
   if (config.otpDebug) blocked.push("OTP_DEBUG");

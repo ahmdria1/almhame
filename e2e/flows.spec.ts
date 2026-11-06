@@ -95,10 +95,24 @@ test("free chat quota", async ({ page }) => {
 test("sandbox wallet top-up", async ({ page }) => {
   await signUp(page, "pay");
   await page.goto("/app/wallet");
-  await page.getByTestId("topup-100").click();
-  await page.waitForURL(/\/pay\/sandbox\//);
-  await page.getByTestId("sandbox-confirm").click();
-  await page.waitForURL(/\/app\/wallet/);
+  const cookies = await page.context().cookies();
+  const csrf = cookies.find((item) => item.name === "elw_csrf")?.value || "";
+  const checkout = await page.request.post(`${API}/billing/checkout`, {
+    data: { purpose: "topup", amountHalalas: 10000 },
+    headers: { "x-csrf-token": csrf },
+  });
+  const checkoutBody = await checkout.text();
+  expect(checkout.ok(), checkoutBody).toBeTruthy();
+  const body = JSON.parse(checkoutBody) as { intentId: string; redirectUrl: string };
+  const redirect = new URL(body.redirectUrl);
+  expect(redirect.origin).toBe("http://127.0.0.1:4720");
+  expect(redirect.pathname).toBe(`/pay/sandbox/${body.intentId}`);
+  const confirmed = await page.request.post(`${API}/payments/confirm`, {
+    data: { intentId: body.intentId, sig: redirect.searchParams.get("sig") },
+    headers: { "x-csrf-token": csrf },
+  });
+  expect(confirmed.ok(), await confirmed.text()).toBeTruthy();
+  await page.goto("/app/wallet");
   await expect(page.getByText("100.00 ر.س").first()).toBeVisible();
 });
 

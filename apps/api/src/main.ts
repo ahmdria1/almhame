@@ -8,6 +8,7 @@ import helmet from "helmet";
 import { AppModule } from "./app.module";
 import { csrfMiddleware } from "./cookies";
 import { assertProductionProviders, loadConfig } from "./config";
+import { assertNoSandboxPaymentRoutes, collectExpressPaths } from "./domain/payments";
 import { RELEASE_STAMP } from "./kernel";
 
 export async function createApp() {
@@ -37,6 +38,8 @@ export async function createApp() {
   });
   const instance = app.getHttpAdapter().getInstance();
   instance.set("trust proxy", 1);
+  const stack = instance._router?.stack as Parameters<typeof collectExpressPaths>[0];
+  assertNoSandboxPaymentRoutes(config.nodeEnv, collectExpressPaths(stack));
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

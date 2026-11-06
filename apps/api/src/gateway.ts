@@ -1,14 +1,30 @@
-import { ConnectedSocket, MessageBody, SubscribeMessage, WebSocketGateway } from "@nestjs/websockets";
+import { ConnectedSocket, MessageBody, OnGatewayConnection, SubscribeMessage, WebSocketGateway } from "@nestjs/websockets";
 import { JwtService } from "@nestjs/jwt";
 import type { Socket } from "socket.io";
+import { loadConfig } from "./config";
+import { socketOriginAllowed } from "./domain/origin";
 import { WorkService } from "./work.service";
 
-@WebSocketGateway({ cors: { origin: true, credentials: true } })
-export class ChatGateway {
+const socketCors = {
+  origin: (origin: string | undefined, callback: (err: Error | null, ok?: boolean) => void) => {
+    callback(null, socketOriginAllowed(origin, loadConfig().corsOrigins));
+  },
+  credentials: true,
+};
+
+@WebSocketGateway({ cors: socketCors })
+export class ChatGateway implements OnGatewayConnection {
   constructor(
     private readonly jwt: JwtService,
     private readonly work: WorkService,
   ) {}
+
+  handleConnection(socket: Socket) {
+    const origin = socket.handshake.headers.origin;
+    if (!socketOriginAllowed(origin ? String(origin) : undefined, loadConfig().corsOrigins)) {
+      socket.disconnect(true);
+    }
+  }
 
   @SubscribeMessage("send")
   async send(@MessageBody() body: { chatId?: string; text?: string }, @ConnectedSocket() socket: Socket) {
