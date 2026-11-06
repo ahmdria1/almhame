@@ -1,6 +1,28 @@
 import { LOCALES } from "@elawyer/types";
 import { dictionaries, dirFor, memoCountPhrase, translate, uploadErrorKey } from "../src";
 
+const PROPER = new Set(["Google Drive", "OneDrive", "PDF", "Word", "Nafath", "Sharia", "Apple Pay", "mada", "Ahmed Alamrani", "ر.س"]);
+const VISIBLE = [
+  "app.name",
+  "auth.consent",
+  "memo.voice",
+  "plans.freeName",
+  "plans.freeDesc",
+  "plans.basicName",
+  "plans.basicDesc",
+  "plans.proName",
+  "landing.a1",
+  "errors.busy",
+  "common.error",
+  "wallet.vatNote",
+  "mail.hearingBody",
+  "sms.loginCode",
+];
+
+function placeholders(text: string): string[] {
+  return [...text.matchAll(/\{[a-zA-Z0-9_]+\}/g)].map((match) => match[0]).sort();
+}
+
 describe("locales", () => {
   const arKeys = Object.keys(dictionaries.ar).sort();
 
@@ -23,15 +45,29 @@ describe("locales", () => {
   });
 
   it("keeps the same keys in every locale and does not copy English except proper nouns", () => {
-    const proper = new Set(["Google Drive", "OneDrive", "SAR", "ر.س", "Ahmed Alamrani"]);
     for (const locale of LOCALES) {
       expect(Object.keys(dictionaries[locale]).sort()).toEqual(arKeys);
       if (locale === "en") continue;
       for (const key of arKeys) {
         const value = dictionaries[locale][key];
-        if (value === dictionaries.en[key]) expect(proper.has(value)).toBe(true);
+        if (value === dictionaries.en[key]) expect(PROPER.has(value)).toBe(true);
+        expect(placeholders(value)).toEqual(placeholders(dictionaries.ar[key]));
+      }
+      for (const key of VISIBLE) {
+        expect(dictionaries[locale][key]).not.toBe(dictionaries.en[key]);
+        expect(dictionaries[locale][key].trim().length).toBeGreaterThan(0);
       }
     }
+  });
+
+  it("keeps Urdu and Punjabi right to left and refuses a reversed citation", () => {
+    expect(dirFor("ur")).toBe("rtl");
+    expect(dirFor("pa")).toBe("rtl");
+    expect(dictionaries.am["landing.a1"]).toContain("ውድቅ");
+    expect(dictionaries.am["landing.a1"]).not.toContain("ይቀበላል");
+    expect(dictionaries.fil["plans.memoOne"]).toBe("Isang kasulatan");
+    expect(dictionaries.bn["memos.appeal"]).toBe("আপত্তিপত্র");
+    expect(dictionaries.tr["plans.memoMany"]).toBe("{count} dilekçe");
   });
 
   it("resolves direction and interpolation", () => {

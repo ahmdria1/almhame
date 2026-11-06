@@ -1,3 +1,4 @@
+import { translate } from "@elawyer/i18n";
 import { DEFAULT_JURISDICTION, JURISDICTION_CATALOG, jurisdictionOf } from "@elawyer/types";
 import { createHash, randomBytes } from "crypto";
 import { Injectable } from "@nestjs/common";
@@ -9,7 +10,7 @@ import { debugCodeResponseEnabled } from "./config";
 import { fail } from "./http-error";
 import { smsProviderFor } from "./domain/sms-provider";
 import { Kernel } from "./kernel";
-import { sendAuthMail } from "./mail";
+import { mailLocale, sendAuthMail } from "./mail";
 import { presentUser } from "./present";
 
 @Injectable()
@@ -205,7 +206,8 @@ export class AuthService {
         expiresAt: new Date(Date.now() + 10 * 60 * 1000),
       },
     });
-    await provider.send(phone, `رمز الدخول ${code}`);
+    const owner = await this.kernel.prisma.user.findUnique({ where: { id: userId }, select: { locale: true } });
+    await provider.send(phone, translate(mailLocale(owner?.locale), "sms.loginCode", { code }));
     return { challengeId: challenge.id };
   }
 
@@ -229,7 +231,10 @@ export class AuthService {
     const origin = purpose === "admin_activate" ? this.kernel.config.adminOrigin : this.kernel.config.webOrigin;
     const pathName = purpose === "password_reset" ? "/reset" : purpose === "admin_activate" ? "/activate" : "/otp";
     const link = `${origin}${pathName}?challenge=${challenge.id}`;
-    await sendAuthMail(this.kernel.config, { to: target, code, purpose, link });
+    const owner = userId
+      ? await this.kernel.prisma.user.findUnique({ where: { id: userId }, select: { locale: true } })
+      : null;
+    await sendAuthMail(this.kernel.config, { to: target, code, purpose, link, locale: mailLocale(owner?.locale) });
     return {
       challengeId: challenge.id,
       ...(debugCodeResponseEnabled(this.kernel.config) ? { debugCode: code } : {}),

@@ -29,7 +29,7 @@ function fill(template: string, vars: Record<string, string>): string {
 export const COPY = {
   skip: L("تخطي إلى المحتوى", "Skip to content", "مواد پر جائیں", "सामग्री पर जाएँ", "مواد تے جاؤ", "අන්තර්ගතයට යන්න", "বিষয়ে যান", "सामग्रीमा जानुहोस्", "Lumaktaw sa nilalaman", "İçeriğe geç", "ወደ ይዘቱ ይለፉ"),
   language: L("اللغة", "Language", "زبان", "भाषा", "زبان", "භාෂාව", "ভাষা", "भाषा", "Wika", "Dil", "ቋንቋ"),
-  menu: L("القائمة", "Menu", "فہرست", "मेनू", "مینیو", "මෙනුව", "মেনু", "मेनु", "Menu", "Menü", "ምናሌ"),
+  menu: L("القائمة", "Menu", "فہرست", "सूची", "فہرست", "ලැයිස්තුව", "তালিকা", "सूची", "Talaan", "Menü", "ምናሌ"),
   home: L("الرئيسية", "Home", "سرورق", "मुखपृष्ठ", "مکھ صفحہ", "මුල් පිටුව", "প্রথম পাতা", "गृहपृष्ठ", "Tahanan", "Ana sayfa", "መነሻ"),
   pricing: L("الأسعار", "Pricing", "قیمتیں", "मूल्य", "قیمتاں", "මිල ගණන්", "মূল্য", "मूल्य", "Presyo", "Fiyatlar", "ዋጋ"),
   faq: L("الأسئلة", "Questions", "سوالات", "प्रश्न", "سوال", "ප්‍රශ්න", "প্রশ্ন", "प्रश्नहरू", "Mga tanong", "Sorular", "ጥያቄዎች"),
@@ -73,7 +73,7 @@ export const COPY = {
     "මාසික කෙටුම්පත් සැලසුම්: නොමිලේ, මූලික, සහ වෘත්තීය, සෞදි රියාල් සහ සියයට 15 බද්ද.",
     "মাসিক খসড়া পরিকল্পনা: বিনামূল্যে, মৌলিক, ও পেশাদার, সৌদি রিয়ালে ১৫ শতাংশ করসহ।",
     "मासिक मस्यौदा योजना: निःशुल्क, आधारभूत, र व्यावसायिक, साउदी रियालमा १५ प्रतिशत करसहित।",
-    "Buwanang plano: libre, basic, at propesyonal, sa Saudi riyal na may 15 porsiyentong buwis.",
+    "Buwanang plano: libre, pangunahin, at propesyonal, sa ر.س, kasama ang 15 porsiyentong buwis.",
     "Aylık taslak planları: ücretsiz, temel ve profesyonel, Suudi riyali ve yüzde 15 vergi ile.",
     "ወርሃዊ የረቂቅ ዕቅዶች፦ ነፃ፣ መሠረታዊ፣ እና ሙያዊ፣ በሳዑዲ ሪያል ከ15 በመቶ ግብር ጋር።",
   ),
@@ -177,7 +177,7 @@ export const COPY = {
     "{name} ඉදිරියේ කෙටුම්පත: නඩුව, ආරක්ෂාව, පිළිතුර, විරෝධය. සැලැස්ම ප්‍රවේශය තීරණය කරයි.",
     "{name}-এর সামনে খসড়া: মামলা, প্রতিরক্ষা, জবাব ও আপত্তি। পরিকল্পনা প্রবেশাধিকার ঠিক করে।",
     "{name} अघि मस्यौदा: मुद्दा, प्रतिरक्षा, जवाफ र आपत्ति। योजनाले पहुँच तय गर्छ।",
-    "Pagbalangkas sa harap ng {name}: demanda, depensa, sagot, at tutol. Ang plano ang nagtatakda ng access.",
+    "Pagbalangkas sa harap ng {name}: demanda, depensa, sagot, at tutol. Ang plano ang nagtatakda ng pagpasok.",
     "{name} önünde taslak: dava, savunma, cevap ve itiraz. Erişimi plan belirler.",
     "በ{name} ፊት ረቂቅ፦ ክስ፣ መከላከያ፣ ምላሽ እና ተቃውሞ። ተደራሽነቱን ዕቅዱ ይወስናል።",
   ),
@@ -190,7 +190,7 @@ export const COPY = {
     "{name} ගිණුම් හිමියා උඩුගත කළ ලේඛනවලින් සැදේ. සංග්‍රහයේ ඇති විට පමණක් උපුටා දැක්වේ. නැත්නම් එය ප්‍රතික්ෂේප වී නොසුරකිනු ඇත.\nPDF හෝ Word පෙර සංස්කාරකයේ පරීක්ෂා කරන්න.",
     "{name} অ্যাকাউন্টধারীর কাগজ থেকে তৈরি হয়। উদ্ধৃতি তখনই বসে যখন ধারা সংকলনে থাকে, না হলে তা বাতিল হয়ে সেভ হয় না।\nPDF বা Word-এর আগে সম্পাদকে পাঠ দেখে নিন।",
     "{name} खातावालाका कागजबाट बन्छ। उद्धरण तब मात्र लाग्छ जब धारा सङ्ग्रहमा हुन्छ, नत्र अस्वीकार भएर सुरक्षित हुँदैन।\nPDF वा Word अघि सम्पादकमा पाठ हेर्नुहोस्।",
-    "Ang {name} ay galing sa mga papel na ina-upload ng may account. May sipi lamang kapag nasa corpus ang artikulo; kung wala, tinatanggihan at hindi sine-save.\nRepasuhin ang teksto bago i-export ang PDF o Word.",
+    "Ang {name} ay galing sa mga papel na inaakyat ng may talaan. May sipi lamang kapag nasa kalipunan ang artikulo; kung wala, tinatanggihan at hindi iniimbak.\nRepasuhin ang teksto bago ilabas ang PDF o Word.",
     "{name}, hesap sahibinin yüklediği evraklardan kurulur. Madde yalnızca külliyatta varsa anılır; yoksa atıf reddedilir ve kaydedilmez.\nPDF veya Word öncesinde metni düzenleyicide gözden geçirin.",
     "{name} ከአካውንት ባለቤቱ ከሚጭናቸው ወረቀቶች ይሠራል። አንቀጽ በስብስቡ ውስጥ ሲኖር ብቻ ይጠቀሳል፤ ከሌለ ውድቅ ሆኖ አይቀመጥም።\nPDF ወይም Word ከመላክ በፊት ጽሑፉን በአርታዒው ይገምግሙ።",
   ),
@@ -203,7 +203,7 @@ export const COPY = {
     "{name} ආකෘතිය මෙම මාර්ගයේ ගොනුවේ හැඩය සකසයි. ගබඩා කළ සංග්‍රහයෙන් පිටතින් පදනම් එකතු නොකෙරේ.\nසැලැස්ම මෙම මාර්ගය විවෘත කරයි හෝ වසා තබයි.",
     "{name} ছাঁচ এই পথের আবেদনের আকার ঠিক করে। সংরক্ষিত সংকলনের বাইরে থেকে ভিত্তি যোগ হয় না।\nপরিকল্পনাই এই পথ খোলে বা বন্ধ রাখে।",
     "{name} को ढाँचाले यो मार्गको निवेदनको रूप तय गर्छ। भण्डार गरिएको सङ्ग्रहबाहिरबाट आधार थपिँदैन।\nयोजनाले नै यो मार्ग खोल्छ वा बन्द छाड्छ।",
-    "Itinatakda ng templetong {name} ang anyo ng paghahain sa landas na ito. Walang batayang idinaragdag mula sa labas ng corpus.\nAng plano ang nagbubukas o nagsasara ng landas.",
+    "Itinatakda ng templetong {name} ang anyo ng paghahain sa landas na ito. Walang batayang idinaragdag mula sa labas ng kalipunan.\nAng plano ang nagbubukas o nagsasara ng landas.",
     "{name} şablonu bu yoldaki dilekçenin biçimini belirler. Kayıtlı külliyatın dışından dayanak eklenmez.\nYolu açan veya kapalı bırakan plandır.",
     "የ{name} ቅርጸት በዚህ መስመር ያለውን ማመልከቻ ቅርጽ ይወስናል። ከተቀመጠው ስብስብ ውጭ ምክንያት አይጨመርም።\nመስመሩን የሚከፍተው ወይም የሚዘጋው ዕቅዱ ነው።",
   ),
@@ -268,7 +268,7 @@ export const COPY = {
     "වාණිජ ලියාපදිංචි අංකය සහ ලිපිනය තවම ඇතුළත් කර නැත. ක්‍රියාකරු ඒවා LEGAL_REGISTRATION සහ LEGAL_ADDRESS හි තබයි.",
     "বাণিজ্যিক নিবন্ধন নম্বর ও ঠিকানা এখনও দেওয়া হয়নি। পরিচালক LEGAL_REGISTRATION ও LEGAL_ADDRESS-এ রাখবেন।",
     "व्यावसायिक दर्ता नम्बर र ठेगाना अहिलेसम्म राखिएको छैन। सञ्चालकले LEGAL_REGISTRATION र LEGAL_ADDRESS मा राख्छन्।",
-    "Wala pang commercial registration number at address. Ilalagay ito ng operator sa LEGAL_REGISTRATION at LEGAL_ADDRESS.",
+    "Wala pang numero ng rehistrong pangkalakalan at tirahan. Ilalagay ito ng tagapagpatakbo sa LEGAL_REGISTRATION at LEGAL_ADDRESS.",
     "Ticari kayıt numarası ve adres henüz girilmedi. İşleten bunları LEGAL_REGISTRATION ve LEGAL_ADDRESS içine yazar.",
     "የንግድ ምዝገባ ቁጥር እና አድራሻ ገና አልተጻፉም። ኦፕሬተሩ በ LEGAL_REGISTRATION እና LEGAL_ADDRESS ያስቀምጣቸዋል።",
   ),
@@ -281,7 +281,7 @@ export const COPY = {
     "උසස් විද්‍යුත් නීතිඥ යනු සෞදි අධිකරණ ඉදිරියේ සටහන් සකසන වේදිකාවකි. නිර්මාණය අහමඩ් අලම්රානි.\nඅතුරුමුහුණත අරාබි, ඉංග්‍රීසි, උර්දු, හින්දි, පන්ජාබි, සිංහල, බෙංගාලි, නේපාල, ෆිලිපිනෝ, තුර්කි සහ අම්හාරික් වලින් ලැබේ. නිර්යාත පෙළ අරාබිය.",
     "উন্নত ই-আইনজীবী সৌদি আদালতের সামনে স্মারক লেখার মঞ্চ। তৈরি করেছেন আহমেদ আলামরানি।\nইন্টারফেস আরবি, ইংরেজি, উর্দু, হিন্দি, পাঞ্জাবি, সিংহলি, বাংলা, নেপালি, ফিলিপিনো, তুর্কি ও আমহারিকে। রপ্তানি করা পাঠ আরবি।",
     "उन्नत इ-वकिल साउदी अदालतअघि ज्ञापन लेख्ने मञ्च हो। अहमद अलअमरानीले बनाएका हुन्।\nइन्टरफेस अरबी, अङ्ग्रेजी, उर्दू, हिन्दी, पन्जाबी, सिंहली, बङ्गाली, नेपाली, फिलिपिनो, टर्की र अम्हारिकमा छ। निर्यातित पाठ अरबी हो।",
-    "Ang Advanced E-Lawyer ay plataporma para sa memo sa harap ng mga hukuman ng Saudi. Ginawa ito ni Ahmed Alamrani.\nAvailable ang interface sa Arabe, Ingles, Urdu, Hindi, Punjabi, Sinhala, Bengali, Nepali, Filipino, Turko, at Amharic. Arabe ang iniluluwas na teksto.",
+    "Ang Masusing Abogadong Elektroniko ay plataporma para sa kasulatan sa harap ng mga hukuman ng Saudi. Ginawa ito ni Ahmed Alamrani.\nMagagamit ang harapan sa Arabe, Ingles, Urdu, Hindi, Punjabi, Sinhala, Bengali, Nepali, Filipino, Turko, at Amharic. Arabe ang iniluluwas na teksto.",
     "Gelişmiş E-Avukat, Suudi mahkemeleri önünde not hazırlama platformudur. Ahmed Alamrani kurdu.\nArayüz Arapça, İngilizce, Urduca, Hintçe, Pencapça, Sinhala, Bengalce, Nepalce, Filipince, Türkçe ve Amharca kullanılabilir. Dışa aktarılan metin Arapçadır.",
     "የላቀ ኢ-ጠበቃ በሳዑዲ ፍርድ ቤቶች ፊት ማስታወሻ ለመጻፍ መድረክ ነው። አህመድ አላምራኒ ሠርተውታል።\nመገናኛው በአረብኛ፣ እንግሊዝኛ፣ ኡርዱ፣ ሂንዲ፣ ፑንጃቢ፣ ሲንሃላ፣ ቤንጋሊ፣ ኔፓሊ፣ ፊሊፒኖ፣ ቱርክኛ እና አማርኛ ነው። የሚላከው ጽሑፍ አረብኛ ነው።",
   ),
@@ -447,12 +447,23 @@ export function cleanQuery(value: string | undefined): string {
   return (value || "").replace(/[\u0000-\u001f]/g, "").trim().slice(0, 80);
 }
 
+function placeholderList(text: string): string {
+  return [...text.matchAll(/\{[a-zA-Z0-9_]+\}/g)].map((match) => match[0]).sort().join();
+}
+
 export function localeCoverage(): string[] {
   const problems: string[] = [];
+  const proper = new Set(["Google Drive", "OneDrive", "PDF", "Word", "Nafath", "Sharia", "Apple Pay", "mada", "Ahmed Alamrani", "ر.س"]);
   for (const [group, table] of Object.entries(COPY)) {
+    const pack = table as L10n;
+    const arabic = placeholderList(pack.ar);
     for (const locale of LOCALES) {
-      const value = (table as L10n)[locale];
-      if (!value || !value.trim() || /^TODO/i.test(value)) problems.push(`${group} ${locale}`);
+      const value = pack[locale];
+      if (!value || !value.trim() || /^TODO/i.test(value)) problems.push(`${group} ${locale} empty`);
+      if (placeholderList(value) !== arabic) problems.push(`${group} ${locale} placeholders`);
+      if (locale !== "en" && locale !== "ar" && value === pack.en && !proper.has(value)) {
+        problems.push(`${group} ${locale} copies English`);
+      }
     }
   }
   return problems;

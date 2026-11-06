@@ -171,6 +171,9 @@ export function assertProductionProviders(config: AppConfig): void {
   if (config.nodeEnv !== "production") return;
   const blocked: string[] = [];
   if (config.llmProvider === "mock") blocked.push("LLM_PROVIDER");
+  else if (config.llmProvider !== "remote" || !config.modelBaseUrl || !config.modelApiKey || !config.modelName) {
+    blocked.push("MODEL_BASE_URL");
+  }
   if (config.embeddingProvider === "mock") blocked.push("EMBEDDING_PROVIDER");
   if (config.smsProvider === "mock") blocked.push("SMS_PROVIDER");
   if (config.paymentGateway === "sandbox" || config.paymentGateway === "mock") blocked.push("PAYMENT_GATEWAY");
