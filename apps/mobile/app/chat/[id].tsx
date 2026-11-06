@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { client } from "../../src/api";
+import * as SecureStore from "expo-secure-store";
 
 const t = (key: string) => translate("ar", key);
 
@@ -34,6 +35,47 @@ export default function ChatScreen() {
       setCaseId(result.caseFile?.id || "");
     }).catch(() => undefined);
   }, [id]);
+
+  useEffect(() => {
+    let stop = false;
+    let timer = 0;
+    async function resume() {
+      const raw = await SecureStore.getItemAsync("elw_draft").catch(() => "");
+      if (stop || !raw) return;
+      let pending: { chatId?: string; startedAt?: number } | null = null;
+      try { pending = JSON.parse(raw) as { chatId?: string; startedAt?: number }; } catch { pending = null; }
+      if (!pending || pending.chatId !== String(id) || typeof pending.startedAt !== "number") return;
+      setDrafting(true);
+      async function look() {
+        if (stop) return;
+        if (Date.now() - (pending?.startedAt || 0) > 120000) {
+          await SecureStore.deleteItemAsync("elw_draft").catch(() => undefined);
+          setDrafting(false);
+          setError(t("workspace.draftRetry"));
+          return;
+        }
+        try {
+          const listed = await client().memos();
+          const found = listed.memos.find((memo) => memo.chatId === String(id));
+          if (stop) return;
+          if (found) {
+            await SecureStore.deleteItemAsync("elw_draft").catch(() => undefined);
+            router.push({ pathname: "/memo/[id]", params: { id: found.id } });
+            return;
+          }
+        } catch {
+          if (stop) return;
+        }
+        timer = setTimeout(() => { void look(); }, 2000) as unknown as number;
+      }
+      void look();
+    }
+    void resume();
+    return () => {
+      stop = true;
+      clearTimeout(timer);
+    };
+  }, [id, router]);
 
   async function sendFile(uri: string, name: string, type: string) {
     setUploading(true);
@@ -109,13 +151,15 @@ export default function ChatScreen() {
         setDraftStage(0);
         setError("");
         setDrafting(true);
+        await SecureStore.setItemAsync("elw_draft", JSON.stringify({ chatId: String(id), startedAt: Date.now() })).catch(() => undefined);
         try {
           const result = await client().draft(String(id));
+          await SecureStore.deleteItemAsync("elw_draft").catch(() => undefined);
           router.push({ pathname: "/memo/[id]", params: { id: result.memo.id } });
         } catch (err) {
-          setError(err instanceof ApiError && err.code === "DRAFT_RETRY" ? t("workspace.draftRetry") : t("common.error"));
-        } finally {
+          await SecureStore.deleteItemAsync("elw_draft").catch(() => undefined);
           setDrafting(false);
+          setError(err instanceof ApiError && err.code === "DRAFT_RETRY" ? t("workspace.draftRetry") : t("common.error"));
         }
       }}>
         <Text style={styles.primaryText}>{t("workspace.draft")}</Text>

@@ -1,3 +1,4 @@
+import { draftWaitState, readPendingDraft } from "@/lib/draft-resume";
 import { filterMemos, missingPieces, rememberMemo, sortMemos, wordCount, type MemoRow } from "@/lib/memo-list";
 import { halalasToAmount } from "@/lib/money";
 import { userFacingError } from "@/lib/errors";
@@ -49,6 +50,15 @@ describe("memo list", () => {
     expect(halalasToAmount(900)).toBe("9");
     expect(halalasToAmount(3950)).toBe("39.50");
     expect(halalasToAmount(-100)).toBe("-1");
+  });
+
+  it("keeps a draft job across reload until it expires", () => {
+    expect(readPendingDraft(null)).toBeNull();
+    expect(readPendingDraft("nope")).toBeNull();
+    const pending = readPendingDraft(JSON.stringify({ chatId: "chat-1", startedAt: 1_000 }));
+    expect(pending).toEqual({ chatId: "chat-1", startedAt: 1_000 });
+    expect(draftWaitState(pending!, 50_000)).toBe("wait");
+    expect(draftWaitState(pending!, 130_000)).toBe("expired");
   });
 
   it("maps known failures onto existing copy and hides English API text", () => {

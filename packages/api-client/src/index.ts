@@ -356,8 +356,8 @@ export class ElawyerClient {
     );
   }
 
-  search(q: string) {
-    return this.request(`/search?q=${encodeURIComponent(q)}`) as Promise<{
+  search(q: string, signal?: AbortSignal) {
+    return this.request(`/search?q=${encodeURIComponent(q)}`, { signal }) as Promise<{
       chats: ChatSummary[];
       memos: { id: string; title: string }[];
     }>;

@@ -53,10 +53,17 @@ export const SERVICE_PRICES_HALALAS: Record<ServiceCode, number> = {
   chat_pack: 1900,
 };
 
+export const SINGLE_MEMO_HALALAS = 900;
+
+const SINGLE_MEMO_PRICE: Record<MemoType, number> = {
+  lawsuit: SINGLE_MEMO_HALALAS,
+  defense: SINGLE_MEMO_HALALAS,
+  reply: SINGLE_MEMO_HALALAS,
+  appeal: SINGLE_MEMO_HALALAS,
+};
+
 export function priceForMemoType(memoType: MemoType): number {
-  if (memoType === "lawsuit") return SERVICE_PRICES_HALALAS.lawsuit;
-  if (memoType === "appeal") return SERVICE_PRICES_HALALAS.objection;
-  return SERVICE_PRICES_HALALAS.defense;
+  return SINGLE_MEMO_PRICE[memoType];
 }
 
 export function ownerNetHalalas(
@@ -72,9 +79,9 @@ export const PUBLISHED_PLANS: Record<
   PlanCode,
   { priceHalalas: number; memoLimit: number; chatLimit: number | null }
 > = {
-  free: { priceHalalas: 0, memoLimit: 5, chatLimit: FREE_CHAT_LIMIT },
-  basic: { priceHalalas: 9900, memoLimit: 30, chatLimit: null },
-  pro: { priceHalalas: 24900, memoLimit: 100, chatLimit: null },
+  free: { priceHalalas: 0, memoLimit: 1, chatLimit: FREE_CHAT_LIMIT },
+  basic: { priceHalalas: 3900, memoLimit: 15, chatLimit: null },
+  pro: { priceHalalas: 11900, memoLimit: 50, chatLimit: null },
 };
 
 export const LOCALES = [
