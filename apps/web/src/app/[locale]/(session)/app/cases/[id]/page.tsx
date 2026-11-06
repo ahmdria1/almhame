@@ -1,8 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { Crumbs } from "@/components/crumbs";
 import { Button, Input } from "@/components/ui";
+import { userFacingError } from "@/lib/errors";
 import { useApp } from "@/lib/providers";
 
 type Detail = {
@@ -19,15 +22,17 @@ export default function CasePage() {
   const { t, client, user } = useApp();
   const [detail, setDetail] = useState<Detail | null>(null);
   const [error, setError] = useState("");
+  const [failed, setFailed] = useState(false);
   const [health, setHealth] = useState<{ score: number; hearings: number } | null>(null);
 
   async function load() {
     const result = await client.caseFile(id);
+    setFailed(false);
     setDetail(result.caseFile as Detail);
     const score = await client.caseHealth(id).catch(() => null);
     setHealth(score);
   }
-  useEffect(() => { load().catch(() => setDetail(null)); }, [id]);
+  useEffect(() => { load().catch(() => { setDetail(null); setFailed(true); }); }, [id]);
 
   async function add(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -40,14 +45,23 @@ export default function CasePage() {
         title: String(form.get("title") || ""),
       });
       await load();
-    } catch {
-      setError(t("cases.proOnly"));
+    } catch (err) {
+      setError(userFacingError(err, t));
     }
   }
 
+  if (failed) {
+    return (
+      <div className="p-8">
+        <p className="text-ink-700">{t("common.error")}</p>
+        <button type="button" className="mt-4 inline-flex min-h-11 items-center rounded-xl bg-navy-700 px-4 text-sm font-semibold text-white" onClick={() => void load().catch(() => setFailed(true))}>{t("common.retry")}</button>
+      </div>
+    );
+  }
   if (!detail) return <p className="p-8 text-ink-500">{t("common.loading")}</p>;
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
+      <Crumbs items={[{ href: "/app", label: t("nav.home") }, { href: "/app/cases", label: t("cases.title") }, { label: detail.title }]} />
       <h1 className="text-3xl font-bold text-navy-700 dark:text-white">{detail.title}</h1>
       <p className="text-ink-500">{t(`courts.${detail.court}`)}</p>
       {health ? (
@@ -61,7 +75,7 @@ export default function CasePage() {
           <h2 className="font-semibold">{t("cases.docs")}</h2>
           {detail.documents.map((doc) => <p key={doc.id} className="mt-2 text-sm">{doc.filename}</p>)}
           <h2 className="mt-4 font-semibold">{t("cases.memos")}</h2>
-          {detail.memos.map((memo) => <p key={memo.id} className="mt-2 text-sm">{memo.title}</p>)}
+          {detail.memos.map((memo) => <Link key={memo.id} href={`/app/memos/${memo.id}`} className="mt-2 block text-sm font-semibold text-teal-700">{memo.title}</Link>)}
         </section>
         <section className="rounded-3xl border border-ink-200 p-4 dark:border-white/10">
           <h2 className="font-semibold">{t("cases.hearings")}</h2>

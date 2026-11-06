@@ -1,7 +1,7 @@
 "use client";
 
 import { ApiError } from "@elawyer/api-client";
-import { uploadErrorKey } from "@elawyer/i18n";
+import { memoCountPhrase, uploadErrorKey } from "@elawyer/i18n";
 import { COURTS, MEMO_TYPES, type CourtType, type MemoType } from "@elawyer/types";
 import { List, Mic, Paperclip, Scale, Send } from "lucide-react";
 import Link from "next/link";
@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Button, Modal } from "@/components/ui";
 import { userFacingError } from "@/lib/errors";
+import { missingPieces } from "@/lib/memo-list";
 import { useApp } from "@/lib/providers";
 
 type ChatRow = { id: string; title: string; court: CourtType; memoType: MemoType; caseId: string | null; updatedAt: string };
@@ -16,7 +17,7 @@ type Doc = { id: string; filename: string; byteSize: number };
 type Msg = { id: string; role: string; content: string };
 
 export default function WorkspacePage() {
-  const { t, client, user, refreshUser } = useApp();
+  const { t, client, user, refreshUser, locale } = useApp();
   const router = useRouter();
   const [chats, setChats] = useState<ChatRow[]>([]);
   const [active, setActive] = useState<string>("");
@@ -30,6 +31,11 @@ export default function WorkspacePage() {
   const [quota, setQuota] = useState(false);
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [preview, setPreview] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [dragging, setDragging] = useState(false);
+  const [listError, setListError] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const [draftStage, setDraftStage] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -56,7 +62,7 @@ export default function WorkspacePage() {
   }
 
   useEffect(() => {
-    loadList().catch(() => undefined);
+    loadList().catch(() => setListError(true));
   }, []);
 
   async function createChat() {
@@ -99,25 +105,45 @@ export default function WorkspacePage() {
   async function send() {
     if (!active || !text.trim()) return;
     const value = text;
+    const optimistic = { id: `local-${Date.now()}`, role: "user", content: value };
     setText("");
-    const result = await client.sendMessage(active, value);
-    setMessages((current) => [...current, result.user, result.counsel]);
-    const detail = await client.chat(active);
-    setParties({ plaintiff: detail.caseFile?.plaintiff || "", defendant: detail.caseFile?.defendant || "" });
+    setMessages((current) => [...current, optimistic]);
+    try {
+      const result = await client.sendMessage(active, value);
+      setMessages((current) => [...current.filter((item) => item.id !== optimistic.id), result.user, result.counsel]);
+      const detail = await client.chat(active);
+      setParties({ plaintiff: detail.caseFile?.plaintiff || "", defendant: detail.caseFile?.defendant || "" });
+    } catch (err) {
+      setMessages((current) => current.filter((item) => item.id !== optimistic.id));
+      setText(value);
+      setError(userFacingError(err, t));
+    }
+  }
+
+  function stageFile(file: File) {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreview(file);
+    setPreviewUrl(URL.createObjectURL(file));
+    setProgress(0);
   }
 
   async function attach(file: File) {
     if (!caseId) return;
     setUploading(true);
+    setProgress(0);
     setError("");
     try {
-      await client.uploadDocument(caseId, file, file.name);
+      await client.uploadDocument(caseId, file, file.name, (ratio) => setProgress(ratio));
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setPreview(null);
+      setPreviewUrl("");
       if (active) await openChat(active);
     } catch (err) {
       const key = err instanceof ApiError ? uploadErrorKey(err.code) : null;
       setError(err instanceof ApiError && err.code === "BUSY" ? t("errors.busy") : key ? t(key) : userFacingError(err, t));
     } finally {
       setUploading(false);
+      setProgress(0);
       if (fileRef.current) fileRef.current.value = "";
     }
   }
@@ -147,7 +173,14 @@ export default function WorkspacePage() {
   const freeLimit = user?.planCode === "free" ? user.chatLimit ?? 5 : null;
   const left = freeLimit == null ? 0 : Math.max(0, freeLimit - (user?.chatCount ?? 0));
   const visible = chats.filter((chat) => !query || chat.title.includes(query));
-  const completeness = Math.min(100, (docs.length ? 40 : 0) + (messages.length > 1 ? 30 : 0) + (parties.plaintiff ? 30 : 0));
+  const gaps = missingPieces({ docs: docs.length, messages: messages.length, plaintiff: parties.plaintiff, defendant: parties.defendant });
+  const completeness = Math.round(((4 - gaps.length) / 4) * 100);
+  const gapLabel = {
+    documents: "workspace.documents",
+    facts: "workspace.emptyTitle",
+    plaintiff: "workspace.plaintiff",
+    defendant: "workspace.defendant",
+  } as const;
 
   const tabs = [
     ["memo", "workspace.tabMemo"],
@@ -177,6 +210,11 @@ export default function WorkspacePage() {
           </dl>
           <p className="mt-4 text-xs text-ink-500">{t("workspace.completeness")} {completeness}%</p>
           <div className="mt-1 h-2 rounded-full bg-ink-100"><div className="h-2 rounded-full bg-teal-600" style={{ width: `${completeness}%` }} /></div>
+          {gaps.length > 0 ? (
+            <ul className="mt-2 grid gap-1 text-xs text-ink-700">
+              {gaps.map((gap) => <li key={gap}>{t(gapLabel[gap])}</li>)}
+            </ul>
+          ) : null}
           <Button data-testid="draft-button" className="mt-4 w-full" onClick={draft} disabled={!active || drafting}>{t("workspace.draft")}</Button>
           {drafting ? <p data-testid="draft-status" className="mt-2 text-sm text-navy-700">{draftStage === 0 ? t("workspace.drafting") : t("workspace.draftReview")}</p> : null}
           {error ? <p className="mt-2 text-sm text-danger">{error}</p> : null}
@@ -190,22 +228,43 @@ export default function WorkspacePage() {
                 <p className="text-xs text-ink-400">{Math.ceil(doc.byteSize / 1024)} KB</p>
               </div>
             ))}
+            {preview && previewUrl ? (
+              <div className="rounded-2xl border border-ink-200 bg-white p-3 text-sm dark:border-white/10 dark:bg-navy-800">
+                <p className="font-semibold">{t("memo.preview")}</p>
+                <p className="mt-1 text-xs text-ink-500">{preview.name}</p>
+                {preview.type.startsWith("image/") ? <img src={previewUrl} alt={preview.name} className="mt-2 max-h-40 w-full rounded-xl object-contain" /> : null}
+                {preview.type === "application/pdf" ? <iframe title={preview.name} src={previewUrl} className="mt-2 h-40 w-full rounded-xl" /> : null}
+                <div className="mt-3 flex gap-2">
+                  <Button type="button" disabled={uploading || !caseId} onClick={() => void attach(preview)}>{t("workspace.attach")}</Button>
+                  <Button type="button" variant="secondary" onClick={() => { URL.revokeObjectURL(previewUrl); setPreview(null); setPreviewUrl(""); }}>{t("common.cancel")}</Button>
+                </div>
+              </div>
+            ) : null}
             <label
-              className="flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-dashed border-ink-300 px-3 text-center text-sm text-ink-500"
-              onDragOver={(event) => event.preventDefault()}
+              className={`flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-dashed px-3 text-center text-sm ${dragging ? "border-teal-600 bg-teal-100 text-teal-700" : "border-ink-300 text-ink-500"}`}
+              onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)}
               onDrop={(event) => {
                 event.preventDefault();
+                setDragging(false);
                 const file = event.dataTransfer.files?.[0];
-                if (file) void attach(file);
+                if (file) stageFile(file);
               }}
             >
-              {t("memo.drop")}
-              {uploading ? t("workspace.uploading") : t("workspace.attachments")}
+              {dragging ? t("memo.drop") : t("workspace.attachments")}
               <input ref={fileRef} data-testid="file-input" className="hidden" type="file" accept="application/pdf,image/png,image/jpeg,image/webp" onChange={(event) => {
                 const file = event.target.files?.[0];
-                if (file) void attach(file);
+                if (file) stageFile(file);
               }} />
             </label>
+            {uploading ? (
+              <div>
+                <p className="text-xs text-ink-500">{t("workspace.uploading")} {Math.round(progress * 100)}%</p>
+                <div className="mt-1 h-2 rounded-full bg-ink-100" role="progressbar" aria-label={t("workspace.uploading")} aria-valuenow={Math.round(progress * 100)} aria-valuemin={0} aria-valuemax={100}>
+                  <div className="h-2 rounded-full bg-teal-600" style={{ width: `${Math.round(progress * 100)}%` }} />
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       </aside>
@@ -246,7 +305,7 @@ export default function WorkspacePage() {
             <button aria-label={t("memo.voice")} className="grid min-h-11 min-w-11 place-items-center text-ink-400" type="button" onClick={() => void recordVoice()}><Mic size={18} /></button>
             <button data-testid="chat-send" className="grid h-12 w-12 min-h-11 min-w-11 place-items-center rounded-full bg-navy-700 text-white" type="button" onClick={() => void send()}><Send size={18} className="rtl:-scale-x-100" /></button>
           </div>
-          {uploading ? <p className="mt-2 text-xs text-ink-500">{t("workspace.uploading")}</p> : null}
+          {uploading ? <p className="mt-2 text-xs text-ink-500">{t("workspace.uploading")} {Math.round(progress * 100)}%</p> : null}
           <div id="voice-slot" className="mt-2" />
         </div>
       </section>
@@ -254,6 +313,12 @@ export default function WorkspacePage() {
       <aside className={`${drawer ? "fixed inset-y-0 end-0 z-50 flex w-[min(100%,20rem)] flex-col overflow-auto bg-white shadow-card dark:bg-navy-900 lg:static lg:z-auto lg:w-auto lg:bg-transparent lg:shadow-none" : "hidden"} border-ink-200 p-4 lg:flex lg:flex-col lg:border-s dark:border-white/10`}>
         {drawer ? <button type="button" className="mb-3 min-h-11 text-start text-sm font-semibold text-navy-700 lg:hidden" onClick={() => setDrawer(false)}>{t("common.back")}</button> : null}
         <Button data-testid="new-chat" className="w-full" onClick={() => void createChat()}>{t("workspace.newChat")}</Button>
+        {listError ? (
+          <div className="mt-3">
+            <p className="text-sm text-ink-700">{t("common.error")}</p>
+            <button type="button" className="mt-2 min-h-11 text-sm font-semibold text-teal-700" onClick={() => { setListError(false); void loadList().catch(() => setListError(true)); }}>{t("common.retry")}</button>
+          </div>
+        ) : null}
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("workspace.search")} className="mt-3 h-11 w-full rounded-xl border border-ink-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-navy-800" />
         <div className="mt-3 grid gap-2">
           {visible.map((chat) => (
@@ -267,6 +332,12 @@ export default function WorkspacePage() {
           <div className="mt-4 rounded-2xl bg-teal-100 p-3 text-sm text-teal-700">
             <p>{t("workspace.remaining", { left, total: freeLimit ?? 5 })}</p>
             <Link href="/app/plans" className="mt-2 inline-block font-semibold">{t("workspace.upgrade")}</Link>
+          </div>
+        ) : null}
+        {user && user.memoRemaining <= 2 ? (
+          <div className="mt-4 rounded-2xl bg-teal-100 p-3 text-sm text-teal-700">
+            <p>{t("menu.memosLeft", { phrase: memoCountPhrase(locale, user.memoRemaining) })}</p>
+            <Link href="/app/plans" className="mt-2 inline-block font-semibold">{t("quota.cta")}</Link>
           </div>
         ) : null}
       </aside>
