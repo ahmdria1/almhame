@@ -1,40 +1,40 @@
-import { colors } from "@elawyer/tokens";
 import { Link } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { usePrefs, useT } from "../src/use-prefs";
 
 const STEPS = [
-  ["ملف لكل قضية", "اجمع المستندات والمحادثة والمذكرة في مكان واحد."],
-  ["مصادر يمكن فتحها", "الاستشهاد يأتي من المدونة ويعود إلى سجله."],
-  ["لك وحدك", "يُشفّر الملف لحسابك."],
-];
+  ["landing.s2Title", "landing.s2Body"],
+  ["landing.s3Title", "landing.s3Body"],
+  ["landing.s4Title", "landing.s4Body"],
+] as const;
 
 export default function Onboarding() {
+  const { colors } = usePrefs();
+  const t = useT();
   const [step, setStep] = useState(0);
   const last = step === STEPS.length - 1;
+  const [title, body] = STEPS[step];
+  const button = (
+    <Pressable style={[styles.button, { backgroundColor: colors.button }]} onPress={last ? undefined : () => setStep((value) => value + 1)}>
+      <Text style={[styles.buttonText, { color: colors.buttonText }]}>{last ? t("nav.startFree") : t("list.more")}</Text>
+    </Pressable>
+  );
   return (
-    <View style={styles.screen}>
-      <Text style={styles.kicker}>{step + 1} / 3</Text>
-      <Text style={styles.title}>{STEPS[step][0]}</Text>
-      <Text style={styles.body}>{STEPS[step][1]}</Text>
-      {last ? (
-        <Link href="/signup" asChild>
-          <Pressable style={styles.button}><Text style={styles.buttonText}>ابدأ</Text></Pressable>
-        </Link>
-      ) : (
-        <Pressable style={styles.button} onPress={() => setStep((value) => value + 1)}>
-          <Text style={styles.buttonText}>التالي</Text>
-        </Pressable>
-      )}
+    <View style={[styles.screen, { backgroundColor: colors.canvas }]}>
+      <Text style={[styles.kicker, { color: colors.link }]}>{step + 1} / {STEPS.length}</Text>
+      <Text style={[styles.title, { color: colors.ink }]}>{t(title)}</Text>
+      <Text style={[styles.body, { color: colors.muted }]}>{t(body)}</Text>
+      {last ? <Link href="/signup" asChild>{button}</Link> : button}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.canvas, padding: 24, justifyContent: "center" },
-  kicker: { color: colors.teal600, fontWeight: "700" },
-  title: { marginTop: 12, fontSize: 32, fontWeight: "700", color: colors.navy700 },
-  body: { marginTop: 12, fontSize: 16, lineHeight: 28, color: colors.slate500 },
-  button: { marginTop: 28, backgroundColor: colors.navy700, borderRadius: 14, padding: 14, alignItems: "center" },
-  buttonText: { color: "white", fontWeight: "700" },
+  screen: { flex: 1, padding: 24, justifyContent: "center" },
+  kicker: { fontWeight: "700" },
+  title: { marginTop: 12, fontSize: 32, fontWeight: "700" },
+  body: { marginTop: 12, fontSize: 16, lineHeight: 28 },
+  button: { marginTop: 28, borderRadius: 14, padding: 14, alignItems: "center" },
+  buttonText: { fontWeight: "700" },
 });
