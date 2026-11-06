@@ -10,6 +10,19 @@ import type {
   SessionUser,
 } from "@elawyer/types";
 
+type UploadXhr = {
+  open(method: string, url: string): void;
+  withCredentials: boolean;
+  setRequestHeader(name: string, value: string): void;
+  upload: { onprogress: ((event: { lengthComputable: boolean; loaded: number; total: number }) => void) | null };
+  onload: (() => void) | null;
+  onerror: (() => void) | null;
+  responseText: string;
+  status: number;
+  statusText: string;
+  send(body: FormData): void;
+};
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -267,6 +280,10 @@ export class ElawyerClient {
     }>;
   }
 
+  markNotification(id: string) {
+    return this.request(`/me/notifications/${id}/read`, { method: "POST" }) as Promise<{ ok: boolean }>;
+  }
+
   cases(page = 1) {
     return this.request(`/cases?page=${page}`) as Promise<{
       cases: { id: string; title: string; court: CourtType; status: string; updatedAt: string }[];
@@ -294,11 +311,49 @@ export class ElawyerClient {
     return this.request(`/cases/${caseId}/hearings`, { method: "POST", body: JSON.stringify(input) });
   }
 
-  uploadDocument(caseId: string, file: Blob | { uri: string; name: string; type: string }, filename: string) {
+  uploadDocument(
+    caseId: string,
+    file: Blob | { uri: string; name: string; type: string },
+    filename: string,
+    onProgress?: (ratio: number) => void,
+  ) {
     const body = new FormData();
     if (typeof Blob !== "undefined" && file instanceof Blob) body.append("file", file, filename);
     else body.append("file", file as Blob);
-    return this.request(`/cases/${caseId}/documents`, { method: "POST", body });
+    const xhrCtor = (globalThis as { XMLHttpRequest?: new () => UploadXhr }).XMLHttpRequest;
+    if (!onProgress || !xhrCtor) {
+      return this.request(`/cases/${caseId}/documents`, { method: "POST", body });
+    }
+    return this.uploadWithProgress(xhrCtor, `/cases/${caseId}/documents`, body, onProgress);
+  }
+
+  private uploadWithProgress(xhrCtor: new () => UploadXhr, path: string, body: FormData, onProgress: (ratio: number) => void) {
+    return this.ensureCsrf().then(
+      () =>
+        new Promise((resolve, reject) => {
+          const xhr = new xhrCtor();
+          xhr.open("POST", `${this.opts.baseUrl}${path}`);
+          xhr.withCredentials = (this.opts.credentials ?? "include") !== "omit";
+          const token = this.opts.getToken?.();
+          if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+          if (this.csrf) xhr.setRequestHeader("X-CSRF-Token", this.csrf);
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable && event.total > 0) onProgress(event.loaded / event.total);
+          };
+          xhr.onload = () => {
+            const text = xhr.responseText;
+            const data = text ? (JSON.parse(text) as { csrfToken?: string; error?: { code?: string; message?: string } }) : null;
+            if (data?.csrfToken) this.csrf = data.csrfToken;
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve(data);
+              return;
+            }
+            reject(new ApiError(xhr.status, data?.error?.code || `HTTP_${xhr.status}`, data?.error?.message || xhr.statusText));
+          };
+          xhr.onerror = () => reject(new ApiError(0, "NETWORK", "network"));
+          xhr.send(body);
+        }),
+    );
   }
 
   search(q: string) {

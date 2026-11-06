@@ -56,13 +56,27 @@ export function AccountMenu() {
   const { t, user, logout, locale } = useApp();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [notes, setNotes] = useState<{ id: string; title: string }[]>([]);
+  const [notes, setNotes] = useState<{ id: string; title: string; readAt: string | null }[]>([]);
   const [showNotes, setShowNotes] = useState(false);
   const { client } = useApp();
   useEffect(() => {
-    if (!showNotes) return;
-    client.notifications().then((result) => setNotes(result.items)).catch(() => setNotes([]));
-  }, [showNotes, client]);
+    let stop = false;
+    async function load() {
+      try {
+        const result = await client.notifications();
+        if (!stop) setNotes(result.items);
+      } catch {
+        if (!stop) setNotes([]);
+      }
+    }
+    void load();
+    const timer = window.setInterval(() => void load(), 20000);
+    return () => {
+      stop = true;
+      window.clearInterval(timer);
+    };
+  }, [client]);
+  const unread = notes.filter((item) => !item.readAt).length;
   if (!user) return null;
   const items = [
     ["/app/wallet", "nav.wallet", Wallet],
@@ -74,8 +88,21 @@ export function AccountMenu() {
   ] as const;
   return (
     <div className="flex items-center gap-2">
-      <button aria-label={t("bell.label")} className="grid min-h-11 min-w-11 place-items-center rounded-full text-ink-500" type="button" onClick={() => setShowNotes((value) => !value)}>
+      <button
+        aria-label={t("bell.label")}
+        className="relative grid min-h-11 min-w-11 place-items-center rounded-full text-ink-500"
+        type="button"
+        onClick={() => {
+          setShowNotes((value) => !value);
+          const pending = notes.filter((item) => !item.readAt);
+          if (pending.length === 0) return;
+          void Promise.all(pending.map((item) => client.markNotification(item.id))).then(() => {
+            setNotes((current) => current.map((item) => (item.readAt ? item : { ...item, readAt: new Date().toISOString() })));
+          }).catch(() => undefined);
+        }}
+      >
         <Bell size={18} />
+        {unread > 0 ? <span className="absolute end-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-teal-700 px-1 text-[10px] font-bold text-white">{unread}</span> : null}
       </button>
       {showNotes ? (
         <div className="paper absolute end-4 top-16 z-50 w-72 rounded-2xl border border-ink-200 p-3 shadow-card dark:border-white/10">

@@ -41,7 +41,7 @@ export default function PlansPage() {
             <article key={plan.code} className={`rounded-3xl border p-5 ${plan.code === "pro" ? "border-teal-600 bg-navy-700 text-white" : "paper border-ink-200 dark:border-white/10"}`}>
               {plan.code === "pro" ? <p className="text-xs font-semibold text-teal-300">{t("plans.popular")}</p> : null}
               <h2 className="text-lg font-semibold">{t(`plans.${plan.code}Name`)}</h2>
-              <p className="mt-3 text-4xl font-bold">{(price / 100).toFixed(0)}</p>
+              <p className="mt-3 text-4xl font-bold">{(price / 100).toFixed(0)} {t("common.sar")}</p>
               <p className="text-sm opacity-80">{yearly ? t("common.year") : t("plans.perMonth")}</p>
               <p className="mt-3 text-sm leading-7 opacity-80">{t(`plans.${plan.code}Desc`)}</p>
               <button type="button" disabled={current || plan.code === "free"} onClick={() => void choose(plan)} className={`mt-5 w-full rounded-xl px-3 py-2 text-sm font-semibold ${plan.code === "pro" ? "bg-white text-navy-700" : "bg-navy-700 text-white"}`}>

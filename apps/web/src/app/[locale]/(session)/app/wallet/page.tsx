@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { halalasToAmount } from "@/lib/money";
 import { useApp } from "@/lib/providers";
 
 const AMOUNTS = [10000, 25000, 50000, 100000];
@@ -38,12 +39,12 @@ export default function WalletPage() {
             {failed ? <button type="button" className="mt-3 inline-flex min-h-11 items-center rounded-xl bg-white px-4 text-sm font-semibold text-navy-700" onClick={() => void load()}>{t("common.retry")}</button> : null}
           </div>
         ) : (
-          <p className="mt-2 text-4xl font-bold">{(data.balanceHalalas / 100).toFixed(2)} {t("common.sar")}</p>
+          <p className="mt-2 text-4xl font-bold">{halalasToAmount(data.balanceHalalas)} {t("common.sar")}</p>
         )}
         <div className="mt-4 flex flex-wrap gap-2">
           {AMOUNTS.map((amount) => (
             <button key={amount} data-testid={`topup-${amount / 100}`} className="inline-flex min-h-11 items-center rounded-xl bg-white/10 px-4 text-sm font-semibold" type="button" onClick={() => void topup(amount)}>
-              {amount / 100} {t("common.sar")}
+              {halalasToAmount(amount)} {t("common.sar")}
             </button>
           ))}
         </div>
@@ -55,7 +56,7 @@ export default function WalletPage() {
           {(data?.transactions.length || 0) === 0 ? <p className="mt-3 text-sm text-ink-500">{t("wallet.txEmpty")}</p> : data?.transactions.map((row) => (
             <div key={row.id} className="mt-2 flex justify-between rounded-2xl border border-ink-200 px-3 py-3 text-sm dark:border-white/10">
               <span>{row.description}</span>
-              <span className={row.amountHalalas < 0 ? "text-danger" : "text-success"}>{(row.amountHalalas / 100).toFixed(2)}</span>
+              <span className={row.amountHalalas < 0 ? "text-danger" : "text-success"}>{halalasToAmount(row.amountHalalas)} {t("common.sar")}</span>
             </div>
           ))}
         </section>
@@ -64,7 +65,7 @@ export default function WalletPage() {
           {(data?.invoices.length || 0) === 0 ? <p className="mt-3 text-sm text-ink-500">{t("wallet.invoiceEmpty")}</p> : data?.invoices.map((row) => (
             <div key={row.id} className="mt-2 rounded-2xl border border-ink-200 px-3 py-3 text-sm dark:border-white/10">
               <p className="font-semibold">{row.number}</p>
-              <p className="text-ink-500">{row.lineDescription} · {(row.totalHalalas / 100).toFixed(2)} {t("common.sar")}</p>
+              <p className="text-ink-500">{row.lineDescription} · {halalasToAmount(row.totalHalalas)} {t("common.sar")}</p>
             </div>
           ))}
         </section>
