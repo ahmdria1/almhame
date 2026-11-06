@@ -13,6 +13,7 @@ import { AuditInterceptor, ApiExceptionFilter } from "./interceptors";
 import { Kernel } from "./kernel";
 import { PrismaService } from "./prisma.service";
 import { ReminderService } from "./reminders.service";
+import { TranslationService } from "./translation.service";
 import { CacheService } from "./cache.service";
 import { CaseService } from "./case.service";
 import { ChatService } from "./chat.service";
@@ -59,6 +60,7 @@ import { WorkService } from "./work.service";
     ScoutService,
     WeeklyService,
     ReminderService,
+    TranslationService,
     AdminService,
     BootstrapService,
     ChatGateway,

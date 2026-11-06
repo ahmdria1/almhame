@@ -266,5 +266,17 @@
   "workspace.tabPrepare": "استعد لجلستك",
   "workspace.tabSources": "المصادر",
   "workspace.upgrade": "ترقية الباقة",
-  "workspace.uploading": "جارٍ رفع الملف"
+  "workspace.uploading": "جارٍ رفع الملف",
+  "mail.activateSubject": "تفعيل حساب الإدارة",
+  "mail.codeLine": "الرمز: {code}",
+  "mail.digestBody": "مذكرات هذا الأسبوع: {memos}. مواعيد: {hearings}.",
+  "mail.digestSubject": "ملخص الأسبوع",
+  "mail.expires": "ينتهي الرمز خلال ثلاثين دقيقة.",
+  "mail.hearingBody": "موعد محفوظ اقترب.",
+  "mail.hearingSubject": "تذكير بموعد",
+  "mail.mfaSubject": "رمز التحقق",
+  "mail.resetSubject": "إعادة تعيين كلمة المرور",
+  "mail.verifySubject": "تأكيد البريد",
+  "notif.hearingTitle": "تذكير بموعد محفوظ",
+  "sms.loginCode": "رمز الدخول {code}"
 }

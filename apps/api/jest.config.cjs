@@ -15,6 +15,7 @@ const transform = {
 
 const mapper = {
   "^@elawyer/types$": "<rootDir>/../../packages/types/src/index.ts",
+  "^@elawyer/i18n$": "<rootDir>/../../packages/i18n/src/index.ts",
 };
 
 module.exports = {

@@ -14,6 +14,7 @@ const LINKS = [
   ["/dashboard/costs", "تكلفة التشغيل"],
   ["/dashboard/operations", "العمليات"],
   ["/dashboard/settings", "الإعدادات"],
+  ["/dashboard/translations", "الترجمات"],
   ["/dashboard/audit", "سجل العمليات"],
 ];
 

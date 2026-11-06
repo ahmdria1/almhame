@@ -1,5 +1,5 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
-import { sendAuthMail } from "./mail";
+import { mailLocale, sendAuthMail } from "./mail";
 import { Kernel } from "./kernel";
 
 @Injectable()
@@ -31,7 +31,7 @@ export class WeeklyService implements OnModuleInit, OnModuleDestroy {
   async sendDue() {
     const users = await this.kernel.prisma.user.findMany({
       where: { emailVerifiedAt: { not: null } },
-      select: { id: true, email: true },
+      select: { id: true, email: true, locale: true },
       take: 50,
     });
     for (const user of users) {
@@ -41,7 +41,10 @@ export class WeeklyService implements OnModuleInit, OnModuleDestroy {
         to: user.email,
         code: "",
         purpose: "weekly_digest",
-        link: `مذكرات هذا الأسبوع: ${counts.memos}. مواعيد: ${counts.hearings}.`,
+        link: "",
+        locale: mailLocale(user.locale),
+        memos: counts.memos,
+        hearings: counts.hearings,
       });
     }
     return { sent: users.length };

@@ -7,6 +7,9 @@ function production(overrides: Partial<AppConfig> = {}): AppConfig {
   return {
     nodeEnv: "production",
     llmProvider: "remote",
+    modelBaseUrl: "https://model.internal.example/v1",
+    modelApiKey: "live-model-key",
+    modelName: "draft-sa",
     embeddingProvider: "remote",
     smsProvider: "disabled",
     paymentGateway: "alrajhi",
@@ -24,6 +27,11 @@ function production(overrides: Partial<AppConfig> = {}): AppConfig {
 describe("production boot guard", () => {
   it("boots when providers and secrets are real", () => {
     expect(() => assertProductionProviders(production())).not.toThrow();
+  });
+
+  it("refuses a mock model and a remote model with no endpoint", () => {
+    expect(() => assertProductionProviders(production({ llmProvider: "mock" }))).toThrow(/LLM_PROVIDER/);
+    expect(() => assertProductionProviders(production({ modelBaseUrl: "", modelApiKey: "" }))).toThrow(/MODEL_BASE_URL/);
   });
 
   it("refuses debug codes, example secrets, and short secrets", () => {

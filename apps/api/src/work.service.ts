@@ -16,6 +16,8 @@ import { draftCheckRecord, draftPrompt, humanMemo, reviewModelDraft, type DraftC
 import { decryptBytes, encryptBytes } from "./domain/envelope";
 import { halalasToSar, nextInvoiceNumber, splitVatInclusive, zatcaQrBase64 } from "./domain/invoice";
 import { estimateTokens, readGeneric, routeModel, writeGeneric, type RouteDecision } from "./domain/model-route";
+import { translate } from "@elawyer/i18n";
+import { mailLocale } from "./mail";
 import { verifierModel } from "./domain/sms-provider";
 import { chatQuota, chatsCounted, courtAllowed, memoQuota } from "./domain/plans";
 import { signSandbox } from "./domain/payments";
@@ -623,8 +625,9 @@ export class WorkService {
     const rows = await this.kernel.prisma.notification.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, take: 30 });
     const items = [];
     for (const row of rows) {
-      let title = "تذكير بموعد محفوظ";
-      if (row.hearingId) {
+      let title = translate(mailLocale(user.locale), "notif.hearingTitle");
+      if (row.titleEnc) title = this.kernel.dec(dek, row.titleEnc);
+      else if (row.hearingId) {
         const hearing = await this.kernel.prisma.hearing.findFirst({ where: { id: row.hearingId, userId } });
         if (hearing) title = this.kernel.dec(dek, hearing.titleEnc);
       }
